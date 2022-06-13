@@ -1,7 +1,11 @@
 // https://dev.to/alrobilliard/deploying-net-core-to-heroku-1lfe
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Server.Arkaine;
+using Server.Arkaine.Identity;
 using Server.Arkaine.User;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -23,10 +27,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     };
 });
 
-builder.Services.AddScoped<IUserService, UserService>();
+builder.Configuration
+    .AddJsonFile("appsettings.json")
+    .AddJsonFile("appsettings.local.json", true)
+    .AddEnvironmentVariables();
 
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("Heroku")));
 builder.Services.AddAuthorization();
-builder.Configuration.AddEnvironmentVariables();
+builder.Services.AddDefaultIdentity<IdentityUser>()
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<ArkaineDbContext>();
 
 var app = builder.Build();
 app.UseAuthentication();
@@ -37,7 +48,7 @@ app.MapPost("/login",
     async (LoginRequest request, IUserService service) => await Login(request, service));
 
 app.MapGet("/token",
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User, Admin")]
     async (string bucket, IUserService service) => await GetB2Token(bucket, service));
 
 app.MapGet("/",
@@ -55,9 +66,9 @@ async Task<IResult> Login(LoginRequest request, IUserService service)
         return Results.BadRequest("Username and password are required");
     }
 
-    var loggedInUser = await service.LoginUserAsync(request.Username, request.Password);
+    var isSignedIn = await service.LoginUserAsync(request.Username, request.Password);
 
-    if (loggedInUser == null)
+    if (!isSignedIn)
     {
         return Results.Unauthorized();
     }
@@ -82,5 +93,7 @@ async Task<IResult> Login(LoginRequest request, IUserService service)
 
     return Results.Ok(tokenString);
 }
+
+//await SeedUser.Initialize(app.Services);
 
 app.Run();
