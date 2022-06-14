@@ -2,7 +2,6 @@
 {
     public interface IUserService
     {
-        Task<bool> LoginUserAsync(string username, string password);
-        Task<string> GetB2Token(string bucket);
+        Task<IList<string>?> LoginUserAsync(string username, string password);
     }
 }

@@ -6,31 +6,27 @@ namespace Server.Arkaine.User
     {
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly ILogger<UserService> _logger;
-        public UserService(SignInManager<IdentityUser> signInManager, ILogger<UserService> logger)
+        private readonly UserManager<IdentityUser> _userManager;
+
+        public UserService(SignInManager<IdentityUser> signInManager, UserManager<IdentityUser> userManager, ILogger<UserService> logger)
         {
             _signInManager = signInManager;
             _logger = logger;
+            _userManager = userManager;
         }
 
-        public Task<string> GetB2Token(string bucket)
-        {
-            throw new NotImplementedException();
-        }
-
-        public async Task<bool> LoginUserAsync(string username, string password)
+        public async Task<IList<string>?> LoginUserAsync(string username, string password)
         {
             var result = await _signInManager.PasswordSignInAsync(username, password, false, true);
 
-            if (result.Succeeded)
-            {
-                _logger.LogInformation("User sign in succeeded");
-            }
-            else
+            if (!result.Succeeded)
             {
                 _logger.LogInformation("User signin failed");
+                return null;
             }
 
-            return result.Succeeded;
+            var user = await _userManager.FindByNameAsync(username);
+            return await _userManager.GetRolesAsync(user);
         }
     }
 }
