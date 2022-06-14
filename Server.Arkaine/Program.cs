@@ -1,4 +1,3 @@
-// https://dev.to/alrobilliard/deploying-net-core-to-heroku-1lfe
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -21,9 +20,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         ValidateAudience = true,
         ValidateIssuerSigningKey = true,
         ValidateLifetime = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwd:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+        ValidIssuer = builder.Configuration["JWT_ISSUER"],
+        ValidAudience = builder.Configuration["JWT_AUDIENCE"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT_KEY"]))
     };
 });
 
@@ -33,7 +32,7 @@ builder.Configuration
     .AddEnvironmentVariables();
 
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("Heroku")));
+builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
 builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
@@ -80,13 +79,13 @@ async Task<IResult> Login(LoginRequest request, IUserService service)
     };
 
     var token = new JwtSecurityToken(
-        issuer: builder.Configuration["Jwt:Issuer"],
-        audience: builder.Configuration["Jwt:Audience"],
+        issuer: builder.Configuration["JWT_ISSUER"],
+        audience: builder.Configuration["JWT_AUDIENCE"],
         claims: claims,
         expires: DateTime.UtcNow.AddMinutes(5),
         notBefore: DateTime.UtcNow,
         signingCredentials: new SigningCredentials(
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT_KEY"])),
             SecurityAlgorithms.HmacSha256));
 
     var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
