@@ -1,6 +1,5 @@
 ﻿using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 
 namespace Server.Arkaine.B2
 {
@@ -23,14 +22,61 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var resposne = await client.GetAsync(url);
+            var response = await client.GetAsync(url);
+            var responseString = await response.Content.ReadAsStringAsync();
 
-            if (!resposne.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                throw new ($"Auth API call responded with: {resposne.StatusCode}");
+                _logger.LogInformation($"Auth API call responded with: {response.StatusCode}");
+                throw new (responseString);
             }
 
-            return await resposne.Content.ReadAsStringAsync();
+            _logger.LogInformation("Get token succeeded");
+            return responseString;
+        }
+
+        public async Task<string> ListAlbums(AlbumsRequest request)
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", request.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            var buffer = Encoding.UTF8.GetBytes("{\"accountId\":\"" + request.AccountId + "\"}");
+            var byteContent = new ByteArrayContent(buffer);
+
+            var response = await client.PostAsync(request.Url + "/b2api/v2/b2_list_buckets", byteContent);
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"List buckets API call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            _logger.LogInformation("List buckets succeeded");
+            return responseString;
+        }
+
+        public async Task<string> ListFiles(FilesRequest request)
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", request.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            var buffer = Encoding.UTF8.GetBytes("{\"bucketId\":\"" + request.BucketId + "\"}");
+            var byteContent = new ByteArrayContent(buffer);
+
+            var response = await client.PostAsync(request.Url + "/b2api/v2/b2_list_file_names", byteContent);
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"List files API call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            _logger.LogInformation("List files succeeded");
+            return responseString;
         }
     }
 }
