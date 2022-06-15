@@ -1,39 +1,22 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Server.Arkaine.B2
 {
     public static class B2Apis
     {
-        public static void RegisterB2Apis(this WebApplication app, WebApplicationBuilder builder)
+        public static void RegisterB2Apis(this WebApplication app)
         {
-            app.MapGet("/token",
-                [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async ([FromServices] IB2Service service) =>
-            {
-                try
-                {
-                    return Results.Text(
-                        await service.GetToken(
-                            builder.Configuration["B2_KEY"],
-                            builder.Configuration["B2_KEY_ID"],
-                            builder.Configuration["B2:AuthUrl"]),
-                        "application/json; charset=utf-8");
-                }
-                catch (Exception ex)
-                {
-                    return Results.Problem(ex.Message);
-                }
-            });
-
             app.MapPost("/albums",
                 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async (AlbumsRequest request, IB2Service service) =>
+            async (AlbumsRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
                 try
                 {
-                    return Results.Text(await service.ListAlbums(request), "application/json; charset=utf-8");
+                    string userName = user?.Identity?.Name ?? string.Empty;
+                    return Results.Ok(await service.ListAlbums(request, userName, cancelationToken));
                 }
                 catch (Exception ex)
                 {
@@ -43,11 +26,26 @@ namespace Server.Arkaine.B2
 
             app.MapPost("/files",
                 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async (FilesRequest request, IB2Service service) =>
+            async (FilesRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
                 try
                 {
-                    return Results.Text(await service.ListFiles(request), "application/json; charset=utf-8");
+                    string userName = user?.Identity?.Name ?? string.Empty;
+                    return Results.Ok(await service.ListFiles(request, userName, cancelationToken));
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem(ex.Message);
+                }
+            });
+
+            app.MapGet("/stream/{bucket}/{file}",
+                [AllowAnonymous]
+            async ([FromRoute] string bucket, [FromRoute] string file, CancellationToken cancelationToken, IB2Service service) =>
+            {
+                try
+                {
+                    return await service.Stream(bucket, file, cancelationToken);
                 }
                 catch (Exception ex)
                 {

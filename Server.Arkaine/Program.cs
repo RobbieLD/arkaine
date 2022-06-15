@@ -23,14 +23,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     };
 });
 
-builder.Configuration
+IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.json")
     .AddJsonFile("appsettings.local.json", true)
-    .AddEnvironmentVariables();
+    .AddEnvironmentVariables()
+    .Build();
 
+builder.Services.Configure<ArkaineOptions>(config);
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();
+builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
 builder.Services.AddDefaultIdentity<IdentityUser>()
@@ -50,8 +53,8 @@ if (!app.Environment.IsDevelopment())
 app.MapGet("/", () => "Server is running");
 app.MapGet("/error", () => "There was a server error");
 
-app.RegisterUserApis(builder);
-app.RegisterB2Apis(builder);
+app.RegisterUserApis();
+app.RegisterB2Apis();
 
 //await SeedUser.Initialize(app.Services);
 

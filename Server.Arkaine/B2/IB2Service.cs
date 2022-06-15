@@ -2,8 +2,9 @@
 {
     public interface IB2Service
     {
-        Task<string> GetToken(string db2Key, string db2KeyId, string url);
-        Task<string> ListAlbums(AlbumsRequest request);
-        Task<string> ListFiles(FilesRequest request);
+        Task<AuthResponse> GetToken(CancellationToken cancellationToken);
+        Task<AlbumsResponse> ListAlbums(AlbumsRequest request, string userName, CancellationToken cancellationToken);
+        Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken);
+        Task<IResult> Stream(string bucketName, string fileName, CancellationToken cancellationToken);
     }
 }
