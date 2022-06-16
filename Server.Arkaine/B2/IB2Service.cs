@@ -5,6 +5,6 @@
         Task<AuthResponse> GetToken(CancellationToken cancellationToken);
         Task<AlbumsResponse> ListAlbums(AlbumsRequest request, string userName, CancellationToken cancellationToken);
         Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken);
-        Task<IResult> Stream(string bucketName, string fileName, CancellationToken cancellationToken);
+        Task<IResult> Stream(string userName, string bucketName, string fileName, CancellationToken cancellationToken);
     }
 }

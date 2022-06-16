@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.B2;
 using Server.Arkaine.User;
 
 var builder = WebApplication.CreateBuilder(args);
+var cors = "arkaineCors";
 
 IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.json")
@@ -13,7 +16,11 @@ IConfiguration config = builder.Configuration
     .AddEnvironmentVariables()
     .Build();
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+}).AddCookie(options =>
 {
     options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
     options.SlidingExpiration = true;
@@ -31,7 +38,27 @@ builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ArkaineDbContext>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: cors, policy => 
+    {
+        policy.WithOrigins(builder.Configuration["CORS_ORIGIN"])
+            .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
+            .WithMethods("GET", "POST")
+            .AllowCredentials();
+    });
+});
+
+var cookiePolicy = new CookiePolicyOptions
+{
+    HttpOnly = HttpOnlyPolicy.Always,
+    MinimumSameSitePolicy = Microsoft.AspNetCore.Http.SameSiteMode.None,
+    Secure = CookieSecurePolicy.Always
+};
+
 var app = builder.Build();
+app.UseCors(cors);
+app.UseCookiePolicy(cookiePolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();

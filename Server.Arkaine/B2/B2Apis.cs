@@ -41,11 +41,12 @@ namespace Server.Arkaine.B2
 
             app.MapGet("/stream/{bucket}/{file}",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async ([FromRoute] string bucket, [FromRoute] string file, CancellationToken cancelationToken, IB2Service service) =>
+            async ([FromRoute] string bucket, [FromRoute] string file, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
                 try
                 {
-                    return await service.Stream(bucket, file, cancelationToken);
+                    string userName = user?.Identity?.Name ?? string.Empty;
+                    return await service.Stream(userName, bucket, file, cancelationToken);
                 }
                 catch (Exception ex)
                 {

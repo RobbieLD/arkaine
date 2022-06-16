@@ -90,11 +90,11 @@ namespace Server.Arkaine.B2
             return responseModel;
         }
 
-        public async Task<IResult> Stream(string bucketName, string fileName, CancellationToken cancellationToken)
+        public async Task<IResult> Stream(string userName, string bucketName, string fileName, CancellationToken cancellationToken)
         {
-            var cacheModel = await GetCache("d", cancellationToken);
+            var cacheModel = await GetCache(userName, cancellationToken);
             var client = _httpClientFactory.CreateClient();
-            var stream = await client.GetSeekableStreamAsync($"{cacheModel.DownloadUrl}/file/{bucketName}/{fileName}", cancellationToken);
+            var stream = await client.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{bucketName}/{fileName}", cancellationToken);
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
 
