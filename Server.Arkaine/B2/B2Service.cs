@@ -52,7 +52,6 @@ namespace Server.Arkaine.B2
 
             var buffer = Encoding.UTF8.GetBytes("{\"accountId\":\"" + request.AccountId + "\"}");
             var byteContent = new ByteArrayContent(buffer);
-
             var response = await client.PostAsync(cacheModel.ApiUrl + "/b2api/v2/b2_list_buckets", byteContent, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<AlbumsResponse>(responseString) ?? throw new("Bucket list response is an invalid format");
@@ -105,6 +104,7 @@ namespace Server.Arkaine.B2
 
             if (cacheModel == null)
             {
+                _logger.LogWarning($"Cache model not found for {key}");
                 var response = await GetToken(cancellationToken);
                 cacheModel = new CacheModel(response.Token, response.DownloadBaseUrl, response.ApiBaseUrl);
                 _cache.Set(key, cacheModel);

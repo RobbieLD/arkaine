@@ -8,7 +8,8 @@ using Server.Arkaine.User;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
+//https://www.mikesdotnetting.com/article/358/using-minimal-apis-in-asp-net-core-razor-pages
+//https://docs.microsoft.com/en-us/aspnet/core/security/authentication/cookie?view=aspnetcore-6.0
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters

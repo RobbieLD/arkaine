@@ -5,6 +5,8 @@
 
 # Project Specific
 *.local.json
+launchSettings.json
+env.list
 
 # User-specific files
 *.rsuser
