@@ -1,34 +1,24 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Server.Arkaine;
 using Server.Arkaine.B2;
 using Server.Arkaine.User;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-//https://www.mikesdotnetting.com/article/358/using-minimal-apis-in-asp-net-core-razor-pages
-//https://docs.microsoft.com/en-us/aspnet/core/security/authentication/cookie?view=aspnetcore-6.0
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateActor = true,
-        ValidateAudience = true,
-        ValidateIssuerSigningKey = true,
-        ValidateLifetime = true,
-        ValidIssuer = builder.Configuration["JWT_ISSUER"],
-        ValidAudience = builder.Configuration["JWT_AUDIENCE"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT_KEY"]))
-    };
-});
 
 IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.json")
     .AddJsonFile("appsettings.local.json", true)
     .AddEnvironmentVariables()
     .Build();
+
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
+{
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
+    options.SlidingExpiration = true;
+    options.AccessDeniedPath = "/forbidden";
+});
 
 builder.Services.Configure<ArkaineOptions>(config);
 builder.Services.AddHttpClient();
@@ -53,6 +43,7 @@ if (!app.Environment.IsDevelopment())
 
 app.MapGet("/", () => "Server is running");
 app.MapGet("/error", () => "There was a server error");
+app.MapGet("/forbidden", () => "You do not have access to this page");
 
 app.RegisterUserApis();
 app.RegisterB2Apis();

@@ -1,11 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using Server.Arkaine.B2;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 
 namespace Server.Arkaine.User
 {
@@ -15,7 +14,7 @@ namespace Server.Arkaine.User
         {
             app.MapPost("/login",
                 [AllowAnonymous]
-            async (LoginRequest request, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IUserService userService, IB2Service tokenService, IMemoryCache cache) =>
+            async (LoginRequest request, HttpContext context, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IUserService userService, IB2Service tokenService, IMemoryCache cache) =>
             {
                 if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
                 {
@@ -40,25 +39,31 @@ namespace Server.Arkaine.User
                     claims.Add(new Claim(ClaimTypes.Role, role));
                 }
 
-                var token = new JwtSecurityToken(
-                    issuer: config.Value.JWT_ISSUER,
-                    audience: config.Value.JWT_AUDIENCE,
-                    claims: claims,
-                    expires: app.Environment.IsDevelopment() ? DateTime.UtcNow.AddHours(1) : DateTime.UtcNow.AddMinutes(15),
-                    notBefore: DateTime.UtcNow,
-                    signingCredentials: new SigningCredentials(
-                        new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config.Value.JWT_KEY)),
-                        SecurityAlgorithms.HmacSha256));
+                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
-                var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+                // TODO: Make sure these are correct
+                var authProperties = new AuthenticationProperties
+                {
+                    AllowRefresh = true,
+                    IsPersistent = true,
+                };
 
-                // Generate a user token and store it in cache
+                
+                await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
+
                 var authResponse = 
                     await tokenService.GetToken(cancellationToken);
 
                 // B2 tokens expire in 24 hours
                 cache.Set(request.Username, new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl), DateTime.UtcNow.AddHours(24));
-                return Results.Ok(tokenString);
+                return Results.Ok("success");
+            });
+
+            app.MapGet("/logout",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
+            async (HttpContext context) =>
+            {
+                await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             });
         }
     }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -10,7 +10,7 @@ namespace Server.Arkaine.B2
         public static void RegisterB2Apis(this WebApplication app)
         {
             app.MapPost("/albums",
-                [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User, Admin")]
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (AlbumsRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
                 try
@@ -25,7 +25,7 @@ namespace Server.Arkaine.B2
             });
 
             app.MapPost("/files",
-                [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User, Admin")]
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (FilesRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
                 try
@@ -40,7 +40,7 @@ namespace Server.Arkaine.B2
             });
 
             app.MapGet("/stream/{bucket}/{file}",
-                [AllowAnonymous]
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async ([FromRoute] string bucket, [FromRoute] string file, CancellationToken cancelationToken, IB2Service service) =>
             {
                 try
