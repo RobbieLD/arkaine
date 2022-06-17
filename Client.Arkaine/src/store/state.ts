@@ -1,8 +1,8 @@
 import Album from '@/models/album'
-import File from '@/models/file'
+import ArkaineFile from '@/models/arkaine-file'
 
 export default interface State {
     isAuthenticated: boolean,
     albums: Album[],
-    files: File[]
+    files: ArkaineFile[]
 }

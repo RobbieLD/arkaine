@@ -43,14 +43,14 @@ namespace Server.Arkaine.B2
             return responseModel;
         }
 
-        public async Task<AlbumsResponse> ListAlbums(AlbumsRequest request, string userName, CancellationToken cancellationToken)
+        public async Task<AlbumsResponse> ListAlbums(string userName, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var buffer = Encoding.UTF8.GetBytes("{\"accountId\":\"" + request.AccountId + "\"}");
+            var buffer = Encoding.UTF8.GetBytes("{\"accountId\":\"" + cacheModel.AccountId + "\"}");
             var byteContent = new ByteArrayContent(buffer);
             var response = await client.PostAsync(cacheModel.ApiUrl + "/b2api/v2/b2_list_buckets", byteContent, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -106,7 +106,7 @@ namespace Server.Arkaine.B2
             {
                 _logger.LogWarning($"Cache model not found for {key}");
                 var response = await GetToken(cancellationToken);
-                cacheModel = new CacheModel(response.Token, response.DownloadBaseUrl, response.ApiBaseUrl);
+                cacheModel = new CacheModel(response.Token, response.DownloadBaseUrl, response.ApiBaseUrl, response.AccountId);
                 _cache.Set(key, cacheModel);
             }
 

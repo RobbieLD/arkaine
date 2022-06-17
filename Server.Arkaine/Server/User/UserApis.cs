@@ -12,6 +12,13 @@ namespace Server.Arkaine.User
     {
         public static void RegisterUserApis(this WebApplication app)
         {
+            app.MapGet("/loggedin",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
+            () =>
+            {
+                return Results.Ok();
+            });
+
             app.MapPost("/login",
                 [AllowAnonymous]
             async (LoginRequest request, HttpContext context, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IUserService userService, IB2Service tokenService, IMemoryCache cache) =>
@@ -55,7 +62,9 @@ namespace Server.Arkaine.User
                     await tokenService.GetToken(cancellationToken);
 
                 // B2 tokens expire in 24 hours
-                cache.Set(request.Username, new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl), DateTime.UtcNow.AddHours(24));
+                cache.Set(request.Username, 
+                    new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
+                    DateTime.UtcNow.AddHours(24));
                 return Results.Ok("success");
             });
 

@@ -16,6 +16,7 @@ export const store = createStore<State>({
   mutations: {
     setAuthenticated: (state, authed): void => {
         state.isAuthenticated = authed
+        
     },
 
     setAlbums: (state, albums): void => {
@@ -27,21 +28,29 @@ export const store = createStore<State>({
     }
   },
   actions: {
-    login: async ({ commit }, payload: { username: string, password: string}): Promise<void> => {
+    checkLogin: async ({ commit, dispatch }) : Promise<void> => {
+        const service = new ArkaineService()
+        await service.LoggedIn()
+        commit('setAuthenticated', true)
+        await dispatch('loadAlbums')
+    },
+
+    login: async ({ commit, dispatch }, payload: { username: string, password: string}): Promise<void> => {
         const service = new ArkaineService()
         await service.Login(payload.username, payload.password)
         commit('setAuthenticated', true)
+        await dispatch('loadAlbums')
     },
 
-    loadAlbums: async ({ commit }, accountId: string): Promise<void> => {
+    loadAlbums: async ({ commit }): Promise<void> => {
         const service = new ArkaineService()
-        const albums = await service.Albums(accountId)
+        const albums = await service.Albums()
         commit('setAlbums', albums)
     },
 
-    loadFiles: async ({ commit }, bucketId: string): Promise<void> => {
+    loadFiles: async ({ commit }, payload: { bucketId: string, bucketName: string }): Promise<void> => {
         const service = new ArkaineService()
-        const files = await service.Files(bucketId)
+        const files = await service.Files(payload.bucketId, payload.bucketName)
         commit('setFiles', files)
     }
   },

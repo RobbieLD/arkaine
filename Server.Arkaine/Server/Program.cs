@@ -49,22 +49,24 @@ builder.Services.AddCors(options =>
     });
 });
 
+// TODO: Do we need a cache responses?
+var app = builder.Build();
+
 var cookiePolicy = new CookiePolicyOptions
 {
     HttpOnly = HttpOnlyPolicy.Always,
     MinimumSameSitePolicy = Microsoft.AspNetCore.Http.SameSiteMode.None,
-    Secure = CookieSecurePolicy.Always
+    Secure = app.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always
 };
 
-var app = builder.Build();
 app.UseCors(cors);
 app.UseCookiePolicy(cookiePolicy);
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseHttpsRedirection();
 
 if (!app.Environment.IsDevelopment())
 {
+    app.UseHttpsRedirection();
     app.UseExceptionHandler("/error");
 }
 

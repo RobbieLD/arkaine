@@ -12,5 +12,8 @@ namespace Server.Arkaine.B2
 
         [JsonPropertyName("apiUrl")]
         public string ApiBaseUrl { get; set; } = string.Empty;
+
+        [JsonPropertyName("accountId")]
+        public string AccountId { get; set; } = string.Empty;
     }
 }
