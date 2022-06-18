@@ -14,7 +14,7 @@ const routes: Array<RouteRecordRaw> = [
         },
     },
     {
-        path: '/files',
+        path: '/files/:path(.*)',
         name: 'Files',
         component: FilesView,
         meta: {

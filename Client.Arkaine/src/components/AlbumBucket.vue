@@ -25,7 +25,7 @@
 
             const open = async () => {
                 await store.dispatch('loadFiles', props.Album )
-                await router.push('/files')
+                await router.push('/files/')
             }
 
             return {

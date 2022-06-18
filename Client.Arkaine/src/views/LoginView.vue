@@ -45,7 +45,6 @@
             const error = ref<string>()
             const loggingIn = ref(false)
             const store = useStore(storeKey)
-            const router = useRouter()
 
             const login = async () => {
                 loggingIn.value = true

@@ -25,6 +25,7 @@ builder.Services.AddAuthentication(options =>
     options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
     options.SlidingExpiration = true;
     options.AccessDeniedPath = "/forbidden";
+    options.LogoutPath = new PathString("/#/login");
 });
 
 builder.Services.Configure<ArkaineOptions>(config);
@@ -49,7 +50,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// TODO: Do we need a cache responses?
 var app = builder.Build();
 
 var cookiePolicy = new CookiePolicyOptions
