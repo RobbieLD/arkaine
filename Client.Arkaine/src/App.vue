@@ -21,9 +21,8 @@
                 }                
             })
 
-            onMounted(() => {
-                store.dispatch('checkLogin')
-                console.log('App load')
+            onMounted(async () => {
+                await store.dispatch('checkLogin')
             })
 
             onUnmounted(() => {

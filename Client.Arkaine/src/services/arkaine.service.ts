@@ -28,7 +28,7 @@ export default class ArkaineService extends BaseService {
         return await this.http.get('/loggedin')
     }
 
-    public async Files(bucketId: string, bucketName: string): Promise<B2File[]> {
+    public async Files(bucketId: string, bucketName: string): Promise<ArkaineFile> {
         const results = await this.http.post<{ files: B2File[] }>('/files', {
             BucketId: bucketId
         })
@@ -39,6 +39,6 @@ export default class ArkaineService extends BaseService {
             root.add(file, `${this.baseUrl}/stream/${bucketName}/${file.fileName}`)
         }
 
-        return root.children
+        return root
     }
 }

@@ -7,15 +7,36 @@
             </a>
             
             <!-- Video File -->
+            <div v-else-if="file.isVideo">
+                <div class="headings">
+                    <a :href="file.url" target="_blank">
+                        <h2>{{ file.fileName }}</h2>
+                    </a>
+                    <h3>{{ file.contentLength }}</h3>
+                </div>
+            </div>
 
             <!-- Audio File -->
+            <div v-else-if="file.isAudio">
+                <div class="headings">
+                    <a :href="file.url" target="_blank">
+                        <h2>{{ file.fileName }}</h2>
+                    </a>
+                    <h3>{{ file.contentLength }}</h3>
+                </div>
+            </div>
 
             <!-- Folder -->
-            <div v-else-if="file.isFolder">
+            <div v-else-if="file.isFolder" @click="open(file.fileName)">
                 <div class="headings">
                     <h2>{{ file.fileName }}</h2>
-                    <h3>{{ file.children.length }} children</h3>
+                    <h3>{{ file.children.length }} items</h3>
                 </div>
+            </div>
+
+            <!-- Other file types -->
+            <div v-else>
+                <a :href="file.url" target="_blank">{{ files.fileName }}</a>
             </div>
         </article>
     </div>
@@ -23,7 +44,6 @@
 <script lang='ts'>
     import { storeKey } from '@/store'
     import { computed, defineComponent } from 'vue'
-    import { useRoute } from 'vue-router'
     import { useStore } from 'vuex'
 
     export default defineComponent({
@@ -32,11 +52,14 @@
         setup() {
             
             const store = useStore(storeKey)
-            const route = useRoute()
-            const files = computed(() => store.state.files)
+            const files = computed(() => store.getters['getFilesList'])
+            const open = (name: string) => {
+                store.commit('appendPath', name)
+            }
 
             return {
-                files
+                files,
+                open
             }
         },
     })
@@ -52,7 +75,7 @@
     }
 
     .image {
-        max-width: 10em;
+        max-width: 30em;
     }
 
     .folder {

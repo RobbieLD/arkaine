@@ -24,8 +24,8 @@
             const router = useRouter()
 
             const open = async () => {
-                await store.dispatch('loadFiles', { bucketId: props.Album.bucketId, bucketName: props.Album.bucketName })
-                await router.push(`/files/${props.Album.bucketName}`)
+                await store.dispatch('loadFiles', props.Album )
+                await router.push('/files')
             }
 
             return {
