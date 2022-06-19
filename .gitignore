@@ -11,7 +11,7 @@ env.list
 #Vue stuff
 .DS_Store
 node_modules
-/dist
+dist
 
 
 # local env files

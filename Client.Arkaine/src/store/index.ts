@@ -50,12 +50,7 @@ export const store = createStore<State>({
 
     setPath: (state: State, path: string): void => {
         state.path = path
-    },
-
-    appendPath: (state: State, path: string): void => {
-        state.path += '/' + path
     }
-
   },
   actions: {
     checkLogin: async ({ commit, dispatch }) : Promise<void> => {

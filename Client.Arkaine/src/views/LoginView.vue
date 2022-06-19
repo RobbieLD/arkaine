@@ -33,7 +33,6 @@
 <script lang="ts">
     import { storeKey } from '@/store'
     import { defineComponent, ref } from 'vue'
-    import { useRouter } from 'vue-router'
     import { useStore } from 'vuex'
 
     export default defineComponent({

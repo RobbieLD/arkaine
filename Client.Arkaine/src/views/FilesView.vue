@@ -60,11 +60,8 @@
                 store.commit('setPath', '')
             })
 
-            onBeforeRouteUpdate((to, from) => {
-                // Handle back
+            onBeforeRouteUpdate((to) => {
                 store.commit('setPath', to.params.path)
-                //console.log(to)
-                //console.log(from)
             })
 
             return {

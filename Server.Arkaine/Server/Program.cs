@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.B2;
 using Server.Arkaine.User;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 var cors = "arkaineCors";
@@ -39,16 +41,20 @@ builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ArkaineDbContext>();
 
-builder.Services.AddCors(options =>
+// We only need CORS for development
+if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
 {
-    options.AddPolicy(name: cors, policy => 
+    builder.Services.AddCors(options =>
     {
-        policy.WithOrigins(builder.Configuration["CORS_ORIGIN"])
-            .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
-            .WithMethods("GET", "POST")
-            .AllowCredentials();
+        options.AddPolicy(name: cors, policy =>
+        {
+            policy.WithOrigins(builder.Configuration["CORS_ORIGIN"])
+                .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
+                .WithMethods("GET", "POST")
+                .AllowCredentials();
+        });
     });
-});
+}
 
 var app = builder.Build();
 
@@ -59,7 +65,13 @@ var cookiePolicy = new CookiePolicyOptions
     Secure = app.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always
 };
 
-app.UseCors(cors);
+app.UseIPFilter(IPAddress.Parse(builder.Configuration["ACCEPT_IP_RANGE"]));
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors(cors);
+}
+
 app.UseCookiePolicy(cookiePolicy);
 app.UseAuthentication();
 app.UseAuthorization();
@@ -70,7 +82,9 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/error");
 }
 
-app.MapGet("/", () => "Server is running");
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.MapGet("/status", () => "Server is running");
 app.MapGet("/error", () => "There was a server error");
 app.MapGet("/forbidden", () => "You do not have access to this page");
 
