@@ -19,6 +19,7 @@ namespace Server.Arkaine
 
             if (!ipAddress?.Equals(_ipAddress) ?? false)
             {
+                Console.WriteLine($"Blocked access from : {ipAddress}");
                 context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
                 return;
             }

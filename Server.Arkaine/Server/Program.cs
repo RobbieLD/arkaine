@@ -42,19 +42,21 @@ builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddEntityFrameworkStores<ArkaineDbContext>();
 
 // We only need CORS for development
+#if DEBUG
 if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
 {
     builder.Services.AddCors(options =>
     {
         options.AddPolicy(name: cors, policy =>
         {
-            policy.WithOrigins(builder.Configuration["CORS_ORIGIN"])
+            policy.WithOrigins("http://localhost:8080")
                 .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
                 .WithMethods("GET", "POST")
                 .AllowCredentials();
         });
     });
 }
+#endif
 
 var app = builder.Build();
 

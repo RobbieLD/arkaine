@@ -1,5 +1,5 @@
 # Build Server
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS server-build
 WORKDIR /app
 
 COPY Server.Arkaine/Server/*.csproj ./
@@ -9,12 +9,11 @@ COPY Server.Arkaine/Server/ .
 RUN dotnet publish -c Release -o out
 
 # Build Client
-FROM node:16 AS web
-RUN apt-get update
+FROM node:16 AS client-build
 WORKDIR /app
 COPY Client.Arkaine/package*.json ./
-RUN npm install
-COPY . .
+RUN npm install --force
+COPY Client.Arkaine/. ./
 RUN npm run build
 
 # Build Release
@@ -25,7 +24,8 @@ ENV B2_KEY=$B2_KEY
 ENV B2_KEY_ID=$B2_KEY_ID
 ENV ASPNETCORE_ENVIRONMENT=$ASPNETCORE_ENVIRONMENT
 WORKDIR /app
-COPY --from=build-env /app/out .
-COPY --from=web /app/dist ./wwwroot
+COPY --from=server-build /app/out .
+RUN rm -rf ./wwwroot/Identity
+COPY --from=client-build /app/dist ./wwwroot
 
 CMD ASPNETCORE_URLS=http://*:$PORT dotnet Server.Arkaine.dll

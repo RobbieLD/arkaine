@@ -2,10 +2,10 @@ import B2File from './b2-file'
 
 export default class ArkaineFile implements B2File {
     
-    fileName: string;
+    fileName: string
     url: string
-    contentType: string;
-    contentLength: string;
+    contentType: string
+    contentLength: string
     children: ArkaineFile[] = []
     isImage: boolean
     isVideo: boolean
