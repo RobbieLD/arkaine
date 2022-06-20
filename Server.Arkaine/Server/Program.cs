@@ -24,10 +24,11 @@ builder.Services.AddAuthentication(options =>
     options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 }).AddCookie(options =>
 {
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(2);
+    options.Cookie.MaxAge = options.ExpireTimeSpan;
     options.SlidingExpiration = true;
     options.AccessDeniedPath = "/forbidden";
-    options.LogoutPath = new PathString("/#/login");
+    options.LoginPath = new PathString("/login");
 });
 
 builder.Services.Configure<ArkaineOptions>(config);
@@ -63,8 +64,12 @@ var app = builder.Build();
 var cookiePolicy = new CookiePolicyOptions
 {
     HttpOnly = HttpOnlyPolicy.Always,
-    MinimumSameSitePolicy = Microsoft.AspNetCore.Http.SameSiteMode.None,
-    Secure = app.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always
+    MinimumSameSitePolicy = app.Environment.IsDevelopment() ?
+        Microsoft.AspNetCore.Http.SameSiteMode.None :
+        Microsoft.AspNetCore.Http.SameSiteMode.Strict,
+    Secure = app.Environment.IsDevelopment() ?
+        CookieSecurePolicy.SameAsRequest :
+        CookieSecurePolicy.Always
 };
 
 app.UseIPFilter(IPAddress.Parse(builder.Configuration["ACCEPT_IP_RANGE"]));

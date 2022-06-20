@@ -55,6 +55,7 @@
                 } catch (e) {
                     error.value = (e as Error).message
                     loggingIn.value = false
+                    console.error(e)
                 }
             }
 

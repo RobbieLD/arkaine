@@ -51,8 +51,8 @@ namespace Server.Arkaine.User
                 // TODO: Make sure these are correct
                 var authProperties = new AuthenticationProperties
                 {
-                    AllowRefresh = true,
-                    IsPersistent = true,
+                    //AllowRefresh = true,
+                    //IsPersistent = true,
                 };
 
                 

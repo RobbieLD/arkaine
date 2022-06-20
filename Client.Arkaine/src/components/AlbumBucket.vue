@@ -24,8 +24,16 @@
             const router = useRouter()
 
             const open = async () => {
-                await store.dispatch('loadFiles', props.Album )
-                await router.push('/files/')
+                try {
+                    await store.dispatch('loadFiles', props.Album )
+                    await router.push('/files/')
+                }
+                catch (e) {
+                    const resp = String(e)
+                    if (resp.startsWith('/')) {
+                        router.push(resp)
+                    }
+                }
             }
 
             return {
