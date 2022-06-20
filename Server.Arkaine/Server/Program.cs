@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.B2;
@@ -29,9 +28,13 @@ builder.Services.AddAuthentication(options =>
     options.SlidingExpiration = true;
     options.AccessDeniedPath = "/forbidden";
     options.LoginPath = new PathString("/login");
+    options.EventsType = typeof(CustomCookieAuthenticationEvent);
 });
 
+var lifetimeKey = Guid.NewGuid();
 builder.Services.Configure<ArkaineOptions>(config);
+builder.Services.AddTransient<CustomCookieAuthenticationEvent>(s => 
+    ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(s, config["MAX_COOKIE_LIFETIME"], lifetimeKey));
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();

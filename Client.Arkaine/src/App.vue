@@ -37,6 +37,10 @@
         padding: 0 2em;
     }
 
+    :root {
+    --primary: #d81b60 !important;
+    }
+
     .content {
         display: flex;
         flex-direction: row;
