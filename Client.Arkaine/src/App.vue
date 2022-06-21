@@ -37,15 +37,17 @@
         padding: 0 2em;
     }
 
-    :root {
-    --primary: #d81b60 !important;
-    }
-
     .content {
         display: flex;
         flex-direction: row;
         flex-wrap: wrap;
         gap: 1em;
         justify-content: center;
+    }
+
+    @media only screen and (max-width: 576px) {
+        body {
+            padding: 0;
+        }
     }
 </style>

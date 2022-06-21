@@ -8,5 +8,10 @@ namespace Server.Arkaine
         {
             return builder.UseMiddleware<IPFilter>(ipAddress);
         }
+
+        public static IApplicationBuilder UserSecurityHeaders(this IApplicationBuilder builder)
+        {
+            return builder.UseMiddleware<SecurityHeaders>();
+        }
     }
 }

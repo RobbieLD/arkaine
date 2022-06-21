@@ -96,10 +96,24 @@
     }
 
     .folder {
-        background-color: var(--primary-focus);
-
         &:hover {
-            background-color: var(--primary-inverse);
+            background-color: var(--primary-focus);
+        }
+    }
+
+    /* Mobile */
+    @media only screen and (max-width: 576px) {
+
+        .item {
+            margin: 0;
+        }
+        
+        .image {
+            max-width: initial;
+        }
+
+        .folder {
+            width: 100vh
         }
     }
 </style>

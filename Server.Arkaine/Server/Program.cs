@@ -77,6 +77,8 @@ var cookiePolicy = new CookiePolicyOptions
 
 app.UseIPFilter(IPAddress.Parse(builder.Configuration["ACCEPT_IP_RANGE"]));
 
+app.UserSecurityHeaders();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseCors(cors);
@@ -89,6 +91,7 @@ app.UseAuthorization();
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
+    app.UseHsts();
     app.UseExceptionHandler("/error");
 }
 
