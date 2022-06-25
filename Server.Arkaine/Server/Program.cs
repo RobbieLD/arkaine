@@ -23,7 +23,7 @@ builder.Services.AddAuthentication(options =>
     options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 }).AddCookie(options =>
 {
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(2);
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
     options.Cookie.MaxAge = options.ExpireTimeSpan;
     options.SlidingExpiration = true;
     options.AccessDeniedPath = "/forbidden";

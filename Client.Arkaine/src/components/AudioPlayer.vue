@@ -1,9 +1,10 @@
 <template>
     <div class="player">
         <audio ref="audio" :src="src" preload="metadata"></audio>
-        <input type="range" @input="seek" v-bind:value="playerTime" class="player__seek" min="0" max="100" />
+        <input type="range" @input="seek" v-bind:value="playerTime" class="player__seek" min="0" :max="audio?.duration" />
         <div class="player__controls">
-            <div @click="toggle">
+            <div class="player__current-time">{{ current }}</div>
+            <div class="player__button-container" @click="toggle">
                 <div v-show="!playing">
                     <i data-feather="play" class="player__button"></i>
                 </div>
@@ -11,15 +12,12 @@
                     <i data-feather="pause" class="player__button"></i>
                 </div>
             </div>
+            <div class="player__total-time">{{ total }}</div>
         </div>
-        <!-- <button id="play-icon"></button>
-        <span id="current-time" class="time">0:00</span>
-        
-        <span id="duration" class="time">0:00</span> -->
     </div>
 </template>
 <script lang='ts'>
-    import { defineComponent, onMounted, ref } from 'vue'
+    import { computed, defineComponent, onMounted, ref, watch } from 'vue'
     import feather from 'feather-icons'
 
     export default defineComponent({
@@ -35,14 +33,12 @@
             const audio = ref<HTMLAudioElement>()
             const playing = ref(false)
             const playerTime = ref(0)
+            const total = ref('0:00')
+            const current = ref('0:00')
 
-            const seek = async () => {
-
-                audio.value!.currentTime = Math.floor((playerTime.value / (audio.value?.currentTime || 0)) * 100)
-
-                if (!playing.value) {
-                    await audio.value?.play()
-                }
+            const seek = async (ev: Event) => {
+                const v = Number.parseInt((ev.target as HTMLInputElement).value)
+                if (audio.value) audio.value.currentTime = v
             }
 
             const toggle = async () => {
@@ -56,14 +52,24 @@
                 }
             }
 
+            const formatTime = (time: number) => {
+                const minutes = Math.floor(time / 60)
+                const seconds = Math.floor(time % 60)
+                const returnedSeconds = seconds < 10 ? `0${seconds}` : `${seconds}`
+                return `${minutes}:${returnedSeconds}`
+            }
 
             onMounted(() => {
-                
-                if (audio.value !== null) {
-                    audio.value!.ontimeupdate = () => {
-                        playerTime.value = Math.floor((audio.value?.currentTime || 0 / (audio.value?.duration || 0)) * 100)
+                if (audio.value) {
+                    audio.value.ontimeupdate = () => {
+                        playerTime.value = audio.value?.currentTime || 0
+                        current.value = formatTime(audio.value?.currentTime || 0)
+                    }
+                    audio.value.ondurationchange = () => {
+                        total.value = formatTime(audio.value?.duration || 0)
                     }
                 }
+
                 feather.replace()
             })
 
@@ -73,7 +79,9 @@
                 toggle,
                 playing,
                 seek,
-                playerTime
+                playerTime,
+                current,
+                total
             }
         },
     })
@@ -84,9 +92,8 @@
         flex-direction: column;
 
         &__controls {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
         }
 
         &__seek {
@@ -96,6 +103,19 @@
         &__button {
             height: 50px;
             width: 50px;
+        }
+
+        &__button-container {
+            grid-column: 2;
+            justify-self: center;
+        }
+
+        &__current-time {
+            grid-column: 1;
+        }
+
+        &__total-time {
+            grid-column: 3;
         }
     }
 </style>
