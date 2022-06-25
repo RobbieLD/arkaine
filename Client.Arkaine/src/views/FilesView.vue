@@ -18,9 +18,10 @@
                 <a :href="file.url" target="_blank">
                     <h2>{{ file.fileName }}</h2>
                 </a>
-                <audio controls class="audio">
+                <audio-player :src="file.url" :fileName="file.fileName"></audio-player>
+                <!-- <audio controls class="audio">
                     <source :src="file.url" :type="file.contentType">
-                </audio>
+                </audio> -->
             </div>
 
             <!-- Folder -->
@@ -43,10 +44,13 @@
     import { computed, defineComponent, onMounted } from 'vue'
     import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
     import { useStore } from 'vuex'
+    import AudioPlayer from '@/components/AudioPlayer.vue'
 
     export default defineComponent({
         name: 'FilesView',
-        components: {},
+        components: {
+            AudioPlayer
+        },
         setup() {
             const router = useRouter()
             const store = useStore(storeKey)

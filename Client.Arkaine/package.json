@@ -11,11 +11,15 @@
     "@picocss/pico": "^1.5.3",
     "axios": "^0.27.2",
     "core-js": "^3.23.1",
+    "dompurify": "^2.3.8",
+    "feather-icons": "^4.29.0",
     "vue": "^3.2.37",
     "vue-router": "^4.0.16",
     "vuex": "^4.0.2"
   },
   "devDependencies": {
+    "@types/dompurify": "^2.3.3",
+    "@types/feather-icons": "^4.7.0",
     "@typescript-eslint/eslint-plugin": "^5.28.0",
     "@typescript-eslint/parser": "^5.28.0",
     "@vue/cli-plugin-babel": "~5.0.6",

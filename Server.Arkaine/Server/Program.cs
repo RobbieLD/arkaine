@@ -75,9 +75,11 @@ var cookiePolicy = new CookiePolicyOptions
         CookieSecurePolicy.Always
 };
 
-app.UseIPFilter(IPAddress.Parse(builder.Configuration["ACCEPT_IP_RANGE"]));
-
-app.UserSecurityHeaders();
+ if (!app.Environment.IsDevelopment())
+{
+    app.UseIPFilter(builder.Configuration["ACCEPT_IP_RANGE"].Split(",").Select(ip => IPAddress.Parse(ip)));
+    app.UserSecurityHeaders();
+}
 
 if (app.Environment.IsDevelopment())
 {

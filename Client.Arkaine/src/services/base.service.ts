@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios'
+import axios, { AxiosError, AxiosInstance } from 'axios'
 
 export default abstract class BaseService {
     public http: AxiosInstance

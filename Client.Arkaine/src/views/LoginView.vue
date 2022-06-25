@@ -34,6 +34,7 @@
     import { storeKey } from '@/store'
     import { defineComponent, ref } from 'vue'
     import { useStore } from 'vuex'
+    import DOMPurify from 'dompurify'
 
     export default defineComponent({
         name: 'LoginView',
@@ -49,13 +50,12 @@
                 loggingIn.value = true
                 try {
                     await store.dispatch('login', {
-                        username: username.value,
-                        password: password.value,
+                        username: DOMPurify.sanitize(username.value || ''),
+                        password: DOMPurify.sanitize(password.value || ''),
                     })
                 } catch (e) {
                     error.value = (e as Error).message
                     loggingIn.value = false
-                    console.error(e)
                 }
             }
 
