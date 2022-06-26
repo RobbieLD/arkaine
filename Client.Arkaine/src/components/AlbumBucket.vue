@@ -1,6 +1,8 @@
 <template>
     <article class="album" @click="open">
-        <h1>{{ name }}</h1>
+        <!-- <h1>{{ name }}</h1> -->
+        <img :src="background" class="album__background" />
+        <div class="album__name">{{ name }}</div>
     </article>
 </template>
 <script lang='ts'>
@@ -38,14 +40,27 @@
 
             return {
                 name: props.Album.bucketName,
+                background: `${process.env?.VUE_APP_ARKAINE_SERVER}/stream/${props.Album.bucketName}/thumb.jpg`,
                 open
             }
         },
     })
 </script>
 <style lang='scss' scoped>
-    .album:hover {
-        background-color: var(--primary-focus);
-        cursor: pointer;
+    .album {
+        padding: 0.5em;
+
+        &__name {
+            text-align: center;
+        }
+
+        &__background {
+            max-width: 20em;
+        }
+
+        &:hover {
+            background-color: var(--primary-focus);
+            cursor: pointer;
+        }
     }
 </style>
