@@ -86,7 +86,6 @@
 
         private async Task<long> HttpSeek(long offset)
         {
-            _client.DefaultRequestHeaders.Clear();
             _client.DefaultRequestHeaders.Range = new System.Net.Http.Headers.RangeHeaderValue(offset, null);
             _stream = await _client.GetStreamAsync(_url, _cancellationToken);
             return offset;
