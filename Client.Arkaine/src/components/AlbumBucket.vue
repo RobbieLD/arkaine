@@ -49,6 +49,7 @@
 <style lang='scss' scoped>
     .album {
         padding: 0.5em;
+        height: fit-content;
 
         &__name {
             text-align: center;

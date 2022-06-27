@@ -1,6 +1,6 @@
 <template>
     <div class="player">
-        <audio ref="audio" :src="src" preload="metadata"></audio>
+        <audio ref="audio" :src="src" preload="none"></audio>
         <input type="range" @input="seek" v-bind:value="playerTime" class="player__seek" min="0" :max="audio?.duration" />
         <div class="player__controls">
             <div class="player__current-time">{{ current }}</div>
@@ -17,7 +17,7 @@
     </div>
 </template>
 <script lang='ts'>
-    import { computed, defineComponent, onMounted, ref, watch } from 'vue'
+    import { defineComponent, onMounted, ref } from 'vue'
     import feather from 'feather-icons'
 
     export default defineComponent({

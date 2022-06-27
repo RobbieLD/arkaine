@@ -35,7 +35,7 @@ export default class ArkaineService extends BaseService {
 
         const root = new ArkaineFile('root', '', '', '')
 
-        for (const file of results.data.files.filter(f => f.contentLength !== '0 B')) {
+        for (const file of results.data.files.filter(f => f.contentLength !== '0 B' && f.fileName !== 'thumb.jpg')) {
             root.add(file, `${this.baseUrl}/stream/${bucketName}/${file.fileName}`)
         }
 

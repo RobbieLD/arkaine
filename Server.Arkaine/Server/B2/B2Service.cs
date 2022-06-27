@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using System.Linq;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -62,8 +63,13 @@ namespace Server.Arkaine.B2
                 throw new(responseString);
             }
 
+            string[] allowedBuckets = _options.BUCKETS.Split(',');
+
             _logger.LogInformation("List buckets succeeded");
-            return responseModel;
+            return new AlbumsResponse
+            {
+                Buckets = responseModel.Buckets.Where(b => allowedBuckets.Contains(b.Name) || allowedBuckets[0] == "*").ToList()
+            };
         }
 
         public async Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken)
