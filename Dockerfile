@@ -12,9 +12,9 @@ RUN dotnet publish -c Release -o out
 FROM node:16 AS client-build
 WORKDIR /app
 COPY Client.Arkaine/package*.json ./
-RUN npm install --force
+RUN yarn install
 COPY Client.Arkaine/. ./
-RUN npm run build
+RUN yarn run build
 
 # Build Release
 FROM mcr.microsoft.com/dotnet/aspnet:6.0
