@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.CookiePolicy;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
@@ -41,6 +42,16 @@ builder.Services.AddScoped<IB2Service, B2Service>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.HttpsPort = 443;
+});
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ArkaineDbContext>();
@@ -63,6 +74,7 @@ if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
 #endif
 
 var app = builder.Build();
+app.UseForwardedHeaders();
 
 var cookiePolicy = new CookiePolicyOptions
 {
@@ -92,8 +104,8 @@ app.UseAuthorization();
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseHttpsRedirection();
     app.UseHsts();
+    app.UseHttpsRedirection();
     app.UseExceptionHandler("/error");
 }
 
