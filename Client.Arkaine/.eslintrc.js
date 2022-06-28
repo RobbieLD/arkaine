@@ -20,6 +20,7 @@ module.exports = {
       'semi': [2, 'never'],
       'eol-last': 2,
       'vue/no-useless-template-attributes': 'off',
-      'vue/multi-word-component-names': 'off'
+      'vue/multi-word-component-names': 'off',
+      'no-non-null-assertion': 'off'
     }
   }
