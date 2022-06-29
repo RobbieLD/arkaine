@@ -15,10 +15,8 @@
 
             <!-- Audio File -->
             <div v-else-if="file.isAudio">
-                <a :href="file.url" target="_blank">
-                    <h2>{{ file.fileName }}</h2>
-                </a>
-                <audio-player :src="file.url" :fileName="file.fileName"></audio-player>
+                <a :href="file.url" target="_blank">{{ file.fileName }}</a>
+                <audio-player :src="file.url" class="player" :fileName="file.fileName"></audio-player>
                 <!-- <audio controls class="audio">
                     <source :src="file.url" :type="file.contentType">
                 </audio> -->
@@ -81,6 +79,10 @@
         min-width: 10em;
         height: fit-content;
         padding: 0.5em;
+    }
+
+    .player {
+        padding-top: 1em;
     }
 
     .audio {

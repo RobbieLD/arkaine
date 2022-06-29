@@ -107,8 +107,11 @@
 
         &__seek {
             width: 100%;
-
             &::-webkit-slider-runnable-track {
+                background: linear-gradient(to right, var(--primary-hover) v-bind(seekPosition), var(--primary) v-bind(seekPosition), var(--primary) v-bind(bufferPosition), var(--primary-focus) v-bind(bufferPosition));
+            }
+
+            &::-moz-range-track{
                 background: linear-gradient(to right, var(--primary-hover) v-bind(seekPosition), var(--primary) v-bind(seekPosition), var(--primary) v-bind(bufferPosition), var(--primary-focus) v-bind(bufferPosition));
             }
         }
