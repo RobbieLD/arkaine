@@ -46,7 +46,8 @@
             const loggingIn = ref(false)
             const store = useStore(storeKey)
 
-            const login = async () => {
+            const login = async (e: Event) => {
+                e.preventDefault()
                 loggingIn.value = true
                 try {
                     await store.dispatch('login', {

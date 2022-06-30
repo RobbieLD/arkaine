@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.B2;
+using Server.Arkaine.Ingest;
 using Server.Arkaine.User;
 using System.Net;
 
@@ -39,6 +40,7 @@ builder.Services.AddTransient<CustomCookieAuthenticationEvent>(s =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();
+builder.Services.AddScoped<IExtractor, SgExtractor>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
@@ -117,6 +119,7 @@ app.MapGet("/forbidden", () => "You do not have access to this page");
 
 app.RegisterUserApis();
 app.RegisterB2Apis();
+app.RegisterIngestApis();
 
 //await SeedUser.Initialize(app.Services);
 
