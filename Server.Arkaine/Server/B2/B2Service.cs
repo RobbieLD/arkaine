@@ -22,10 +22,10 @@ namespace Server.Arkaine.B2
             _options = config.Value;
         }
 
-        public async Task<AuthResponse> GetToken(CancellationToken cancellationToken)
+        public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
-            string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(_options.B2_KEY_ID + ":" + _options.B2_KEY));
+            string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(key));
 
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -104,6 +104,14 @@ namespace Server.Arkaine.B2
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
 
+        public async Task<UploadResponse> Upload(string bucketName, string fileName, Stream stream, CancellationToken cancellationToken)
+        {
+            var token = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            return new UploadResponse();
+            //https://www.backblaze.com/b2/docs/b2_upload_file.html
+        }
+
         private async Task<CacheModel> GetCache(string key, CancellationToken cancellationToken)
         {
             var cacheModel = _cache.Get(key) as CacheModel;
@@ -111,7 +119,7 @@ namespace Server.Arkaine.B2
             if (cacheModel == null)
             {
                 _logger.LogWarning($"Cache model not found for {key}");
-                var response = await GetToken(cancellationToken);
+                var response = await GetToken(_options.B2_KEY_READ, cancellationToken);
                 cacheModel = new CacheModel(response.Token, response.DownloadBaseUrl, response.ApiBaseUrl, response.AccountId);
                 _cache.Set(key, cacheModel);
             }

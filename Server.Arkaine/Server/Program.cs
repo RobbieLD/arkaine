@@ -41,6 +41,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();
 builder.Services.AddScoped<IExtractor, SgExtractor>();
+builder.Services.AddScoped<IExtractor, EchoExtractor>();
+builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();

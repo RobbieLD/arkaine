@@ -59,7 +59,7 @@ namespace Server.Arkaine.User
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
 
                 var authResponse = 
-                    await tokenService.GetToken(cancellationToken);
+                    await tokenService.GetToken(config.Value.B2_KEY_READ, cancellationToken);
 
                 // B2 tokens expire in 24 hours
                 cache.Set(request.Username, 

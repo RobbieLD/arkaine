@@ -11,6 +11,8 @@ namespace Server.Arkaine.Ingest
             _httpClientFactory = httpClientFactory;
         }
 
+        public string Bucket => "rld-sg";
+
         public async Task<Stream> Extract(string url)
         {
             var client = _httpClientFactory.CreateClient();
