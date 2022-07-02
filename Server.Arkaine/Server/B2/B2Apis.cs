@@ -5,6 +5,7 @@ using System.Security.Claims;
 
 namespace Server.Arkaine.B2
 {
+    // TODO: Look at adding making private method for boiler plate stuff like error handling
     public static class B2Apis
     {
         public static void RegisterB2Apis(this WebApplication app)

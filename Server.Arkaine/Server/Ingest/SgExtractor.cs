@@ -2,23 +2,21 @@
 
 namespace Server.Arkaine.Ingest
 {
-    public class SgExtractor : IExtractor
+    public class SgExtractor : BaseExtractor, IExtractor
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly Regex _exp = new(@"https:\/\/media.soundgasm.net\/sounds\/(\d|[a-z])*.m4a/g");
-        public SgExtractor(IHttpClientFactory httpClientFactory)
+        private readonly Regex _exp = new(@"https:\/\/media.*..net\/sounds\/(\d|[a-z])*.m4a");
+        public SgExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
         {
-            _httpClientFactory = httpClientFactory;
         }
 
-        public string Bucket => "rld-sg";
+        public string Bucket => "be943557a8ccaf478310051d";
 
-        public async Task<Stream> Extract(string url)
+        public async Task<ExtractorResponse> Extract(string url, string fileName, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
             string response = await client.GetStringAsync(url);
             var filePath = _exp.Match(response).Value;
-            return await client.GetStreamAsync(filePath);
+            return await OpenMediaStream(filePath, fileName, cancellationToken);
         }
     }
 }

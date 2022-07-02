@@ -2,7 +2,7 @@
 {
     public interface IExtractor
     {
-        Task<Stream> Extract(string url);
+        Task<ExtractorResponse> Extract(string url, string fileName, CancellationToken cancellationToken);
         string Bucket { get; }
     }
 }

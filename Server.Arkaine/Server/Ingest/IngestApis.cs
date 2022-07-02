@@ -24,11 +24,18 @@ namespace Server.Arkaine.Ingest
                         return Results.BadRequest("No url supplied");
                     }
 
-                    var extractor = extractorFactory.GetExtractor(request.Url);
-                    var stream = await extractor.Extract(request.Url);
-                    string name = new Uri(request.Url).LocalPath;
-                    var response = await b2ervice.Upload(extractor.Bucket, name, stream, cancellationToken);
-                    return Results.Ok(response);
+                    try
+                    {
+                        var extractor = extractorFactory.GetExtractor(request.Url);
+                        var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
+                        var content = new StreamContent(resp.Content);
+                        var response = await b2ervice.Upload(extractor.Bucket, resp.FileName, resp.MimeType, resp.Length, content, cancellationToken);
+                        return Results.Ok(response);
+                    }
+                    catch (Exception ex)
+                    {
+                            return Results.Problem(ex.Message);
+                    }
                 });
         }
     }

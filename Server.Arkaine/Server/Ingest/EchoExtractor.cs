@@ -1,20 +1,16 @@
 ﻿namespace Server.Arkaine.Ingest
 {
-    public class EchoExtractor : IExtractor
+    public class EchoExtractor : BaseExtractor, IExtractor
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-
-        public EchoExtractor(IHttpClientFactory httpClientFactory)
+        public EchoExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
         {
-            _httpClientFactory = httpClientFactory;
         }
 
-        public string Bucket => "rld-dev";
+        public string Bucket => "6e145527380c9fe78310051d";
 
-        public async Task<Stream> Extract(string url)
+        public async Task<ExtractorResponse> Extract(string url, string fileName, CancellationToken cancellationToken)
         {
-            var client = _httpClientFactory.CreateClient();
-            return await client.GetStreamAsync(url);
+            return await OpenMediaStream(url, fileName, cancellationToken);
         }
     }
 }

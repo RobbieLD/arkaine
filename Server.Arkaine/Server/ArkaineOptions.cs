@@ -11,5 +11,6 @@
         public string MAX_COOKIE_LIFETIME { get; set; } = string.Empty;
         public string BUCKETS { get; set; } = string.Empty;
         public string API_KEY { get; set; } = string.Empty;
+        public string SITE_KEYS { get; set; } = string.Empty;
     }
 }

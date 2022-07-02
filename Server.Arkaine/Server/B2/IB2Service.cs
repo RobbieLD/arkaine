@@ -6,6 +6,6 @@
         Task<AlbumsResponse> ListAlbums(string userName, CancellationToken cancellationToken);
         Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken);
         Task<IResult> Stream(string userName, string bucketName, string fileName, CancellationToken cancellationToken);
-        Task<UploadResponse> Upload(string bucketName, string fileName, Stream stream, CancellationToken cancellationToken);
+        Task<UploadResponse> Upload(string bucketId, string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken);
     }
 }

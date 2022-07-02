@@ -104,12 +104,52 @@ namespace Server.Arkaine.B2
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
 
-        public async Task<UploadResponse> Upload(string bucketName, string fileName, Stream stream, CancellationToken cancellationToken)
+        public async Task<UploadResponse> Upload(string bucketId, string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken)
         {
-            var token = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
+            var urlResponse = await GetUploadUri(bucketId, cancellationToken);
+
             var client = _httpClientFactory.CreateClient();
-            return new UploadResponse();
-            //https://www.backblaze.com/b2/docs/b2_upload_file.html
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", urlResponse.Token);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-File-Name", fileName);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Info-Author", "Arkaine");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
+            content.Headers.ContentLength = length;
+            content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+            
+            var response = await client.PostAsync(urlResponse.UploadUrl, content, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<UploadResponse>(responseString) ?? throw new("Upload response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Upload API call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
+        }
+
+        private async Task<UploadUrlResponse> GetUploadUri(string bucket, CancellationToken cancellationToken)
+        {
+            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var buffer = Encoding.UTF8.GetBytes("{\"bucketId\":\"" + bucket + "\"}");
+            var byteContent = new ByteArrayContent(buffer);
+            
+            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_get_upload_url", byteContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<UploadUrlResponse>(responseString) ?? throw new("Upload url response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Get Upload URL API call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
         }
 
         private async Task<CacheModel> GetCache(string key, CancellationToken cancellationToken)
