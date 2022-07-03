@@ -1,0 +1,19 @@
+{
+    "name": "Arkaine",
+    "description": "Arkaine chrome extension",
+    "version": "1.0",
+    "manifest_version": 3,
+    "permissions": [
+        "tabs"
+    ],
+    "action": {
+        "default_icon": {
+            "16": "/images/zap_16.png",
+            "32": "/images/zap_32.png",
+            "48": "/images/zap_48.png",
+            "128": "/images/zap_128.png"
+        },
+        "default_title": "Arkaine",
+        "default_popup": "popup.html"
+    }
+}
