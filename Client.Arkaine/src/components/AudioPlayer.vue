@@ -1,7 +1,7 @@
 <template>
     <div class="player">
         <audio ref="audio" preload="none"></audio>
-        <input type="range" @input="seek" v-bind:value="playerTime" class="player__seek" min="0" :max="audio?.duration" />
+        <input type="range" @input="seek" v-bind:value="playerTime" :disabled="!enableSeek" class="player__seek" min="0" :max="audio?.duration" />
         <div class="player__controls">
             <div class="player__current-time">{{ current }}</div>
             <div class="player__button-container" @click="toggle">
@@ -32,6 +32,7 @@
             const current = ref('0:00')
             const seekPosition = ref('0%')
             const bufferPosition = ref('0%')
+            const enableSeek = ref(false)
 
             const seek = async (ev: Event) => {
                 const v = Number.parseInt((ev.target as HTMLInputElement).value)
@@ -50,6 +51,7 @@
 
                     audio.value?.play()
                     playing.value = true
+                    enableSeek.value = true
                 }
             }
 
@@ -90,7 +92,8 @@
                 current,
                 total,
                 seekPosition,
-                bufferPosition
+                bufferPosition,
+                enableSeek
             }
         },
     })

@@ -80,7 +80,7 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var buffer = Encoding.UTF8.GetBytes("{\"bucketId\":\"" + request.BucketId + "\"}");
+            var buffer = Encoding.UTF8.GetBytes("{\"bucketId\":\"" + request.BucketId + "\", \"maxFileCount\":1000}");
             var byteContent = new ByteArrayContent(buffer);
 
             var response = await client.PostAsync(cacheModel.ApiUrl + "/b2api/v2/b2_list_file_names", byteContent, cancellationToken);
