@@ -17,7 +17,7 @@ function restore_options() {
         url: ''
     }, (items) => {
         document.getElementById('api-key').value = items.key;
-        document.getElementById('api-key').value = items.url;
+        document.getElementById('api-url').value = items.url;
     });
 }
 

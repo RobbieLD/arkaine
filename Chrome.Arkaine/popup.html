@@ -1,12 +1,26 @@
+
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>This is a popup</title>
+    <title>Arkine</title>
+    <link rel='stylesheet' type='text/css' media='screen' href='/styles/main.css'>
 </head>
+
 <body>
-    <div class="console"></div>
+    <div class="settings">
+        <div class="settings-row">
+            <label for="file-name">File Name</label>
+            <input id="file-name" type="text">
+        </div>
+        <button id="save" class="save">Process</button>
+        <div class="settings-row">
+            <div class="console"></div>
+        </div>
+    </div>
     <script src="/scripts/processor.js"></script>
 </body>
+
 </html>
