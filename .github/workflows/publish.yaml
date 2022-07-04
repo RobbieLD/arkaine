@@ -11,11 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: vimtor/action-zip@v1
+      - uses: actions/upload-artifact@v3
         with:
-          files: Chrome.Arkaine/
-          dest: chrome.arkaine.zip
-      - uses: actions/upload-artifact@v1
-        with:
-          name: chrome.arkaine.zip
-          path: ${{ github.workspace }}/chrome.arkaine.zip
+          name: Chrome.Arkaine
+          path: ${{ github.workspace }}/Chrome.Arkaine
