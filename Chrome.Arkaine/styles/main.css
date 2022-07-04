@@ -1,0 +1,19 @@
+body {
+    display: flex;
+    justify-content: center;
+    font-family: sans-serif;
+}
+
+.settings {
+    margin-top: 2em;
+}
+
+.settings-row {
+    margin-top: 0.5em;
+}
+
+.save {
+    display: block;
+    margin-top: 1em;
+    padding: 0.5em;
+}

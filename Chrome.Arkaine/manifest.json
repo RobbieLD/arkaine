@@ -4,8 +4,10 @@
     "version": "1.0",
     "manifest_version": 3,
     "permissions": [
-        "tabs"
+        "tabs",
+        "storage"
     ],
+    "options_page": "options.html",
     "action": {
         "default_icon": {
             "16": "/images/zap_16.png",
