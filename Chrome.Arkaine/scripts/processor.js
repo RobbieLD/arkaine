@@ -21,7 +21,7 @@ const post = async (url, key, api, name) => {
         })
     })
 
-    return response.status
+    return response.json()
 }
 
 const process = () => {
@@ -36,8 +36,9 @@ const process = () => {
             const input = document.getElementById('file-name')
             log(input.value)
             try {
-                post(url, items.key, items.url, input.value).then((status) => {
-                    log(status)
+                post(url, items.key, items.url, input.value).then((response) => {
+                    const data = JSON.parse(response)
+                    log(`${data.FileName} uploaded at ${data.Size}`)
                 })
             } catch (e) {
                 log(e)
