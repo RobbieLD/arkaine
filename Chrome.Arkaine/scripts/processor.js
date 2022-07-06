@@ -38,7 +38,7 @@ const process = () => {
             try {
                 post(url, items.key, items.url, input.value).then((response) => {
                     const data = JSON.parse(response)
-                    log(`${data.FileName} uploaded at ${data.Size}`)
+                    log(`${data.fileName} uploaded at ${data.contentLength}`)
                 })
             } catch (e) {
                 log(e)
