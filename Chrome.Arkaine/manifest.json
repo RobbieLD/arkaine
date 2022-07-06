@@ -10,6 +10,12 @@
     "host_permissions": [
         "https://*/*"
     ],
+    "icons": {
+        "16": "/images/vault.png",
+        "32": "/images/vault_01.png",
+        "48": "/images/vault_02.png",
+        "128": "/images/vault_02.png"
+    },
     "options_page": "options.html",
     "action": {
         "default_icon": {
@@ -20,5 +26,6 @@
         },
         "default_title": "Arkaine",
         "default_popup": "popup.html"
-    }
+    },
+    "update_url": "https://raw.githubusercontent.com/RobbieLD/arkaine/release/Chrome.Arkaine/update.xml"
 }

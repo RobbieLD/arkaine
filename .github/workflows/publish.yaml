@@ -1,17 +1,21 @@
 name: Publish Chrome Extension
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+    paths:
+      - 'Chrome.Arkaine/update.xml'
 
 jobs:
-  zip-files:
+  publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/upload-artifact@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Create CRX
+        uses: actions/setup-node@v3
+      - run: npm install crx
+      - run: crx pack -o pub/arkaine.crx
+      - name: Create Release
+        uses: ncipollo/release-action@v1.10.0
         with:
-          name: Chrome.Arkaine
-          path: ${{ github.workspace }}/Chrome.Arkaine
+          artifacts: "pub/arkaine.crx"
+          token: ${{ secrets.GITHUB_TOKEN }}
