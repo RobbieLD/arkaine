@@ -17,6 +17,7 @@ jobs:
       - run: npm install crx -g
       - run: crx pack Chrome.Arkaine -o arkaine.crx
       - name: Create tag
+        id: tag
         uses: butlerlogic/action-autotag@stable
         with:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -28,4 +29,4 @@ jobs:
         with:
           artifacts: "arkaine.crx"
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ steps.create-tag.outputs.tagname }}
+          tag: ${{ steps.tag.outputs.version }}
