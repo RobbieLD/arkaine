@@ -7,6 +7,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -14,11 +16,15 @@ jobs:
         uses: actions/setup-node@v3
       - run: npm install crx -g
       - run: crx pack Chrome.Arkaine -o arkaine.crx
-      - uses: Klemensas/action-autotag@stable
+      - uses: butlerlogic/action-autotag@stable
         with:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          strategy: regex
+          root: "Chrome.Arkaine/update.xml"
+          regex_pattern: "version='(\\d+.\\d+.\\d+.\\d+)'"
       - name: Create Release
         uses: ncipollo/release-action@v1.10.0
         with:
           artifacts: "arkaine.crx"
           token: ${{ secrets.GITHUB_TOKEN }}
+          tag: 1234
