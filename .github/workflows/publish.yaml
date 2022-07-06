@@ -14,9 +14,12 @@ jobs:
         uses: actions/setup-node@v3
       - run: npm install crx -g
       - run: crx pack Chrome.Arkaine -o arkaine.crx
-      - uses: Klemensas/action-autotag@stable
+      - uses: butlerlogic/action-autotag@stable
         with:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          strategy: regex
+          root: "Chrome.Arkaine/update.xml"
+          regex_pattern: "version='(\\d+.\\d+.\\d+.\\d+)'"
       - name: Create Release
         uses: ncipollo/release-action@v1.10.0
         with:
