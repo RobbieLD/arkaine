@@ -13,9 +13,9 @@ jobs:
       - name: Create CRX
         uses: actions/setup-node@v3
       - run: npm install crx -g
-      - run: crx pack -o pub/arkaine.crx
+      - run: crx pack Chrome.Arkaine -o arkaine.crx
       - name: Create Release
         uses: ncipollo/release-action@v1.10.0
         with:
-          artifacts: "pub/arkaine.crx"
+          artifacts: "arkaine.crx"
           token: ${{ secrets.GITHUB_TOKEN }}
