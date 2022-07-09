@@ -21,7 +21,7 @@ const post = async (url, key, api, name) => {
         })
     })
 
-    return response.json()
+    return await response.json()
 }
 
 const process = () => {
