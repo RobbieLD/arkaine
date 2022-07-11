@@ -1,7 +1,7 @@
 {
     "name": "Arkaine",
     "description": "Arkaine chrome extension",
-    "version": "1.1",
+    "version": "1.2",
     "manifest_version": 3,
     "permissions": [
         "tabs",
@@ -27,5 +27,5 @@
         "default_title": "Arkaine",
         "default_popup": "popup.html"
     },
-    "update_url": "https://raw.githubusercontent.com/RobbieLD/arkaine/release/Chrome.Arkaine/update.xml"
+    "update_url": "https://raw.githubusercontent.com/RobbieLD/arkaine/main/Chrome.Arkaine/update.xml"
 }
