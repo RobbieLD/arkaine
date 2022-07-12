@@ -48,15 +48,19 @@
 </script>
 <style lang='scss' scoped>
     .album {
-        padding: 0.5em;
+        padding: 0em;
         height: fit-content;
+        max-width: 20em;
+        width: 20%;
+        margin: 0;
 
         &__name {
             text-align: center;
         }
 
         &__background {
-            max-width: 20em;
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius);
         }
 
         &:hover {
