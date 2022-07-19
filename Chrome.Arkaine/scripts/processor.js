@@ -10,7 +10,6 @@ const post = async (url, key, api, name) => {
     const response = await fetch(api, {
         method: 'POST',
         cache: 'no-cache',
-        mode: 'cors',
         headers: {
             'Content-Type': 'application/json'
         },
