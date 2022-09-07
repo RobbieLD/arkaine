@@ -14,7 +14,7 @@ namespace Server.Arkaine.Ingest
         public async Task<ExtractorResponse> Extract(string url, string fileName, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
-            string response = await client.GetStringAsync(url);
+            string response = await client.GetStringAsync(url, cancellationToken);
             var filePath = _exp.Match(response).Value;
             return await OpenMediaStream(filePath, fileName, cancellationToken);
         }

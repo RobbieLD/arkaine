@@ -41,6 +41,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();
 builder.Services.AddScoped<SgExtractor>();
+builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
 builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
