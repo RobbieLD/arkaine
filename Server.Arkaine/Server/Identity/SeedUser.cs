@@ -31,8 +31,8 @@ namespace Server.Arkaine.Identity
             {
                 Email = "user@localhost.com",
                 NormalizedEmail = "USER@LOCALHOST.COM",
-                UserName = "test",
-                NormalizedUserName = "TEST",
+                UserName = "user",
+                NormalizedUserName = "USER",
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
                 SecurityStamp = Guid.NewGuid().ToString("D")
@@ -51,7 +51,7 @@ namespace Server.Arkaine.Identity
 
             if (!context!.Users.Any(u => u.UserName == user.UserName))
             {
-                var r = await userManager.CreateAsync(user, "userpassword");
+                await userManager.CreateAsync(user, ".Password1");
                 var dbUser = await userManager.FindByNameAsync("user");
                 await userManager.AddToRolesAsync(dbUser, new[] { "User" });
             }
@@ -59,7 +59,7 @@ namespace Server.Arkaine.Identity
             
             if (!context!.Users.Any(u => u.UserName == admin.UserName))
             {
-                await userManager.CreateAsync(admin, "adminpassword");
+                await userManager.CreateAsync(admin, ".Password1");
                 var dbAdmin = await userManager.FindByNameAsync("admin");
                 await userManager.AddToRolesAsync(dbAdmin, new[] { "Admin" });
             }

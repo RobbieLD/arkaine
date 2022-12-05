@@ -1,7 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
-namespace Server.Arkaine
+namespace Server.Arkaine.Migrations
 {
     public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<ArkaineDbContext>
     {
@@ -12,9 +13,7 @@ namespace Server.Arkaine
             IConfigurationBuilder builder =
                 new ConfigurationBuilder()
                     .SetBasePath(path)
-                    .AddJsonFile("appsettings.json")
-                    .AddJsonFile("appsettings.local.json", true)
-                    .AddEnvironmentVariables();
+                    .AddJsonFile("appsettings.json");
 
             IConfigurationRoot config = builder.Build();
 
@@ -31,6 +30,8 @@ namespace Server.Arkaine
             var dbContextOptionsBuilder = new DbContextOptionsBuilder<ArkaineDbContext>();
 
             ArkaineDbContext.AddBaseOptions(dbContextOptionsBuilder, connectionString);
+
+            dbContextOptionsBuilder.UseNpgsql(b => b.MigrationsAssembly("Server.Arkaine.Migrations"));
 
             return new ArkaineDbContext(dbContextOptionsBuilder.Options);
         }

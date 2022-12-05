@@ -21,6 +21,6 @@ module.exports = {
       'eol-last': 2,
       'vue/no-useless-template-attributes': 'off',
       'vue/multi-word-component-names': 'off',
-      'no-non-null-assertion': 'off'
+      '@typescript-eslint/no-non-null-assertion': 'off'
     }
   }

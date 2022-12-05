@@ -4,9 +4,9 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Server.Arkaine.Identity.Migrations
+namespace Server.Arkaine.Migrations.Migrations
 {
-    public partial class InitialIdentityDbCreation : Migration
+    public partial class InitialDbCreation : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {

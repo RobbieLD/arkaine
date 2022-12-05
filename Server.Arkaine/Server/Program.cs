@@ -124,6 +124,9 @@ app.RegisterUserApis();
 app.RegisterB2Apis();
 app.RegisterIngestApis();
 
-//await SeedUser.Initialize(app.Services);
+if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
+{
+    await Server.Arkaine.Identity.SeedUser.Initialize(app.Services);
+}
 
 app.Run();
