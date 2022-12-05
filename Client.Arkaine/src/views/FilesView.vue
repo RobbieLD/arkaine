@@ -15,11 +15,8 @@
 
             <!-- Audio File -->
             <div v-else-if="file.isAudio">
-                <a :href="file.url" target="_blank">{{ file.fileName }}</a>
+                <a :href="file.url" target="_blank">{{ file.fileName }} ({{ index + 1 }}/{{ files.length }})</a>
                 <audio-player :src="file.url" class="player" :fileName="file.fileName"></audio-player>
-                <!-- <audio controls class="audio">
-                    <source :src="file.url" :type="file.contentType">
-                </audio> -->
             </div>
 
             <!-- Folder -->
@@ -34,6 +31,7 @@
             <div v-else>
                 <a :href="file.url" target="_blank">{{ files.fileName }}</a>
             </div>
+            <div v-if="!file.isAudio && !file.isFolder" class="caption">{{ file.fileName }} ({{ index + 1 }}/{{ files.length }})</div>
         </article>
     </div>
 </template>
@@ -88,6 +86,10 @@
     .audio {
         width: 100%;
         background: #f1f3f4;
+    }
+
+    .caption {
+        text-align: center;
     }
 
     .video video {

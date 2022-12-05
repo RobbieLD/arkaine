@@ -69,7 +69,7 @@ if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
     {
         options.AddPolicy(name: cors, policy =>
         {
-            policy.WithOrigins("http://localhost:8080")
+            policy.WithOrigins("http://localhost:8081")
                 .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
                 .WithMethods("GET", "POST")
                 .AllowCredentials();
