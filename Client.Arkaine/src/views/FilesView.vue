@@ -1,6 +1,6 @@
 <template>
     <div class="content">
-        <article :class="{ image: file.isImage, folder: file.isFolder, audio: file.isAudio, video: file.isVideo }" class="item" v-for="(file, index) of files" :key="index">
+        <article :class="{ image: file.isImage, folder: file.isFolder, audio: file.isAudio, video: file.isVideo }" class="item" v-for="(file, index) of files.data" :key="index">
             <!-- Image File -->
             <a v-if="file.isImage" class="image" :href="file.url" target="_blank">
                 <img :src="file.url"/>
@@ -15,7 +15,7 @@
 
             <!-- Audio File -->
             <div v-else-if="file.isAudio">
-                <a :href="file.url" target="_blank">{{ file.fileName }} ({{ index + 1 }}/{{ files.length }})</a>
+                <a :href="file.url" target="_blank">{{ file.fileName }} ({{ index + 1 }}/{{ files.total }})</a>
                 <audio-player :src="file.url" class="player" :fileName="file.fileName"></audio-player>
             </div>
 
@@ -29,15 +29,15 @@
 
             <!-- Other file types -->
             <div v-else>
-                <a :href="file.url" target="_blank">{{ files.fileName }}</a>
+                <a :href="file.url" target="_blank">{{ file.fileName }}</a>
             </div>
-            <div v-if="!file.isAudio && !file.isFolder" class="caption">{{ file.fileName }} ({{ index + 1 }}/{{ files.length }})</div>
+            <div v-if="!file.isAudio && !file.isFolder" class="caption">{{ file.fileName }} ({{ index + 1 }}/{{ files.total }}) - {{ file.contentLength }}</div>
         </article>
     </div>
 </template>
 <script lang='ts'>
     import { storeKey } from '@/store'
-    import { computed, defineComponent, onMounted } from 'vue'
+    import { computed, defineComponent, onMounted, ref } from 'vue'
     import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
     import { useStore } from 'vuex'
     import AudioPlayer from '@/components/AudioPlayer.vue'
@@ -51,7 +51,14 @@
             const router = useRouter()
             const store = useStore(storeKey)
             const route = useRoute()
-            const files = computed(() => store.getters['getFilesList'])
+            const count = ref(20)
+            const files = computed(() => {
+                const fs = store.getters['getFilesList']
+                return {
+                    data: fs.slice(0, count.value),
+                    total: fs.length
+                }
+            })
             const open = async (name: string) => {
                 await router.push(route.path + name + '/')
             }
@@ -62,6 +69,14 @@
 
             onBeforeRouteUpdate((to) => {
                 store.commit('setPath', to.params.path)
+            })
+
+            window.addEventListener('scroll', () => {
+                if ((window.innerHeight + window.scrollY) >= document.body.scrollHeight) {
+                    if (count.value < files.value.total) {
+                        count.value += 20
+                    }
+                }
             })
 
             return {
