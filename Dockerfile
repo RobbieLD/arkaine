@@ -10,10 +10,12 @@ RUN dotnet publish -c Release -o out
 
 # Build Client
 FROM node:16 AS client-build
+ARG VERSION=DEV
 WORKDIR /app
 COPY Client.Arkaine/package*.json ./
 RUN yarn install
 COPY Client.Arkaine/. ./
+ENV VUE_APP_ARKAINE_VERSION=$VERSION
 RUN yarn run build
 
 # Build Release

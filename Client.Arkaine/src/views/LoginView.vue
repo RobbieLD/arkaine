@@ -1,6 +1,6 @@
 <template>
     <article class="login">
-        <form>
+        <form class="login-form">
             <div class="grid">
                 <input
                     type="text"
@@ -24,8 +24,8 @@
             <button type="submit" @click="login" v-bind:disabled="loggingIn">
                 Login
             </button>
-
-            <small>{{ error }}</small>
+            <div class="version">{{ version }}</div>
+            <div>{{ error }}</div>
         </form>
     </article>
 </template>
@@ -65,16 +65,26 @@
                 username,
                 password,
                 loggingIn,
-                error
+                error,
+                version: process.env?.VUE_APP_ARKAINE_VERSION
             }
         },
     })
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
     .login {
         max-width: 35em;
         margin: 0 auto;
         margin-top: 20vh;
+    }
+
+    .login-form {
+        margin-bottom: 0em;
+    }
+
+    .version {
+        font-size: 0.8em;
+        text-align: right;
     }
 </style>
