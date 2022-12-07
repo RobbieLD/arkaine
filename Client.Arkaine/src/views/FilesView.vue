@@ -33,6 +33,9 @@
             </div>
             <div v-if="!file.isAudio && !file.isFolder" class="caption">{{ file.fileName }} ({{ index + 1 }}/{{ files.total }}) - {{ file.contentLength }}</div>
         </article>
+        <button v-if="(files.total > files.data.length)" @click="nextPage">
+            Next Page
+        </button>
     </div>
 </template>
 <script lang='ts'>
@@ -51,7 +54,7 @@
             const router = useRouter()
             const store = useStore(storeKey)
             const route = useRoute()
-            const count = ref(20)
+            const count = ref(0)
             const files = computed(() => {
                 const fs = store.getters['getFilesList']
                 return {
@@ -59,29 +62,30 @@
                     total: fs.length
                 }
             })
+
             const open = async (name: string) => {
                 await router.push(route.path + name + '/')
             }
 
             onMounted(() => {
                 store.commit('setPath', '')
+                count.value = 20
             })
 
             onBeforeRouteUpdate((to) => {
                 store.commit('setPath', to.params.path)
             })
 
-            window.addEventListener('scroll', () => {
-                if ((window.innerHeight + window.scrollY) >= document.body.scrollHeight) {
-                    if (count.value < files.value.total) {
-                        count.value += 20
-                    }
+            const nextPage = () => {
+                if (count.value < files.value.total) {
+                    count.value += 20
                 }
-            })
+            } 
 
             return {
                 files,
-                open
+                open,
+                nextPage
             }
         },
     })
