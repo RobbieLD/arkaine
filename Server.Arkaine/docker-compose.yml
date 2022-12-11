@@ -17,7 +17,16 @@ services:
 
   adminer:
     container_name: adminer
-    image: adminer
+    image: michalhosna/adminer
     restart: always
+    environment:
+       ADMINER_DB: arkaine
+       ADMINER_DRIVER: pgsql
+       ADMINER_PASSWORD: password
+       ADMINER_SERVER: postgres
+       ADMINER_USERNAME: admin
+       ADMINER_AUTOLOGIN: 1
+       ADMINER_NAME: Arkaine Development Database
+
     ports:
       - 8080:8080

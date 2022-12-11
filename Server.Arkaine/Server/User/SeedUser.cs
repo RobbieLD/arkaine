@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
-namespace Server.Arkaine.Identity
+namespace Server.Arkaine.User
 {
     public class SeedUser
     {
@@ -55,8 +55,8 @@ namespace Server.Arkaine.Identity
                 var dbUser = await userManager.FindByNameAsync("user");
                 await userManager.AddToRolesAsync(dbUser, new[] { "User" });
             }
-            
-            
+
+
             if (!context!.Users.Any(u => u.UserName == admin.UserName))
             {
                 await userManager.CreateAsync(admin, ".Password1");

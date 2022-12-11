@@ -7,6 +7,7 @@ using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.B2;
 using Server.Arkaine.Ingest;
+using Server.Arkaine.Meta;
 using Server.Arkaine.User;
 using System.Net;
 
@@ -35,11 +36,12 @@ builder.Services.AddAuthentication(options =>
 
 var lifetimeKey = Guid.NewGuid();
 builder.Services.Configure<ArkaineOptions>(config);
-builder.Services.AddTransient<CustomCookieAuthenticationEvent>(s => 
-    ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(s, config["MAX_COOKIE_LIFETIME"], lifetimeKey));
+builder.Services.AddTransient<GlobalExceptionHandler>();
+builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(s, config["MAX_COOKIE_LIFETIME"], lifetimeKey));
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();
+builder.Services.AddScoped<IMetaRepository, MetaRepository>();
 builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
@@ -71,7 +73,7 @@ if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
         {
             policy.WithOrigins("http://localhost:8081")
                 .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
-                .WithMethods("GET", "POST")
+                .WithMethods("GET", "POST", "PUT")
                 .AllowCredentials();
         });
     });
@@ -116,6 +118,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseMiddleware<GlobalExceptionHandler>();
 app.MapGet("/status", () => "Server is running");
 app.MapGet("/error", () => "There was a server error");
 app.MapGet("/forbidden", () => "You do not have access to this page");
@@ -123,10 +126,11 @@ app.MapGet("/forbidden", () => "You do not have access to this page");
 app.RegisterUserApis();
 app.RegisterB2Apis();
 app.RegisterIngestApis();
+app.RegisterMetaApis();
 
 if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
 {
-    await Server.Arkaine.Identity.SeedUser.Initialize(app.Services);
+    await SeedUser.Initialize(app.Services);
 }
 
 app.Run();

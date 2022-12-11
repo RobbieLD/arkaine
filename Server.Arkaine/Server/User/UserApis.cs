@@ -55,7 +55,6 @@ namespace Server.Arkaine.User
                     //IsPersistent = true,
                 };
 
-                
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
 
                 var authResponse = 

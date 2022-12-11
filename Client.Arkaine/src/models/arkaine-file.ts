@@ -1,4 +1,5 @@
 import B2File from './b2-file'
+import Rating from './rating'
 
 export default class ArkaineFile implements B2File {
     
@@ -11,12 +12,14 @@ export default class ArkaineFile implements B2File {
     isVideo: boolean
     isFolder: boolean
     isAudio: boolean
+    rating?: Rating
 
-    public constructor(fn: string, ct: string, cl: string, u: string) {
+    public constructor(fn: string, ct: string, cl: string, u: string, r?: Rating) {
         this.fileName = fn
         this.contentType = ct
         this.contentLength = cl
         this.url = u
+        this.rating = r
 
         this.isImage = ct.startsWith('image')
         this.isVideo = ct.startsWith('video')
@@ -42,7 +45,7 @@ export default class ArkaineFile implements B2File {
             newChild.add(file, url)
         }
         else {
-            this.children.push(new ArkaineFile(file.fileName, file.contentType, file.contentLength, url))
+            this.children.push(new ArkaineFile(file.fileName, file.contentType, file.contentLength, url, file.rating))
         }
     }
 }

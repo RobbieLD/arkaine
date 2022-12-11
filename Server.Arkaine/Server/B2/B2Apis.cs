@@ -5,7 +5,6 @@ using System.Security.Claims;
 
 namespace Server.Arkaine.B2
 {
-    // TODO: Look at adding making private method for boiler plate stuff like error handling
     public static class B2Apis
     {
         public static void RegisterB2Apis(this WebApplication app)
@@ -14,45 +13,24 @@ namespace Server.Arkaine.B2
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
-                try
-                {
-                    string userName = user?.Identity?.Name ?? string.Empty;
-                    return Results.Ok(await service.ListAlbums(userName, cancelationToken));
-                }
-                catch (Exception ex)
-                {
-                    return Results.Problem(ex.Message);
-                }
+                string userName = user?.Identity?.Name ?? string.Empty;
+                return Results.Ok(await service.ListAlbums(userName, cancelationToken));
             });
 
             app.MapPost("/files",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (FilesRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
-                try
-                {
-                    string userName = user?.Identity?.Name ?? string.Empty;
-                    return Results.Ok(await service.ListFiles(request, userName, cancelationToken));
-                }
-                catch (Exception ex)
-                {
-                    return Results.Problem(ex.Message);
-                }
+                string userName = user?.Identity?.Name ?? string.Empty;
+                return Results.Ok(await service.ListFiles(request, userName, cancelationToken));
             });
 
             app.MapGet("/stream/{bucket}/{*file}",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async ([FromRoute] string bucket, [FromRoute] string file, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
             {
-                try
-                {
-                    string userName = user?.Identity?.Name ?? string.Empty;
-                    return await service.Stream(userName, bucket, file, cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    return Results.Problem(ex.Message);
-                }
+                string userName = user?.Identity?.Name ?? string.Empty;
+                return await service.Stream(userName, bucket, file, cancelationToken);
             });
         }
     }

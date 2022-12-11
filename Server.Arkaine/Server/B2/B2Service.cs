@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Server.Arkaine.Meta;
 using System.Linq;
 using System.Net.Http.Headers;
 using System.Text;
@@ -14,13 +15,15 @@ namespace Server.Arkaine.B2
         private readonly ILogger _logger;
         private readonly IMemoryCache _cache;
         private readonly ArkaineOptions _options;
+        private readonly IMetaRepository _metaRepository;
 
-        public B2Service(IHttpClientFactory httpClientFactory, IMemoryCache cache, IOptions<ArkaineOptions> config, ILogger<B2Service> logger)
+        public B2Service(IHttpClientFactory httpClientFactory, IMemoryCache cache, IOptions<ArkaineOptions> config, ILogger<B2Service> logger, IMetaRepository metaRepository)
         {
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _cache = cache;
             _options = config.Value;
+            _metaRepository = metaRepository;
         }
 
         public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
@@ -92,6 +95,16 @@ namespace Server.Arkaine.B2
                 _logger.LogInformation($"List files API call responded with: {response.StatusCode}");
                 throw new(responseString);
             }
+
+            // Add in file meta data from the database
+            var ratings = await _metaRepository.GetRatings(request.BucketId);
+            responseModel.Files.ForEach(f => f.Rating = ratings.TryGetValue(f.FileName, out Rating? rating) ? rating : new Rating
+            {
+                FileName = f.FileName,
+                Bucket = request.BucketId,
+                Id = 0,
+                Value = 0
+            });
 
             _logger.LogInformation("List files succeeded");
             return responseModel;

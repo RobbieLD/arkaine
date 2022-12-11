@@ -1,9 +1,10 @@
 <template>
+    <div v-if="alert" class="alert" :class="{ error: alert.isError, info: !alert.isError }">{{ alert.message }}</div>
     <router-view />
 </template>
 
 <script lang="ts">
-    import { defineComponent, onMounted, onUnmounted } from 'vue'
+    import { computed, defineComponent, onMounted, onUnmounted } from 'vue'
     import { useRouter } from 'vue-router'
     import { useStore } from 'vuex'
     import { storeKey } from './store'
@@ -14,6 +15,7 @@
         setup() {
             const store = useStore(storeKey)
             const router = useRouter()
+            const alert = computed(() => store.state.alert)
 
             const unsubscribe = store.subscribe(async (mutation) => {
                 if (mutation.type == 'setAlbums') {
@@ -28,6 +30,10 @@
             onUnmounted(() => {
                 unsubscribe()
             })
+
+            return {
+                alert
+            }
         },
     })
 </script>
@@ -35,6 +41,23 @@
 <style lang="scss">
     body {
         padding: 0 2em;
+    }
+
+    .error {
+        color: darkred;
+        border: red solid 2px;
+        background: #ffeded;
+    }
+
+    .info {
+        color: #072872;
+        border: #2882ff solid 2px;
+        background: #e7f1ff;
+    }
+
+    .alert {
+        margin: 1em;
+        padding: 1em;
     }
 
     .content {

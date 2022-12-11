@@ -1,7 +1,7 @@
 <template>
     <article class="album" @click="open">
         <!-- <h1>{{ name }}</h1> -->
-        <img :src="background" class="album__background" />
+        <img :src="background" @error="imageLoadErrorHandler" class="album__background" />
         <div class="album__name">{{ name }}</div>
     </article>
 </template>
@@ -25,6 +25,10 @@
             const store = useStore(storeKey)
             const router = useRouter()
 
+            const imageLoadErrorHandler = (e: any) => {
+                e.target.src = 'folder.png'
+            }
+
             const open = async () => {
                 try {
                     await store.dispatch('loadFiles', props.Album )
@@ -41,7 +45,8 @@
             return {
                 name: props.Album.bucketName,
                 background: `${process.env?.VUE_APP_ARKAINE_SERVER}/stream/${props.Album.bucketName}/thumb.jpg`,
-                open
+                open,
+                imageLoadErrorHandler
             }
         },
     })

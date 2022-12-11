@@ -1,5 +1,7 @@
 import Album from '@/models/album'
+import Alert from '@/models/alert'
 import ArkaineFile from '@/models/arkaine-file'
+import Rating from '@/models/rating'
 import ArkaineService from '@/services/arkaine.service'
 import { InjectionKey } from 'vue'
 import { createStore, Store } from 'vuex'
@@ -50,6 +52,10 @@ export const store = createStore<State>({
 
     setPath: (state: State, path: string): void => {
         state.path = path
+    },
+
+    setAlert: (state: State, alert?: Alert): void => {
+        state.alert = alert
     }
   },
   actions: {
@@ -68,15 +74,41 @@ export const store = createStore<State>({
     },
 
     loadAlbums: async ({ commit }): Promise<void> => {
-        const service = new ArkaineService()
-        const albums = await service.Albums()
-        commit('setAlbums', albums)
+        try {
+            const service = new ArkaineService()
+            const albums = await service.Albums()
+            commit('setAlbums', albums)
+            commit('setAlert', null)
+        }
+        catch (e) {
+            commit('setAlert', {
+                isError: true,
+                message: e
+            })
+        }
+
     },
 
     loadFiles: async ({ commit }, album: Album): Promise<void> => {
+        try {
+            const service = new ArkaineService()
+            const filesRoot = await service.Files(album.bucketId, album.bucketName)
+            commit('setFiles', filesRoot)
+            commit('setAlert', null)
+        }
+        catch (e) {
+            commit('setAlert', {
+                isError: true,
+                message: e
+            })
+
+            throw e
+        }
+    },
+
+    saveRating: async (_, rating: Rating): Promise<void> => {
         const service = new ArkaineService()
-        const filesRoot = await service.Files(album.bucketId, album.bucketName)
-        commit('setFiles', filesRoot)
+        await service.SaveRating(rating)
     }
   },
   modules: {

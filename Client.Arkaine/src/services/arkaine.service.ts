@@ -2,6 +2,7 @@
 import Album from '@/models/album'
 import ArkaineFile from '@/models/arkaine-file'
 import B2File from '@/models/b2-file'
+import Rating from '@/models/rating'
 import BaseService from './base.service'
 
 export default class ArkaineService extends BaseService {
@@ -26,6 +27,10 @@ export default class ArkaineService extends BaseService {
 
     public async LoggedIn(): Promise<void> {
         return await this.http.get('/loggedin')
+    }
+
+    public async SaveRating(rating: Rating): Promise<void> {
+        await this.http.put('/meta/rating', rating)
     }
 
     public async Files(bucketId: string, bucketName: string): Promise<ArkaineFile> {

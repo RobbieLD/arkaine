@@ -1,6 +1,7 @@
 <template>
     <div class="content">
         <article :class="{ image: file.isImage, folder: file.isFolder, audio: file.isAudio, video: file.isVideo }" class="item" v-for="(file, index) of files.data" :key="index">
+            <rating-control v-if="!file.isFolder" icon="♥" v-model:modelValue.number="file.rating.value" @update:modelValue="saveRating(file.rating)"></rating-control>
             <!-- Image File -->
             <a v-if="file.isImage" class="image" :href="file.url" target="_blank">
                 <img :src="file.url"/>
@@ -44,27 +45,36 @@
     import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
     import { useStore } from 'vuex'
     import AudioPlayer from '@/components/AudioPlayer.vue'
+    import Rating from '@/models/rating'
+    import ArkaineFile from '@/models/arkaine-file'
+    import RatingControl from '@/components/RatingControl.vue'
 
     export default defineComponent({
         name: 'FilesView',
         components: {
-            AudioPlayer
+            AudioPlayer,
+            RatingControl
         },
         setup() {
             const router = useRouter()
             const store = useStore(storeKey)
             const route = useRoute()
             const count = ref(0)
+            const test = ref(0)
             const files = computed(() => {
                 const fs = store.getters['getFilesList']
                 return {
-                    data: fs.slice(0, count.value),
+                    data: fs.slice(0, count.value).sort((a: ArkaineFile, b: ArkaineFile) => (b.rating?.value || 0) - (a.rating?.value || 0)),
                     total: fs.length
                 }
             })
 
             const open = async (name: string) => {
                 await router.push(route.path + name + '/')
+            }
+
+            const saveRating =  async (r: Rating) => {
+                await store.dispatch('saveRating', r)
             }
 
             onMounted(() => {
@@ -85,7 +95,9 @@
             return {
                 files,
                 open,
-                nextPage
+                nextPage,
+                test,
+                saveRating
             }
         },
     })
