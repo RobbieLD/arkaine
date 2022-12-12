@@ -1,6 +1,5 @@
 <template>
     <article class="album" @click="open">
-        <!-- <h1>{{ name }}</h1> -->
         <img :src="background" @error="imageLoadErrorHandler" class="album__background" />
         <div class="album__name">{{ name }}</div>
     </article>
@@ -25,8 +24,8 @@
             const store = useStore(storeKey)
             const router = useRouter()
 
-            const imageLoadErrorHandler = (e: any) => {
-                e.target.src = 'folder.png'
+            const imageLoadErrorHandler = (e: Event) => {
+                (e.target as HTMLImageElement).src = 'folder.png'
             }
 
             const open = async () => {

@@ -60,9 +60,8 @@
 </script>
 <style lang='scss' scoped>
     .rating {
-        display: grid;
-        grid-auto-flow: column;
-        padding-bottom: 0.5em;
+        vertical-align: middle;
+        display: inline;
         font-size: 1.5em;
 
         &__icon {
