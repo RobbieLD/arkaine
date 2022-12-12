@@ -12,10 +12,13 @@ namespace Server.Arkaine.Meta
 
         public async Task SetRating(Rating rating)
         {
+            var result = await _context.Ratings.Where(r => r.FileName == rating.FileName && r.Bucket == rating.Bucket).FirstOrDefaultAsync();
+
             // Update
-            if (rating.Id > 0)
+            if (result != null)
             {
-                _context.Ratings.Update(rating);
+                result.Value = rating.Value;
+                _context.Ratings.Update(result);
             }
             // New
             else
