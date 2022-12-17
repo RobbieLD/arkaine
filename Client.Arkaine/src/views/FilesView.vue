@@ -1,6 +1,7 @@
 <template>
     <div class="content">
         <article :class="{ image: file.isImage, folder: file.isFolder, audio: file.isAudio, video: file.isVideo }" class="item" v-for="(file, index) of files.data" :key="index">
+            <rating-control v-if="!file.isFolder" icon="♡" v-model:modelValue.number="file.rating.value" @update:modelValue="saveRating(file.rating)"></rating-control>
             <!-- Image File -->
             <a v-if="file.isImage" class="image" :href="file.url" target="_blank">
                 <img :src="file.url"/>
