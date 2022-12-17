@@ -32,11 +32,15 @@
                 <a :href="file.url" target="_blank">{{ file.fileName }}</a>
             </div>
             <div v-if="!file.isAudio && !file.isFolder" class="caption">
-                <rating-control v-if="!file.isFolder" icon="♡" v-model:modelValue.number="file.rating.value" @update:modelValue="saveRating(file.rating)"></rating-control>
-                ({{ index + 1 }}/{{ files.total }}) - {{ file.contentLength }}
+                <span>
+                    {{ index + 1 }}/{{ files.total }}
+                </span>
+                <span class="rating">
+                    <rating-control v-if="!file.isFolder" icon="♡" v-model:modelValue.number="file.rating.value" @update:modelValue="saveRating(file.rating)"></rating-control>
+                </span>
             </div>
         </article>
-        <button v-if="(files.total > files.data.length)" @click="nextPage" class="np">+</button>
+        <button v-if="(files.total > files.data.length)" @click="nextPage" :class="{ show: showMoreButton }" class="np">+</button>
     </div>
 </template>
 <script lang='ts'>
@@ -61,6 +65,7 @@
             const route = useRoute()
             const count = ref(0)
             const test = ref(0)
+            const showMoreButton = ref(false)
             const files = computed(() => {
                 const fs = store.getters['getFilesList']
                 return {
@@ -90,14 +95,25 @@
                 if (count.value < files.value.total) {
                     count.value += 20
                 }
-            } 
+            }
+            
+            window.onscroll = () => {
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
+                    showMoreButton.value = true
+                }
+                else if (document.body.clientWidth <= 576)
+                {
+                    showMoreButton.value = false
+                }
+            }
 
             return {
                 files,
                 open,
                 nextPage,
                 test,
-                saveRating
+                saveRating,
+                showMoreButton
             }
         },
     })
@@ -110,8 +126,13 @@
         padding: 0.5em;
     }
 
+    .show { 
+        display: initial !important;
+    }
+
     .np {
         font-size: 2em;
+        display: none;
     }
 
     .player {
@@ -124,7 +145,13 @@
     }
 
     .caption {
-        text-align: center;
+        display: grid;
+        grid-auto-flow: column;
+        align-items: center;
+    }
+
+    .rating {
+        justify-self: end;
     }
 
     .video video {
