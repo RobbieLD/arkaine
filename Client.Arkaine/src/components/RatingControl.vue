@@ -66,6 +66,7 @@
 
         &__icon {
             text-align: center;
+            margin-left: 0.5em;
 
             &--highlight {
                 color: red;

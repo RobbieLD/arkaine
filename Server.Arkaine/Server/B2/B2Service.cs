@@ -106,6 +106,8 @@ namespace Server.Arkaine.B2
                 Value = 0
             });
 
+            responseModel.Files = responseModel.Files.OrderByDescending(f => f.Rating.Value).ToList();
+
             _logger.LogInformation("List files succeeded");
             return responseModel;
         }

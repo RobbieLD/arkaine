@@ -50,7 +50,6 @@
     import { useStore } from 'vuex'
     import AudioPlayer from '@/components/AudioPlayer.vue'
     import Rating from '@/models/rating'
-    import ArkaineFile from '@/models/arkaine-file'
     import RatingControl from '@/components/RatingControl.vue'
 
     export default defineComponent({
@@ -69,7 +68,7 @@
             const files = computed(() => {
                 const fs = store.getters['getFilesList']
                 return {
-                    data: fs.slice(0, count.value).sort((a: ArkaineFile, b: ArkaineFile) => (b.rating?.value || 0) - (a.rating?.value || 0)),
+                    data: fs.slice(0, count.value),
                     total: fs.length
                 }
             })
