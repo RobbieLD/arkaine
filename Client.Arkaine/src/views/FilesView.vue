@@ -135,7 +135,7 @@
     }
 
     .player {
-        padding-top: 1em;
+        padding-top: 2em;
     }
 
     .audio {
