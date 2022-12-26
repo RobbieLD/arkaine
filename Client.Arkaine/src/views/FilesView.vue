@@ -147,6 +147,7 @@
         display: grid;
         grid-auto-flow: column;
         align-items: center;
+        margin-top: 1em;
     }
 
     .rating {

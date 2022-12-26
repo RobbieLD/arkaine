@@ -22,7 +22,7 @@
 
             var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);
 
-            // TODO: handle seituations where content length/media type is not returned
+            // TODO: handle situations where content length/media type is not returned
             return new ExtractorResponse(content, fileName + ext, contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty, contentResponse.Content.Headers.ContentLength ?? 0);
         }
     }

@@ -12,5 +12,8 @@
         public string BUCKETS { get; set; } = string.Empty;
         public string API_KEY { get; set; } = string.Empty;
         public string SITE_KEYS { get; set; } = string.Empty;
+        public string PUSHOVER_TOKEN { get; set; } = string.Empty;
+        public string PUSHOVER_USER { get; set; } = string.Empty;
+        public string PushoverUrl { get; set; } = string.Empty;
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Server.Arkaine.B2;
+using Server.Arkaine.Notification;
 using System.Security.Claims;
 
 namespace Server.Arkaine.User
@@ -21,16 +22,18 @@ namespace Server.Arkaine.User
 
             app.MapPost("/login",
                 [AllowAnonymous]
-            async (LoginRequest request, HttpContext context, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IUserService userService, IB2Service tokenService, IMemoryCache cache) =>
+            async (LoginRequest request, HttpContext context, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IUserService userService, IB2Service tokenService, IMemoryCache cache, INotifier notifier) =>
             {
                 if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
                 {
+                    await notifier.Send($"{request.Username} failed to login");
                     return Results.BadRequest("Username and password are required");
                 }
                 
                 var roles = await userService.LoginUserAsync(request.Username, request.Password);
                 if (roles == null)
                 {
+                    await notifier.Send($"{request.Username} has no roles and so cannot login");
                     return Results.Unauthorized();
                 }
 
@@ -64,6 +67,7 @@ namespace Server.Arkaine.User
                 cache.Set(request.Username, 
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
                     DateTime.UtcNow.AddHours(24));
+                await notifier.Send($"{request.Username} Successfully logged in");
                 return Results.Ok("success");
             });
 

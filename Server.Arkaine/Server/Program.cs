@@ -8,6 +8,7 @@ using Server.Arkaine;
 using Server.Arkaine.B2;
 using Server.Arkaine.Ingest;
 using Server.Arkaine.Meta;
+using Server.Arkaine.Notification;
 using Server.Arkaine.User;
 using System.Net;
 
@@ -41,6 +42,7 @@ builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCooki
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IB2Service, B2Service>();
+builder.Services.AddScoped<INotifier, Pushover>();
 builder.Services.AddScoped<IMetaRepository, MetaRepository>();
 builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddScoped<WhExtractor>();
