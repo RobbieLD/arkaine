@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'Chrome.Arkaine/update.xml'
+    tags-ignore:
+      - '**'
 
 jobs:
   publish:
