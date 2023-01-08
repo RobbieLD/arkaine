@@ -25,5 +25,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: robbield/arakine:latest
+          tags: robbield/arkaine:latest,robbield/arkaine:${{ github.ref_name }}
           build-args: VERSION=${{ github.ref_name }}
