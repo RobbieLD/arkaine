@@ -15,6 +15,6 @@ namespace Server.Arkaine.B2
         [JsonConverter(typeof(ContentLengthCoverter))]
         public string Size { get; set; } = string.Empty;
 
-        public Rating Rating { get; set; }
+        public Rating Rating { get; set; } = new Rating();
     }
 }

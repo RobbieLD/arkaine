@@ -35,7 +35,7 @@ namespace Server.Arkaine.User
                 NormalizedUserName = "USER",
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
-                SecurityStamp = Guid.NewGuid().ToString("D")
+                SecurityStamp = Guid.NewGuid().ToString("D"),
             };
 
             var admin = new IdentityUser
@@ -46,7 +46,7 @@ namespace Server.Arkaine.User
                 NormalizedUserName = "ADMIN",
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
-                SecurityStamp = Guid.NewGuid().ToString("D")
+                SecurityStamp = Guid.NewGuid().ToString("D"),
             };
 
             if (!context!.Users.Any(u => u.UserName == user.UserName))
