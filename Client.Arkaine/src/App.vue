@@ -1,4 +1,5 @@
 <template>
+    <nav-bar v-if="authenticated"></nav-bar>
     <div v-if="alert" class="alert" :class="{ error: alert.isError, info: !alert.isError }">{{ alert.message }}</div>
     <router-view />
 </template>
@@ -8,14 +9,18 @@
     import { useRouter } from 'vue-router'
     import { useStore } from 'vuex'
     import { storeKey } from './store'
+    import NavBar from './components/NavBar.vue'
 
     export default defineComponent({
         name: 'App',
-        components: {},
+        components: {
+            NavBar
+        },
         setup() {
             const store = useStore(storeKey)
             const router = useRouter()
             const alert = computed(() => store.state.alert)
+            const authenticated = computed(() => store.state.isAuthenticated)
 
             const unsubscribe = store.subscribe(async (mutation) => {
                 if (mutation.type == 'setAlbums') {
@@ -32,7 +37,8 @@
             })
 
             return {
-                alert
+                alert,
+                authenticated
             }
         },
     })

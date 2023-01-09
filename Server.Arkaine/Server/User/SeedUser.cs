@@ -36,6 +36,7 @@ namespace Server.Arkaine.User
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
                 SecurityStamp = Guid.NewGuid().ToString("D"),
+                TwoFactorEnabled = true,
             };
 
             var admin = new IdentityUser
@@ -47,6 +48,7 @@ namespace Server.Arkaine.User
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
                 SecurityStamp = Guid.NewGuid().ToString("D"),
+                TwoFactorEnabled = true,
             };
 
             if (!context!.Users.Any(u => u.UserName == user.UserName))
@@ -65,6 +67,13 @@ namespace Server.Arkaine.User
             }
 
             await context.SaveChangesAsync();
+
+            await userManager.ResetAuthenticatorKeyAsync(user);
+            Console.WriteLine("Authenticator Key: " + user.UserName + ": " + await userManager.GetAuthenticatorKeyAsync(user));
+
+            await userManager.ResetAuthenticatorKeyAsync(admin);
+            Console.WriteLine("Authenticator Key: " + admin.UserName + ": " + await userManager.GetAuthenticatorKeyAsync(admin));
         }
+
     }
 }

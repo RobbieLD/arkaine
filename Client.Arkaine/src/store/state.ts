@@ -4,6 +4,7 @@ import ArkaineFile from '@/models/arkaine-file'
 
 export default interface State {
     isAuthenticated: boolean,
+    username: string,
     albums: Album[],
     filesRoot: ArkaineFile,
     path: string,

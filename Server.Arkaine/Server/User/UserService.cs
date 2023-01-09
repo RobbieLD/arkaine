@@ -15,13 +15,18 @@ namespace Server.Arkaine.User
             _userManager = userManager;
         }
 
-        public async Task<IList<string>?> LoginUserAsync(string username, string password)
+        public async Task<bool> LoginUserAsync(string username, string password)
         {
             var result = await _signInManager.PasswordSignInAsync(username, password, false, true);
+            return result.RequiresTwoFactor;            
+        }
 
+        public async Task<IList<string>?> TwoFactorAuthenticateAsync(string code, string username)
+        {
+            var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(code, false, false);
+            
             if (!result.Succeeded)
             {
-                _logger.LogInformation("User signin failed");
                 return null;
             }
 

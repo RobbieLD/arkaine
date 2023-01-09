@@ -20,13 +20,27 @@ export default class ArkaineService extends BaseService {
         })
     }
 
+    public async Logout(): Promise<void> {
+        await this.http.post<void>('/logout')
+    }
+
+    public async TwoFactorAuth(username: string, code: string): Promise<string> {
+        const result = await this.http.post<string>('/twofactorauth', {
+            code,
+            username
+        })
+
+        return result.data
+    }
+
     public async Albums(): Promise<Album[]> {
         const results = await this.http.post<{ buckets: Album[] }>('/albums')
         return results.data.buckets
     }
 
-    public async LoggedIn(): Promise<void> {
-        return await this.http.get('/loggedin')
+    public async LoggedIn(): Promise<string> {
+        const result = await this.http.get('/loggedin')
+        return result.data
     }
 
     public async SaveRating(rating: Rating): Promise<void> {

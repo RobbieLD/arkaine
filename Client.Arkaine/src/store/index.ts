@@ -12,6 +12,7 @@ export const storeKey: InjectionKey<Store<State>> = Symbol('store')
 export const store = createStore<State>({
   state: {
     isAuthenticated: false,
+    username: '',
     albums: [],
     filesRoot: new ArkaineFile('root', '', '', ''),
     path: ''
@@ -56,20 +57,38 @@ export const store = createStore<State>({
 
     setAlert: (state: State, alert?: Alert): void => {
         state.alert = alert
+    },
+
+    setUsername: (state: State, username: string): void => {
+        state.username = username
     }
   },
   actions: {
     checkLogin: async ({ commit, dispatch }) : Promise<void> => {
         const service = new ArkaineService()
-        await service.LoggedIn()
+        const username = await service.LoggedIn()
         commit('setAuthenticated', true)
+        commit('setUsername', username)
         await dispatch('loadAlbums')
     },
 
-    login: async ({ commit, dispatch }, payload: { username: string, password: string}): Promise<void> => {
+    logout: async ({ commit }): Promise<void> => {
+        const service = new ArkaineService()
+        await service.Logout()
+        commit('setUsername', '')
+        commit('setAuthenticated', false)
+    },
+
+    login: async (_, payload: { username: string, password: string}): Promise<void> => {
         const service = new ArkaineService()
         await service.Login(payload.username, payload.password)
+    },
+
+    twoFactorAuth: async ({ commit, dispatch }, payload: { username: string, code: string}): Promise<void> => {
+        const service = new ArkaineService()
+        const username = await service.TwoFactorAuth(payload.username, payload.code)
         commit('setAuthenticated', true)
+        commit('setUsername', username)
         await dispatch('loadAlbums')
     },
 

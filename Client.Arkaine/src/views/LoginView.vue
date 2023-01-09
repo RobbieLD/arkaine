@@ -3,6 +3,7 @@
         <form class="login-form">
             <div class="grid">
                 <input
+                    v-if="!isTotp"
                     type="text"
                     id="username"
                     name="username"
@@ -12,6 +13,7 @@
                 />
 
                 <input
+                    v-if="!isTotp"
                     type="password"
                     id="password"
                     name="password"
@@ -19,10 +21,20 @@
                     v-model="password"
                     required
                 />
+
+                <input
+                    v-if="isTotp"
+                    type="text"
+                    id="totp"
+                    name="totp"
+                    placeholder="TOTP"
+                    v-model="totp"
+                    required
+                />
             </div>
 
-            <button type="submit" @click="login" v-bind:disabled="loggingIn">
-                Login
+            <button type="submit" @click="action" v-bind:disabled="loggingIn">
+                Submit
             </button>
             <div class="version">{{ version }}</div>
             <div>{{ error }}</div>
@@ -40,19 +52,50 @@
         name: 'LoginView',
         components: {},
         setup() {
-            const username = ref<string>()
-            const password = ref<string>()
+            const isLocal = process.env?.VUE_APP_ARKAINE_VERSION == 'DEV'
+            const username = ref<string>(isLocal ? 'user' : '')
+            const password = ref<string>(isLocal ? '.Password1' : '')
+            const totp = ref<string>()
             const error = ref<string>()
+            const isTotp = ref(false)
             const loggingIn = ref(false)
             const store = useStore(storeKey)
 
-            const login = async (e: Event) => {
+            const action = async (e: Event) => {
                 e.preventDefault()
+                if (isTotp.value) {
+                    await authenticate()
+                }
+                else {
+                    await login()
+                }
+                
+            }
+
+            const login = async () => {
                 loggingIn.value = true
                 try {
                     await store.dispatch('login', {
                         username: DOMPurify.sanitize(username.value || ''),
                         password: DOMPurify.sanitize(password.value || ''),
+                    })
+
+                    isTotp.value = true
+                    loggingIn.value = false
+
+                } catch (e) {
+                    error.value = (e as Error).message
+                    loggingIn.value = false
+                }
+            }
+
+            const authenticate = async () => {
+                loggingIn.value = true
+
+                try {
+                    await store.dispatch('twoFactorAuth', {
+                        username: DOMPurify.sanitize(username.value || ''),
+                        code: DOMPurify.sanitize(totp.value || ''),
                     })
                 } catch (e) {
                     error.value = (e as Error).message
@@ -61,12 +104,14 @@
             }
 
             return {
-                login,
+                action,
                 username,
                 password,
                 loggingIn,
+                totp,
+                isTotp,
                 error,
-                version: process.env?.VUE_APP_ARKAINE_VERSION
+                version: process.env?.VUE_APP_ARKAINE_VERSION,
             }
         },
     })

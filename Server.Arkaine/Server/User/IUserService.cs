@@ -2,6 +2,7 @@
 {
     public interface IUserService
     {
-        Task<IList<string>?> LoginUserAsync(string username, string password);
+        Task<bool> LoginUserAsync(string username, string password);
+        Task<IList<string>?> TwoFactorAuthenticateAsync(string code, string username);
     }
 }

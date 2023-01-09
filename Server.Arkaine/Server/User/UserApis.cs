@@ -5,7 +5,9 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Server.Arkaine.B2;
 using Server.Arkaine.Notification;
+using System.Data;
 using System.Security.Claims;
+using System.Threading;
 
 namespace Server.Arkaine.User
 {
@@ -15,25 +17,28 @@ namespace Server.Arkaine.User
         {
             app.MapGet("/loggedin",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            () =>
+            (HttpContext context) =>
             {
-                return Results.Ok();
+                return Results.Ok(context?.User?.Identity?.Name);
             });
 
-            app.MapPost("/login",
+            app.MapPost("/twofactorauth",
                 [AllowAnonymous]
-            async (LoginRequest request, HttpContext context, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IUserService userService, IB2Service tokenService, IMemoryCache cache, INotifier notifier) =>
+            async (
+                    TwoFactorRequest request,
+                    HttpContext context,
+                    CancellationToken cancellationToken,
+                    IOptions<ArkaineOptions> config,
+                    IUserService userService,
+                    IB2Service tokenService,
+                    IMemoryCache cache,
+                    INotifier notifier) =>
             {
-                if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
-                {
-                    await notifier.Send($"{request.Username} failed to login");
-                    return Results.BadRequest("Username and password are required");
-                }
-                
-                var roles = await userService.LoginUserAsync(request.Username, request.Password);
+                var roles = await userService.TwoFactorAuthenticateAsync(request.Code, request.Username);
+
                 if (roles == null)
                 {
-                    await notifier.Send($"{request.Username} has no roles and so cannot login");
+                    await notifier.Send($"{request.Username} failed to login due to incorrect auth code");
                     return Results.Unauthorized();
                 }
 
@@ -59,16 +64,40 @@ namespace Server.Arkaine.User
                 };
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
-
-                var authResponse = 
+                var authResponse =
                     await tokenService.GetToken(config.Value.B2_KEY_READ, cancellationToken);
 
                 // B2 tokens expire in 24 hours
-                cache.Set(request.Username, 
+                cache.Set(request.Username,
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
                     DateTime.UtcNow.AddHours(24));
                 await notifier.Send($"{request.Username} Successfully logged in");
-                return Results.Ok("success");
+                return Results.Ok(request.Username);
+            });
+
+            app.MapPost("/login",
+                [AllowAnonymous]
+            async (
+                    LoginRequest request,
+                    HttpContext context,
+                    CancellationToken cancellationToken,
+                    IUserService userService,
+                    INotifier notifier) =>
+            {
+                if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
+                {
+                    await notifier.Send($"{request.Username} failed to login because no password was supplied");
+                    return Results.BadRequest("Username and password are required");
+                }
+                
+                var passwordCorrect = await userService.LoginUserAsync(request.Username, request.Password);
+                if (!passwordCorrect)
+                {
+                    await notifier.Send($"{request.Username} failed to sign in");
+                    return Results.Unauthorized();
+                }
+
+                return Results.Ok();                
             });
 
             app.MapGet("/logout",
