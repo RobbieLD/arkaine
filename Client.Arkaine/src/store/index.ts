@@ -13,6 +13,7 @@ export const store = createStore<State>({
   state: {
     isAuthenticated: false,
     username: '',
+    title: 'Buckets',
     albums: [],
     filesRoot: new ArkaineFile('root', '', '', ''),
     path: ''
@@ -61,6 +62,10 @@ export const store = createStore<State>({
 
     setUsername: (state: State, username: string): void => {
         state.username = username
+    },
+
+    setTitle: (state: State, title: string): void => {
+        state.title = title
     }
   },
   actions: {

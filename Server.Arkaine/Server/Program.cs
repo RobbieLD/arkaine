@@ -41,7 +41,6 @@ builder.Services.AddTransient<GlobalExceptionHandler>();
 builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(s, config["MAX_COOKIE_LIFETIME"], lifetimeKey));
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IB2Service, B2Service>();
 builder.Services.AddScoped<INotifier, Pushover>();
 builder.Services.AddScoped<IMetaRepository, MetaRepository>();
 builder.Services.AddScoped<SgExtractor>();
@@ -51,6 +50,16 @@ builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
+
+if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
+{
+    builder.Services.AddScoped<IB2Service, MockB2>();
+}
+else
+{
+    builder.Services.AddScoped<IB2Service, B2Service>();
+}
+
 builder.Services.AddHttpsRedirection(options =>
 {
     options.HttpsPort = 443;

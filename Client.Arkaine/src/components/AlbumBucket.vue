@@ -30,6 +30,7 @@
 
             const open = async () => {
                 try {
+                    store.commit('setTitle', props.Album.bucketName)
                     await store.dispatch('loadFiles', props.Album )
                     await router.push('/files/')
                 }

@@ -1,7 +1,7 @@
 <template>
     <nav>
         <ul>
-            <li><strong>{{ path }}</strong></li>
+            <li><strong>{{ title }}</strong></li>
         </ul>
         <ul>
             <!-- Make this logout -->
@@ -12,7 +12,7 @@
 <script lang='ts'>
     import { storeKey } from '@/store'
     import { computed, defineComponent } from 'vue'
-    import { useRoute } from 'vue-router'
+    import { useRouter } from 'vue-router'
     import { useStore } from 'vuex'
 
     export default defineComponent({
@@ -22,16 +22,19 @@
         setup() {
             const store = useStore(storeKey)
             const username = computed(() => store.state.username)
-            const route = useRoute()
+            const title = computed(() => store.state.title)
 
+            const router = useRouter()
+            
             const logout = async (e: Event) => {
                 e.preventDefault()
-                store.dispatch('logout')
+                await store.dispatch('logout')
+                router.push('/login')
             }
 
             return {
                 username,
-                path: route.path,
+                title,
                 logout
             }
         },

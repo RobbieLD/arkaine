@@ -5,7 +5,7 @@
 </template>
 
 <script lang="ts">
-    import { computed, defineComponent } from 'vue'
+    import { computed, defineComponent, onMounted } from 'vue'
     import AlbumBucket from '@/components/AlbumBucket.vue'
     import { useStore } from 'vuex'
     import { storeKey } from '@/store'
@@ -18,6 +18,10 @@
         setup() {
             const store = useStore(storeKey)
             const albums = computed(() => store.state.albums)
+
+            onMounted(() => {
+                store.commit('setTitle', 'Buckets')
+            })
 
             return {
                 albums
