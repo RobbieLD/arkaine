@@ -7,7 +7,6 @@ using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.B2;
 using Server.Arkaine.Ingest;
-using Server.Arkaine.Meta;
 using Server.Arkaine.Notification;
 using Server.Arkaine.User;
 using System.Net;
@@ -42,7 +41,6 @@ builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCooki
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INotifier, Pushover>();
-builder.Services.AddScoped<IMetaRepository, MetaRepository>();
 builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
@@ -137,7 +135,6 @@ app.MapGet("/forbidden", () => "You do not have access to this page");
 app.RegisterUserApis();
 app.RegisterB2Apis();
 app.RegisterIngestApis();
-app.RegisterMetaApis();
 
 if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
 {

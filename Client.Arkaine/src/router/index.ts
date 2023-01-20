@@ -1,20 +1,11 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 import { store } from '@/store'
-import AlbumsView from '@/views/AlbumsView.vue'
 import LoginView from '@/views/LoginView.vue'
 import FilesView from '@/views/FilesView.vue'
 
 const routes: Array<RouteRecordRaw> = [
     {
-        path: '/',
-        name: 'Albums',
-        component: AlbumsView,
-        meta: {
-            requiresAuth: true
-        },
-    },
-    {
-        path: '/files/:path(.*)',
+        path: '/:path(.*)',
         name: 'Files',
         component: FilesView,
         meta: {

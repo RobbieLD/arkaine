@@ -11,7 +11,7 @@
 </template>
 <script lang='ts'>
     import { storeKey } from '@/store'
-    import { computed, defineComponent } from 'vue'
+    import { computed, defineComponent, ref } from 'vue'
     import { useRouter } from 'vue-router'
     import { useStore } from 'vuex'
 
@@ -22,9 +22,13 @@
         setup() {
             const store = useStore(storeKey)
             const username = computed(() => store.state.username)
-            const title = computed(() => store.state.title)
+            const title = ref('/')
 
             const router = useRouter()
+
+            router.afterEach((to) => {
+                title.value = to.params.path.toString() || '/'
+            })
             
             const logout = async (e: Event) => {
                 e.preventDefault()

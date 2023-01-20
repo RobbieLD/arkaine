@@ -5,7 +5,7 @@
 </template>
 
 <script lang="ts">
-    import { computed, defineComponent, onMounted, onUnmounted } from 'vue'
+    import { computed, defineComponent, onMounted } from 'vue'
     import { useRouter } from 'vue-router'
     import { useStore } from 'vuex'
     import { storeKey } from './store'
@@ -22,18 +22,18 @@
             const alert = computed(() => store.state.alert)
             const authenticated = computed(() => store.state.isAuthenticated)
 
-            const unsubscribe = store.subscribe(async (mutation) => {
-                if (mutation.type == 'setAlbums') {
-                    await router.push('/')
-                }                
-            })
-
             onMounted(async () => {
-                await store.dispatch('checkLogin')
-            })
+                try {
+                    const loggedIn = await store.dispatch('checkLogin')
 
-            onUnmounted(() => {
-                unsubscribe()
+                    if (loggedIn) {
+                        await router.push('/')
+                    }
+                }
+                catch
+                {
+                    await router.push('/login')
+                }
             })
 
             return {

@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Server.Arkaine.Meta;
 
 namespace Server.Arkaine
 {
@@ -29,7 +28,5 @@ namespace Server.Arkaine
                 x.EnableRetryOnFailure();
             });
         }
-
-        public DbSet<Rating> Ratings => Set<Rating>();
     }
 }

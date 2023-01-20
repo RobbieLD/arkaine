@@ -1,8 +1,17 @@
 <template>
     <div class="content">
-        <article :class="{ image: file.isImage, folder: file.isFolder, audio: file.isAudio, video: file.isVideo }" class="item" v-for="(file, index) of files.data" :key="index">
+        <article class="item" v-for="(file, index) of files" :key="index">
+            
+            <!-- Folder -->
+            <div class="folder" v-if="file.isDirectory" @click="open(file.name)">
+                <div class="headings title">
+                    <h2>{{ file.name }}/</h2>
+                </div>
+                <img :src="file.thumb" @error="imageLoadErrorHandler" />
+            </div>
+
             <!-- Image File -->
-            <a v-if="file.isImage" class="image" :href="file.url" target="_blank">
+            <a v-else-if="file.isImage" class="image" :href="file.url" target="_blank">
                 <img :src="file.url"/>
             </a>
             
@@ -15,32 +24,16 @@
 
             <!-- Audio File -->
             <div v-else-if="file.isAudio">
-                <a :href="file.url" target="_blank">{{ file.fileName }} ({{ index + 1 }}/{{ files.total }})</a>
-                <audio-player :src="file.url" class="player" :fileName="file.fileName"></audio-player>
-            </div>
-
-            <!-- Folder -->
-            <div v-else-if="file.isFolder" @click="open(file.fileName)">
-                <div class="headings">
-                    <h2>{{ file.fileName }}</h2>
-                    <h3>{{ file.children.length }} items</h3>
-                </div>
+                <a :href="file.url" target="_blank">{{ file.name }}</a>
+                <audio-player :src="file.url" class="player" :fileName="file.name"></audio-player>
             </div>
 
             <!-- Other file types -->
             <div v-else>
-                <a :href="file.url" target="_blank">{{ file.fileName }}</a>
-            </div>
-            <div v-if="!file.isAudio && !file.isFolder" class="caption">
-                <span>
-                    {{ index + 1 }}/{{ files.total }}
-                </span>
-                <span class="rating">
-                    <rating-control v-if="!file.isFolder" icon="♡" v-model:modelValue.number="file.rating.value" @update:modelValue="saveRating(file.rating)"></rating-control>
-                </span>
+                <a :href="file.url" target="_blank">{{ file.name }}</a>
             </div>
         </article>
-        <button v-if="(files.total > files.data.length)" @click="nextPage" :class="{ show: showMoreButton }" class="np">+</button>
+        <button v-if="hasMoreFiles" @click="nextPage" :class="{ show: showMoreButton }" class="np">+</button>
     </div>
 </template>
 <script lang='ts'>
@@ -49,53 +42,40 @@
     import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
     import { useStore } from 'vuex'
     import AudioPlayer from '@/components/AudioPlayer.vue'
-    import Rating from '@/models/rating'
-    import RatingControl from '@/components/RatingControl.vue'
 
     export default defineComponent({
         name: 'FilesView',
         components: {
             AudioPlayer,
-            RatingControl
         },
         setup() {
             const router = useRouter()
             const store = useStore(storeKey)
             const route = useRoute()
-            const count = ref(0)
-            const test = ref(0)
             const showMoreButton = ref(false)
-            const files = computed(() => {
-                const fs = store.getters['getFilesList']
-                return {
-                    data: fs.slice(0, count.value),
-                    total: fs.length
-                }
-            })
+            const files = computed(() => store.getters['orderedFiles'])
+            const hasMoreFiles = computed(() => store.getters['hasMoreFiles'])
+
+            const imageLoadErrorHandler = (e: Event) => {
+                (e.target as HTMLImageElement).src = 'folder.png'
+            }
 
             const open = async (name: string) => {
                 await router.push(route.path + name + '/')
             }
 
-            const saveRating =  async (r: Rating) => {
-                await store.dispatch('saveRating', r)
-            }
-
-            onMounted(() => {
-                store.commit('setPath', '')
-                count.value = 20
+            onMounted(async () => {
+                await store.dispatch('loadFiles', '')
             })
 
-            onBeforeRouteUpdate((to) => {
-                store.commit('setPath', to.params.path)
+            onBeforeRouteUpdate(async (to) => {
+                await store.dispatch('loadFiles', to.params.path)
             })
 
-            const nextPage = () => {
-                if (count.value < files.value.total) {
-                    count.value += 20
-                }
+            const nextPage = async () => {
+                await store.dispatch('loadMoreFiles', route.params.path)
             }
-            
+
             window.onscroll = () => {
                 if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
                     showMoreButton.value = true
@@ -105,14 +85,15 @@
                     showMoreButton.value = false
                 }
             }
+            
 
             return {
                 files,
                 open,
                 nextPage,
-                test,
-                saveRating,
-                showMoreButton
+                showMoreButton,
+                hasMoreFiles,
+                imageLoadErrorHandler
             }
         },
     })
@@ -120,9 +101,13 @@
 <style lang='scss' scoped>
     .item {
         cursor: pointer;
-        min-width: 10em;
+        width: 20em;
         height: fit-content;
         padding: 0.5em;
+    }
+
+    .title {
+        text-align: center;
     }
 
     .show { 
@@ -138,20 +123,14 @@
         padding-top: 2em;
     }
 
+    .folder {
+        display: grid;
+        justify-content: center;
+    }
+
     .audio {
         width: 100%;
         background: #f1f3f4;
-    }
-
-    .caption {
-        display: grid;
-        grid-auto-flow: column;
-        align-items: center;
-        margin-top: 1em;
-    }
-
-    .rating {
-        justify-self: end;
     }
 
     .video video {
@@ -163,6 +142,8 @@
 
     .image {
         max-width: 30em;
+        display: grid;
+        justify-content: center;
     }
 
     .folder {

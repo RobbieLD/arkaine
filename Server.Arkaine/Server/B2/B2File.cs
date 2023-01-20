@@ -1,5 +1,4 @@
-﻿using Server.Arkaine.Meta;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Server.Arkaine.B2
 {
@@ -15,6 +14,7 @@ namespace Server.Arkaine.B2
         [JsonConverter(typeof(ContentLengthCoverter))]
         public string Size { get; set; } = string.Empty;
 
-        public Rating Rating { get; set; } = new Rating();
+        [JsonPropertyName("action")]
+        public string Type { get; set; } = string.Empty;
     }
 }

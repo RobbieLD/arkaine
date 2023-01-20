@@ -47,6 +47,7 @@
     import { defineComponent, ref } from 'vue'
     import { useStore } from 'vuex'
     import DOMPurify from 'dompurify'
+    import { useRouter } from 'vue-router'
 
     export default defineComponent({
         name: 'LoginView',
@@ -60,6 +61,7 @@
             const isTotp = ref(false)
             const loggingIn = ref(false)
             const store = useStore(storeKey)
+            const router = useRouter()
 
             const action = async (e: Event) => {
                 e.preventDefault()
@@ -97,6 +99,10 @@
                         username: DOMPurify.sanitize(username.value || ''),
                         code: DOMPurify.sanitize(totp.value || ''),
                     })
+
+                    await store.dispatch('checkLogin')
+                    await router.push('/')
+
                 } catch (e) {
                     error.value = (e as Error).message
                     loggingIn.value = false

@@ -27,7 +27,7 @@ namespace Server.Arkaine.Ingest
                     var extractor = extractorFactory.GetExtractor(request.Url);
                     var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
                     var content = new StreamContent(resp.Content);
-                    var response = await b2ervice.Upload(extractor.Bucket, resp.FileName, resp.MimeType, resp.Length, content, cancellationToken);
+                    var response = await b2ervice.Upload(resp.FileName, resp.MimeType, resp.Length, content, cancellationToken);
                     return Results.Ok(response);
                 });
         }

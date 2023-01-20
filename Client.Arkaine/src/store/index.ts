@@ -1,11 +1,9 @@
-import Album from '@/models/album'
 import Alert from '@/models/alert'
-import ArkaineFile from '@/models/arkaine-file'
-import Rating from '@/models/rating'
 import ArkaineService from '@/services/arkaine.service'
 import { InjectionKey } from 'vue'
 import { createStore, Store } from 'vuex'
 import State from './state'
+import ArkaineFile from '@/models/arkaine-file'
 
 export const storeKey: InjectionKey<Store<State>> = Symbol('store')
 
@@ -13,29 +11,16 @@ export const store = createStore<State>({
   state: {
     isAuthenticated: false,
     username: '',
-    title: 'Buckets',
-    albums: [],
-    filesRoot: new ArkaineFile('root', '', '', ''),
-    path: ''
+    files: [],
+    nextFile: ''
   },
   getters: {
-    getFilesList: (state): ArkaineFile[] => {
-        if (!state.path) {
-            return state.filesRoot.children
-        }
+    hasMoreFiles: (state): boolean => {
+        return state.nextFile !== null && state.nextFile !== ''
+    },
 
-        const filter = (file: ArkaineFile, path: string[]): ArkaineFile[] => {
-            const dir = path.shift()
-            for (const child of file.children) {
-                if (child.fileName === dir) {
-                    return filter(child, path)
-                }
-            }
-
-            return file.children
-        }
-
-        return filter(state.filesRoot, state.path.split('/').filter(Boolean))
+    orderedFiles: (state): ArkaineFile[] => {
+        return state.files.sort((a,b) => (Number(b.isDirectory) - Number(a.isDirectory)))
     }
   },
   mutations: {
@@ -44,16 +29,12 @@ export const store = createStore<State>({
         
     },
 
-    setAlbums: (state: State, albums: Album[]): void => {
-        state.albums = albums
+    setFiles: (state: State, files: ArkaineFile[]): void => {
+        state.files = files
     },
 
-    setFiles: (state: State, root: ArkaineFile): void => {
-        state.filesRoot = root
-    },
-
-    setPath: (state: State, path: string): void => {
-        state.path = path
+    appendFiles: (state: State, files: ArkaineFile[]): void => {
+        state.files.push(...files)
     },
 
     setAlert: (state: State, alert?: Alert): void => {
@@ -64,17 +45,17 @@ export const store = createStore<State>({
         state.username = username
     },
 
-    setTitle: (state: State, title: string): void => {
-        state.title = title
+    setNextFile: (state: State, fileName: string): void => {
+        state.nextFile = fileName
     }
   },
   actions: {
-    checkLogin: async ({ commit, dispatch }) : Promise<void> => {
+    checkLogin: async ({ commit }) : Promise<boolean> => {
         const service = new ArkaineService()
         const username = await service.LoggedIn()
         commit('setAuthenticated', true)
         commit('setUsername', username)
-        await dispatch('loadAlbums')
+        return true
     },
 
     logout: async ({ commit }): Promise<void> => {
@@ -89,35 +70,17 @@ export const store = createStore<State>({
         await service.Login(payload.username, payload.password)
     },
 
-    twoFactorAuth: async ({ commit, dispatch }, payload: { username: string, code: string}): Promise<void> => {
+    twoFactorAuth: async (_, payload: { username: string, code: string}): Promise<void> => {
         const service = new ArkaineService()
-        const username = await service.TwoFactorAuth(payload.username, payload.code)
-        commit('setAuthenticated', true)
-        commit('setUsername', username)
-        await dispatch('loadAlbums')
+        await service.TwoFactorAuth(payload.username, payload.code)
     },
 
-    loadAlbums: async ({ commit }): Promise<void> => {
+    loadFiles: async ({ commit }, path: string): Promise<void> => {
         try {
             const service = new ArkaineService()
-            const albums = await service.Albums()
-            commit('setAlbums', albums)
-            commit('setAlert', null)
-        }
-        catch (e) {
-            commit('setAlert', {
-                isError: true,
-                message: e
-            })
-        }
-
-    },
-
-    loadFiles: async ({ commit }, album: Album): Promise<void> => {
-        try {
-            const service = new ArkaineService()
-            const filesRoot = await service.Files(album.bucketId, album.bucketName)
-            commit('setFiles', filesRoot)
+            const response = await service.Files(path, '')
+            commit('setFiles', response.files)
+            commit('setNextFile', response.nextFile)
             commit('setAlert', null)
         }
         catch (e) {
@@ -130,9 +93,22 @@ export const store = createStore<State>({
         }
     },
 
-    saveRating: async (_, rating: Rating): Promise<void> => {
-        const service = new ArkaineService()
-        await service.SaveRating(rating)
+    loadMoreFiles: async ({ commit, state }, path: string): Promise<void> => {
+        try {
+            const service = new ArkaineService()
+            const response = await service.Files(path, state.nextFile)
+            commit('appendFiles', response.files)
+            commit('setNextFile', response.nextFile)
+            commit('setAlert', null)
+        }
+        catch (e) {
+            commit('setAlert', {
+                isError: true,
+                message: e
+            })
+
+            throw e
+        }
     }
   },
   modules: {

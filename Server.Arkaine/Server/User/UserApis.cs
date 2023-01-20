@@ -30,7 +30,7 @@ namespace Server.Arkaine.User
                     CancellationToken cancellationToken,
                     IOptions<ArkaineOptions> config,
                     IUserService userService,
-                    IB2Service tokenService,
+                    IB2Service b2Service,
                     IMemoryCache cache,
                     INotifier notifier) =>
             {
@@ -64,9 +64,8 @@ namespace Server.Arkaine.User
                 };
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
-                var authResponse =
-                    await tokenService.GetToken(config.Value.B2_KEY_READ, cancellationToken);
-
+                var authResponse = await b2Service.GetToken(config.Value.B2_KEY_READ, cancellationToken);
+                
                 // B2 tokens expire in 24 hours
                 cache.Set(request.Username,
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),

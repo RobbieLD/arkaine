@@ -6,5 +6,8 @@ namespace Server.Arkaine.B2
     {
         [JsonPropertyName("files")]
         public List<B2File> Files { get; set; } = new List<B2File>();
+
+        [JsonPropertyName("nextFileName")]
+        public string NextFileName { get; set; } = string.Empty;
     }
 }
