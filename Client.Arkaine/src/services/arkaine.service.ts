@@ -36,9 +36,9 @@ export default class ArkaineService extends BaseService {
     
     public async Files(path: string, nextFile: string): Promise<{ files: ArkaineFile[], nextFile: string }> {
         const results = await this.http.post<{ files: B2File[], nextFileName:string }>('/files', {
-            Prefix: path,
-            Delimiter: '/',
-            StartFile: nextFile
+            prefix: path,
+            delimiter: '/',
+            startFileName: nextFile
         })
 
         return {

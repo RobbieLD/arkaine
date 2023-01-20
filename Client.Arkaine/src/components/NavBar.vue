@@ -1,7 +1,11 @@
 <template>
     <nav>
         <ul>
-            <li><strong>{{ title }}</strong></li>
+            <li>
+                <span v-for="(crumb, index) in crumbs" :key="index">
+                    <router-link :to="crumb.url">{{ crumb.title }}</router-link> /
+                </span>
+            </li>
         </ul>
         <ul>
             <!-- Make this logout -->
@@ -22,12 +26,24 @@
         setup() {
             const store = useStore(storeKey)
             const username = computed(() => store.state.username)
-            const title = ref('/')
+            //const title = ref('/')
+            const crumbs = ref<{ url: string, title: string }[]>([])
 
             const router = useRouter()
 
             router.afterEach((to) => {
-                title.value = to.params.path.toString() || '/'
+                let path = '/'
+                crumbs.value = [{
+                    title: 'root',
+                    url: '/'
+                }]
+                for (const crumb of to.params.path.toString().split('/').filter(c => c)) {
+                    path += crumb + '/'
+                    crumbs.value.push({
+                        title: crumb,
+                        url: path
+                    })
+                }
             })
             
             const logout = async (e: Event) => {
@@ -38,7 +54,7 @@
 
             return {
                 username,
-                title,
+                crumbs,
                 logout
             }
         },
