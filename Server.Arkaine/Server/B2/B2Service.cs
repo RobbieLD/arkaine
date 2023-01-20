@@ -57,7 +57,7 @@ namespace Server.Arkaine.B2
             
             // Fill in config options in the request
             request.BucketId = _options.BUCKET_ID;
-            request.PageSize = int.Parse(_options.PAGE_SZIE);
+            request.PageSize = int.Parse(_options.PAGE_SIZE);
 
             var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, options: new JsonSerializerOptions
             {
