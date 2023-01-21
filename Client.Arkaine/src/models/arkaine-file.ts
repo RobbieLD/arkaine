@@ -11,11 +11,17 @@ export default class ArkaineFile {
     size: string
     thumb: string
     contentType: string
+    rawFileName: string
+    id: string
+    isFavourite: boolean
 
     constructor(file: B2File, baseUrl: string) {
         const pathParts = file.fileName.split('/').filter(f => f)
         this.name = pathParts[pathParts.length - 1]
+        this.id = file.fileId
+        this.isFavourite = pathParts.filter(p => p.toLocaleLowerCase() === 'fav').length > 0
         this.isDirectory = file.action === 'folder'
+        this.rawFileName = file.fileName
         this.size = file.contentLength
         this.isImage = file.contentType?.startsWith('image') || false
         this.isAudio = file.contentType?.startsWith('audio') || false

@@ -48,36 +48,32 @@ namespace Server.Arkaine.B2
             return responseModel;
         }
 
+        public async Task AddToFavourites(FavouriteRequest request, string userName, CancellationToken cancellationToken)
+        {             
+            var model = await MakeAuthenticatedRequest<FavouriteRequest, FavouriteResponse>(request, userName, "/b2api/v2/b2_copy_file", cancellationToken);
+
+            if (model.Result != "copy")
+            {
+                throw new($"File copy result was {model}");
+            }
+
+            // Now delete existing file 
+            var deleteRequest = new DeleteModel
+            {
+                Id = request.Id,
+                FileName = request.FileName.Replace("/fav", string.Empty)
+            };
+
+            await MakeAuthenticatedRequest<DeleteModel, DeleteModel>(deleteRequest, userName, "/b2api/v2/b2_delete_file_version", cancellationToken);
+        }
+
         public async Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken)
         {
-            var cacheModel = await GetCache(userName, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            
             // Fill in config options in the request
             request.BucketId = _options.BUCKET_ID;
             request.PageSize = int.Parse(_options.PAGE_SIZE);
 
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, options: new JsonSerializerOptions
-            {
-                NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict
-            }));
-
-            var byteContent = new ByteArrayContent(buffer);
-
-            var response = await client.PostAsync(cacheModel.ApiUrl + "/b2api/v2/b2_list_file_names", byteContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-            var responseModel = JsonSerializer.Deserialize<FilesResponse>(responseString) ?? throw new("Files response is not a valid format");
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation($"List files API call responded with: {response.StatusCode}");
-                throw new(responseString);
-            }
-
-            _logger.LogInformation("List files succeeded");
-            return responseModel;
+            return await MakeAuthenticatedRequest<FilesRequest, FilesResponse>(request, userName, "/b2api/v2/b2_list_file_names", cancellationToken);
         }
 
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
@@ -111,6 +107,34 @@ namespace Server.Arkaine.B2
             }
 
             return responseModel;
+        }
+
+        private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken)
+        {
+            var cacheModel = await GetCache(userName, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, options: new JsonSerializerOptions
+            {
+                NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict
+            }));
+
+            var byteContent = new ByteArrayContent(buffer);
+            var response = await client.PostAsync(cacheModel.ApiUrl + url, byteContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"API call to {url} responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            var model = JsonSerializer.Deserialize<TResponse>(responseString) ?? throw new($"Response is not a valid format for {nameof(TResponse)}");
+            _logger.LogInformation($"{url} call succeeded");
+
+            return model;
         }
 
         private async Task<UploadUrlResponse> GetUploadUri(CancellationToken cancellationToken)

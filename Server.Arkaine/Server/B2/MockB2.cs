@@ -2,6 +2,11 @@
 {
     public class MockB2 : IB2Service
     {
+        public Task AddToFavourites(FavouriteRequest request, string userName, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
         {
             return Task.FromResult(new AuthResponse

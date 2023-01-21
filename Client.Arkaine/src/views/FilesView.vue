@@ -1,13 +1,17 @@
 <template>
     <div class="content">
         <article class="item" v-for="(file, index) of files" :key="index">
+
+            <span v-if="file.isImage && !file.isFavourite" class="favourite" @click="fav(file)">♡</span>
             
             <!-- Folder -->
-            <div class="folder" v-if="file.isDirectory" @click="open(file.name)">
+            <div class="folder" v-if="file.isDirectory">
+                <router-link :to="$route.path + file.name + '/'">
                 <div class="headings title">
                     <h2>{{ file.name }}/</h2>
                 </div>
                 <img :src="file.thumb" @error="imageLoadErrorHandler" />
+                </router-link>
             </div>
 
             <!-- Image File -->
@@ -39,9 +43,10 @@
 <script lang='ts'>
     import { storeKey } from '@/store'
     import { computed, defineComponent, onMounted, ref } from 'vue'
-    import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+    import { onBeforeRouteUpdate, useRoute } from 'vue-router'
     import { useStore } from 'vuex'
     import AudioPlayer from '@/components/AudioPlayer.vue'
+    import ArkaineFile from '@/models/arkaine-file'
 
     export default defineComponent({
         name: 'FilesView',
@@ -49,7 +54,6 @@
             AudioPlayer,
         },
         setup() {
-            const router = useRouter()
             const store = useStore(storeKey)
             const route = useRoute()
             const showMoreButton = ref(false)
@@ -58,10 +62,6 @@
 
             const imageLoadErrorHandler = (e: Event) => {
                 (e.target as HTMLImageElement).src = 'folder.png'
-            }
-
-            const open = async (name: string) => {
-                await router.push(route.path + name + '/')
             }
 
             onMounted(async () => {
@@ -74,6 +74,11 @@
 
             const nextPage = async () => {
                 await store.dispatch('loadMoreFiles', route.params.path)
+            }
+
+            const fav = async (file: ArkaineFile) => {
+                await store.dispatch('addToFavourite', file)
+                file.isFavourite = true
             }
 
             window.onscroll = () => {
@@ -89,7 +94,7 @@
 
             return {
                 files,
-                open,
+                fav,
                 nextPage,
                 showMoreButton,
                 hasMoreFiles,
@@ -104,6 +109,15 @@
         width: 20em;
         height: fit-content;
         padding: 0.5em;
+        display: grid;
+    }
+
+    .favourite {
+        position: absolute;
+        font-size: 2em;
+        margin-right: 0.3em;
+        justify-self: end;
+        color: white;
     }
 
     .title {
@@ -157,14 +171,11 @@
 
         .item {
             margin: 0;
+            width: initial;
         }
         
         .image {
             max-width: initial;
-        }
-
-        .folder {
-            width: 100vh
         }
 
         .np {

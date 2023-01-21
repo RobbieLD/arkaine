@@ -93,6 +93,21 @@ export const store = createStore<State>({
         }
     },
 
+    addToFavourite: async ({ commit }, file: ArkaineFile): Promise<void> => {
+        try {
+            const service = new ArkaineService()
+            await service.AddToFavourites(file)
+        }
+        catch (e) {
+            commit('setAlert', {
+                isError: true,
+                message: e
+            })
+
+            throw e
+        }
+    },
+
     loadMoreFiles: async ({ commit, state }, path: string): Promise<void> => {
         try {
             const service = new ArkaineService()

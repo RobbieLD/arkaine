@@ -16,5 +16,8 @@ namespace Server.Arkaine.B2
 
         [JsonPropertyName("action")]
         public string Type { get; set; } = string.Empty;
+
+        [JsonPropertyName("fileId")]
+        public string Id { get; set; } = string.Empty;
     }
 }

@@ -1,5 +1,5 @@
 <template>
-    <nav>
+    <nav class="navigation">
         <ul>
             <li>
                 <span v-for="(crumb, index) in crumbs" :key="index">
@@ -61,4 +61,10 @@
     })
 </script>
 <style lang='scss' scoped>
+@media only screen and (max-width: 576px) {
+    .navigation {
+        margin-left: 1em;
+        margin-right: 1em;
+    }
+}
 </style>

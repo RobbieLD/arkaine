@@ -17,6 +17,15 @@ namespace Server.Arkaine.B2
                 return Results.Ok(await service.ListFiles(request, userName, cancelationToken));
             });
 
+            app.MapPost("/favourite",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
+            async (FavouriteRequest request, CancellationToken cancellation, ClaimsPrincipal user, IB2Service service) =>
+            {
+                string userName = user?.Identity?.Name ?? string.Empty;
+                await service.AddToFavourites(request, userName, cancellation);
+                return Results.Ok();
+            });
+
             app.MapGet("/stream/{*file}",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async ([FromRoute] string file, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
