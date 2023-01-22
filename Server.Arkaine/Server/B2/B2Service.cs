@@ -49,8 +49,14 @@ namespace Server.Arkaine.B2
         }
 
         public async Task AddToFavourites(FavouriteRequest request, string userName, CancellationToken cancellationToken)
-        {             
-            var model = await MakeAuthenticatedRequest<FavouriteRequest, FavouriteResponse>(request, userName, "/b2api/v2/b2_copy_file", cancellationToken);
+        {
+            var copyRequest = new CopyRequest
+            {
+                Id = request.Id,
+                FileName = request.Destination
+            };
+
+            var model = await MakeAuthenticatedRequest<CopyRequest, CopyResponse>(copyRequest, userName, "/b2api/v2/b2_copy_file", cancellationToken);
 
             if (model.Result != "copy")
             {
@@ -61,7 +67,7 @@ namespace Server.Arkaine.B2
             var deleteRequest = new DeleteModel
             {
                 Id = request.Id,
-                FileName = request.FileName.Replace("/fav", string.Empty)
+                FileName = request.Source
             };
 
             await MakeAuthenticatedRequest<DeleteModel, DeleteModel>(deleteRequest, userName, "/b2api/v2/b2_delete_file_version", cancellationToken);

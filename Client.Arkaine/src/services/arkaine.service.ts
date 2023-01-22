@@ -31,10 +31,11 @@ export default class ArkaineService extends BaseService {
 
     public async AddToFavourites(file: ArkaineFile): Promise<void> {
         const fileNameParts = file.rawFileName.split('/')
-        fileNameParts.splice(fileNameParts.length - 1, 0, 'fav')
+        fileNameParts.splice(1, 0, 'fav')
         await this.http.post('/favourite', {
-            fileName: fileNameParts.join('/'),
-            sourceFileId: file.id
+            destination: fileNameParts[0] + '/fav/' + fileNameParts[fileNameParts.length - 1],
+            source: file.rawFileName,
+            id: file.id
         })
     }
 
