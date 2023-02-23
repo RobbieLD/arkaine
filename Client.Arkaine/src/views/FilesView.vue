@@ -110,6 +110,7 @@
         height: fit-content;
         padding: 0.5em;
         display: grid;
+        margin: 0;
     }
 
     .favourite {

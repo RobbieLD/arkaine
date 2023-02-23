@@ -31,11 +31,16 @@
                     v-model="totp"
                     required
                 />
+
             </div>
 
             <button type="submit" @click="action" v-bind:disabled="loggingIn">
                 Submit
             </button>
+            <label for="switch">
+                <input type="checkbox" id="switch" v-model="remember">
+                Remember Me
+            </label>
             <div class="version">{{ version }}</div>
             <div>{{ error }}</div>
         </form>
@@ -56,6 +61,7 @@
             const isLocal = process.env?.VUE_APP_ARKAINE_VERSION == 'DEV'
             const username = ref<string>(isLocal ? 'user' : '')
             const password = ref<string>(isLocal ? '.Password1' : '')
+            const remember = ref(false)
             const totp = ref<string>()
             const error = ref<string>()
             const isTotp = ref(false)
@@ -80,6 +86,7 @@
                     await store.dispatch('login', {
                         username: DOMPurify.sanitize(username.value || ''),
                         password: DOMPurify.sanitize(password.value || ''),
+                        remember: remember.value
                     })
 
                     isTotp.value = true
@@ -117,6 +124,7 @@
                 totp,
                 isTotp,
                 error,
+                remember,
                 version: process.env?.VUE_APP_ARKAINE_VERSION,
             }
         },

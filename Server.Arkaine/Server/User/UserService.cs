@@ -13,9 +13,9 @@ namespace Server.Arkaine.User
             _userManager = userManager;
         }
 
-        public async Task<bool> LoginUserAsync(string username, string password)
+        public async Task<bool> LoginUserAsync(string username, string password, bool remember)
         {
-            var result = await _signInManager.PasswordSignInAsync(username, password, false, true);
+            var result = await _signInManager.PasswordSignInAsync(username, password, remember, true);
             return result.RequiresTwoFactor;            
         }
 

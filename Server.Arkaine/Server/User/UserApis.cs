@@ -89,7 +89,7 @@ namespace Server.Arkaine.User
                     return Results.BadRequest("Username and password are required");
                 }
                 
-                var passwordCorrect = await userService.LoginUserAsync(request.Username, request.Password);
+                var passwordCorrect = await userService.LoginUserAsync(request.Username, request.Password, request.Remember);
                 if (!passwordCorrect)
                 {
                     await notifier.Send($"{request.Username} failed to sign in");
