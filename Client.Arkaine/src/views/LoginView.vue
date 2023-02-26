@@ -58,9 +58,8 @@
         name: 'LoginView',
         components: {},
         setup() {
-            const isLocal = process.env?.VUE_APP_ARKAINE_VERSION == 'DEV'
-            const username = ref<string>(isLocal ? 'user' : '')
-            const password = ref<string>(isLocal ? '.Password1' : '')
+            const username = ref<string>('')
+            const password = ref<string>('')
             const remember = ref(false)
             const totp = ref<string>()
             const error = ref<string>()

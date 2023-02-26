@@ -19,7 +19,8 @@ namespace Server.Arkaine.User
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             (HttpContext context) =>
             {
-                return Results.Ok(context?.User?.Identity?.Name);
+                var response = new LoginResponse(context?.User?.Identity?.Name ?? throw new("User not found"), context?.User?.IsInRole("Admin") ?? false);
+                return Results.Ok(response);
             });
 
             app.MapPost("/twofactorauth",
@@ -71,7 +72,10 @@ namespace Server.Arkaine.User
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
                     DateTime.UtcNow.AddHours(24));
                 await notifier.Send($"{request.Username} Successfully logged in");
-                return Results.Ok(request.Username);
+
+                var response = new LoginResponse(request.Username, roles.Contains("Admin"));
+
+                return Results.Ok(response);
             });
 
             app.MapPost("/login",

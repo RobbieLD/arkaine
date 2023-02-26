@@ -8,8 +8,9 @@
             </li>
         </ul>
         <ul>
-            <!-- Make this logout -->
-            <li><a @click="logout" title="Logout" href="#">{{ username }}</a></li>
+            <li><router-link to="/">Home</router-link></li>
+            <li><router-link v-if="admin" to="/settings">Settings</router-link></li>
+            <li><a @click="logout" title="Logout" href="#">Logout</a></li>
         </ul>
     </nav>
 </template>
@@ -25,13 +26,18 @@
         props: {},
         setup() {
             const store = useStore(storeKey)
-            const username = computed(() => store.state.username)
+            const admin = computed(() => store.state.isAdmin)
             //const title = ref('/')
             const crumbs = ref<{ url: string, title: string }[]>([])
 
             const router = useRouter()
 
             router.afterEach((to) => {
+
+                if (!to.params.path) {
+                    return
+                }
+
                 let path = '/'
                 crumbs.value = [{
                     title: 'root',
@@ -53,7 +59,7 @@
             }
 
             return {
-                username,
+                admin,
                 crumbs,
                 logout
             }

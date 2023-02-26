@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
+using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
 using Server.Arkaine.Ingest;
 using Server.Arkaine.Notification;
@@ -42,20 +43,22 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INotifier, Pushover>();
 builder.Services.AddScoped<SgExtractor>();
+builder.Services.AddSingleton<ThumbnailManager>();
 builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
 builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 
 if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
 {
-    builder.Services.AddScoped<IB2Service, MockB2>();
+    builder.Services.AddTransient<IB2Service, MockB2>();
 }
 else
 {
-    builder.Services.AddScoped<IB2Service, B2Service>();
+    builder.Services.AddTransient<IB2Service, B2Service>();
 }
 
 builder.Services.AddHttpsRedirection(options =>
@@ -81,8 +84,8 @@ if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
         options.AddPolicy(name: cors, policy =>
         {
             policy.WithOrigins("http://localhost:8081")
-                .WithHeaders(HeaderNames.ContentType, HeaderNames.Accept)
-                .WithMethods("GET", "POST", "PUT")
+                .AllowAnyHeader()
+                .AllowAnyMethod()
                 .AllowCredentials();
         });
     });
@@ -135,10 +138,11 @@ app.MapGet("/forbidden", () => "You do not have access to this page");
 app.RegisterUserApis();
 app.RegisterB2Apis();
 app.RegisterIngestApis();
+app.RegisterAdminApis();
 
 if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
 {
     await SeedUser.Initialize(app.Services);
 }
-
+    
 app.Run();

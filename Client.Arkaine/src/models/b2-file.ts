@@ -3,5 +3,6 @@ export default interface B2File {
     contentType?: string,
     contentLength: string,
     action: string,
-    fileId: string
+    fileId: string,
+    preview: string
 }

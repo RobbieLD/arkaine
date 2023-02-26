@@ -1,4 +1,6 @@
-﻿using System.Text.Json.Serialization;
+﻿using Newtonsoft.Json;
+using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace Server.Arkaine.B2
 {
@@ -8,16 +10,22 @@ namespace Server.Arkaine.B2
         public string BucketId { get; set; } = string.Empty;
 
         [JsonPropertyName("prefix")]
-        public string Prefix { get; set; } = string.Empty;
+        [DefaultValue(null)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string? Prefix { get; set; }
 
+        [DefaultValue(null)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         [JsonPropertyName("delimiter")]
-        public string Delimiter { get; set; } = string.Empty;
+        public string? Delimiter { get; set; }
 
         [JsonPropertyName("maxFileCount")]
         public int PageSize { get; set; }
 
+        [DefaultValue(null)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         [JsonPropertyName("startFileName")]
-        public string StartFile { get; set; } = string.Empty;
+        public string? StartFile { get; set; }
 
     }
 }

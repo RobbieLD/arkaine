@@ -77,9 +77,27 @@ namespace Server.Arkaine.B2
         {
             // Fill in config options in the request
             request.BucketId = _options.BUCKET_ID;
-            request.PageSize = int.Parse(_options.PAGE_SIZE);
+            request.PageSize = request.PageSize > 0 ? request.PageSize : int.Parse(_options.PAGE_SIZE);
 
-            return await MakeAuthenticatedRequest<FilesRequest, FilesResponse>(request, userName, "/b2api/v2/b2_list_file_names", cancellationToken);
+            var response = await MakeAuthenticatedRequest<FilesRequest, FilesResponse>(request, userName, "/b2api/v2/b2_list_file_names", cancellationToken);
+
+            // populate thumbnails
+            foreach (var file in response.Files)
+            {
+                var thumb = Path.Combine(_options.THUMBNAIL_DIR, file.FileName);
+
+                if (File.Exists(thumb))
+                {
+                    file.Thumbnail = thumb;
+                }
+            }
+
+            return response;
+        }
+
+        public IResult Preview(string path)
+        {
+            return Results.Stream(File.OpenRead(path));
         }
 
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
@@ -88,6 +106,14 @@ namespace Server.Arkaine.B2
             var client = _httpClientFactory.CreateClient();
             var stream = await client.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
+        }
+
+        public async Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
+        {
+            var cacheModel = await GetCache(userName, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
+            return await client.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
         public async Task<UploadResponse> Upload(string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken)
@@ -122,10 +148,13 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, options: new JsonSerializerOptions
+            var content = JsonSerializer.Serialize(request, options: new JsonSerializerOptions
             {
-                NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict
-            }));
+                NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            });
+
+            var buffer = Encoding.UTF8.GetBytes(content);
 
             var byteContent = new ByteArrayContent(buffer);
             var response = await client.PostAsync(cacheModel.ApiUrl + url, byteContent, cancellationToken);

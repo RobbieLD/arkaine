@@ -7,6 +7,11 @@
             throw new NotImplementedException();
         }
 
+        public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
         {
             return Task.FromResult(new AuthResponse
@@ -34,6 +39,11 @@
             }
 
             return Task.FromResult(new FilesResponse { Files = files });
+        }
+
+        public IResult Preview(string fileName)
+        {
+            return Results.Stream(File.OpenRead("test.jpg"));
         }
 
         public Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)

@@ -14,6 +14,7 @@ export default class ArkaineFile {
     rawFileName: string
     id: string
     isFavourite: boolean
+    preview: string
 
     constructor(file: B2File, baseUrl: string) {
         const pathParts = file.fileName.split('/').filter(f => f)
@@ -30,5 +31,7 @@ export default class ArkaineFile {
         this.contentType = file.contentType || ''
         // This only applies if this is a directory
         this.thumb = `${baseUrl}/stream/${file.fileName}thumb.jpg`
+        // This only applies to images
+        this.preview = `${baseUrl}/preview/${file.preview}`
     }
 }

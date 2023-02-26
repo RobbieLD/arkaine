@@ -19,5 +19,8 @@ namespace Server.Arkaine.B2
 
         [JsonPropertyName("fileId")]
         public string Id { get; set; } = string.Empty;
+
+        [JsonPropertyName("preview")]
+        public string Thumbnail { get; set; } = string.Empty;
     }
 }

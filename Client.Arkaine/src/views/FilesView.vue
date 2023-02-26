@@ -16,7 +16,7 @@
 
             <!-- Image File -->
             <a v-else-if="file.isImage" class="image" :href="file.url" target="_blank">
-                <img :src="file.url"/>
+                <img :src="file.preview || file.url"/>
             </a>
             
             <!-- Video File -->

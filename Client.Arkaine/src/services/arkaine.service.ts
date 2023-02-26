@@ -2,6 +2,8 @@
 import B2File from '@/models/b2-file'
 import BaseService from './base.service'
 import ArkaineFile from '@/models/arkaine-file'
+import Login from '@/models/login'
+import Settings from '@/models/settings'
 
 export default class ArkaineService extends BaseService {
     private baseUrl: string
@@ -40,8 +42,21 @@ export default class ArkaineService extends BaseService {
         })
     }
 
-    public async LoggedIn(): Promise<string> {
+    public async LoggedIn(): Promise<Login> {
         const result = await this.http.get('/loggedin')
+        return result.data
+    }
+
+    public async Start(): Promise<void> {
+        await this.http.get('/settings/start')
+    }
+
+    public async Stop(): Promise<void> {
+        await this.http.get('/settings/stop')
+    }
+
+    public async GetSettings(): Promise<Settings> {
+        const result = await this.http.get('/settings')
         return result.data
     }
     

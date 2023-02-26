@@ -26,6 +26,10 @@ namespace Server.Arkaine.B2
                 return Results.Ok();
             });
 
+            app.MapGet("/preview/{*file}",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
+            ([FromRoute] string file, IB2Service service) => Task.FromResult(service.Preview(file)));
+
             app.MapGet("/stream/{*file}",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async ([FromRoute] string file, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>

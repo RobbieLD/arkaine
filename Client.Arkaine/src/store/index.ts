@@ -4,15 +4,34 @@ import { InjectionKey } from 'vue'
 import { createStore, Store } from 'vuex'
 import State from './state'
 import ArkaineFile from '@/models/arkaine-file'
+import Settings from '@/models/settings'
+import Progress from '@/models/progress'
+import { HubConnectionBuilder } from '@microsoft/signalr'
 
 export const storeKey: InjectionKey<Store<State>> = Symbol('store')
 
 export const store = createStore<State>({
   state: {
     isAuthenticated: false,
+    isAdmin: false,
     username: '',
     files: [],
-    nextFile: ''
+    nextFile: '',
+    settings: {
+        totalThumbnails: 0,
+        thumbnailDir: '',
+        thumbnailExtensions: '',
+        thumbnailPageSize: 0,
+        thumbnailWidth: 0,
+        isRunning: false,
+        badThumbnails: 0
+    },
+    progress: {
+        failed: 0,
+        generated: 0,
+        scanned: 0,
+        finished: false
+    }
   },
   getters: {
     hasMoreFiles: (state): boolean => {
@@ -27,6 +46,18 @@ export const store = createStore<State>({
     setAuthenticated: (state: State, authed: boolean): void => {
         state.isAuthenticated = authed
         
+    },
+
+    setSettings: (state: State, settings: Settings): void => {
+        state.settings = settings
+    },
+
+    setRunning: (state: State, running: boolean): void => {
+        state.settings.isRunning = running
+    },
+
+    setIsAdmin: (state: State, isAdmin: boolean): void => {
+        state.isAdmin = isAdmin
     },
 
     setFiles: (state: State, files: ArkaineFile[]): void => {
@@ -47,15 +78,53 @@ export const store = createStore<State>({
 
     setNextFile: (state: State, fileName: string): void => {
         state.nextFile = fileName
+    },
+
+    setProgress: (state: State, progress: Progress): void => {
+        state.progress = progress
     }
   },
   actions: {
     checkLogin: async ({ commit }) : Promise<boolean> => {
         const service = new ArkaineService()
-        const username = await service.LoggedIn()
+        const response = await service.LoggedIn()
         commit('setAuthenticated', true)
-        commit('setUsername', username)
+        commit('setUsername', response.username)
+        commit('setIsAdmin', response.isAdmin)
         return true
+    },
+
+    subscribeToUpdates: async ({ commit }): Promise<void> => {
+        // TODO: don't make a new connection if there is already one there
+
+        const connection = new HubConnectionBuilder()
+            .withUrl(process.env?.VUE_APP_ARKAINE_SERVER + '/updates')
+            .build()
+
+        connection.on('update', (data: Progress) => {
+            commit('setProgress', data)
+            commit('setRunning', !data.finished)
+        })
+
+        await connection.start()
+    },
+
+    startGeneration: async ({ commit }): Promise<void> => {
+        const service = new ArkaineService()
+        await service.Start()
+        commit('setRunning', true)
+    },
+
+    cancelGeneration: async ({ commit }): Promise<void> => {
+        const service = new ArkaineService()
+        await service.Stop()
+        commit('setRunning', false)
+    },
+
+    loadSettings: async ({ commit }): Promise<void> => {
+        const service = new ArkaineService()
+        const response = await service.GetSettings()
+        commit('setSettings', response)
     },
 
     logout: async ({ commit }): Promise<void> => {
