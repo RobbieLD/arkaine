@@ -27,7 +27,7 @@
             </div>
 
             <!-- Audio File -->
-            <div v-else-if="file.isAudio">
+            <div v-else-if="file.isAudio" class="audio">
                 <a :href="file.url" target="_blank">{{ file.name }}</a>
                 <audio-player :src="file.url" class="player" :fileName="file.name"></audio-player>
             </div>
@@ -106,7 +106,6 @@
 <style lang='scss' scoped>
     .item {
         cursor: pointer;
-        width: 20em;
         height: fit-content;
         padding: 0.5em;
         display: grid;
@@ -144,8 +143,7 @@
     }
 
     .audio {
-        width: 100%;
-        background: #f1f3f4;
+        width: 90vw;
     }
 
     .video video {
@@ -156,27 +154,26 @@
     }
 
     .image {
-        max-width: 30em;
+        max-width: 300px;
         display: grid;
         justify-content: center;
     }
 
     .folder {
+        max-width: 300px;
         &:hover {
             background-color: var(--primary-focus);
         }
     }
 
     /* Mobile */
-    @media only screen and (max-width: 576px) {
+    @media only screen and (max-width: 400px) {
 
         .item {
             margin: 0;
-            width: initial;
         }
         
         .image {
-            max-width: initial;
         }
 
         .np {
