@@ -86,6 +86,11 @@ namespace Server.Arkaine.B2
             {
                 var thumb = Path.Combine(_options.THUMBNAIL_DIR, file.FileName);
 
+                if (file.Type == "folder")
+                {
+                    thumb = Path.Combine(thumb, "thumb.jpg");
+                }
+
                 if (File.Exists(thumb))
                 {
                     file.Thumbnail = thumb;

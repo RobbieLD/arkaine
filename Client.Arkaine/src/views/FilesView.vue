@@ -10,7 +10,7 @@
                 <div class="headings title">
                     <h2>{{ file.name }}/</h2>
                 </div>
-                <img :src="file.thumb" @error="imageLoadErrorHandler" />
+                <img :src="file.preview || file.thumb" @error="imageLoadErrorHandler" />
                 </router-link>
             </div>
 
@@ -171,11 +171,10 @@
 
         .item {
             margin: 0;
-        }
-        
-        .image {
-        }
+        }        
+    }
 
+    @media only screen and (max-width: 600px) {
         .np {
             position: fixed;
             top: 20%;

@@ -33,16 +33,16 @@
             const router = useRouter()
 
             router.afterEach((to) => {
-
-                if (!to.params.path) {
-                    return
-                }
-
                 let path = '/'
                 crumbs.value = [{
                     title: 'root',
                     url: '/'
                 }]
+
+                if (!to.params.path) {
+                    return
+                }
+                
                 for (const crumb of to.params.path.toString().split('/').filter(c => c)) {
                     path += crumb + '/'
                     crumbs.value.push({

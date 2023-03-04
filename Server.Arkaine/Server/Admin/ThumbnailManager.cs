@@ -67,16 +67,21 @@ namespace Server.Arkaine.Admin
                 BucketId = _options.BUCKET_ID,
             };
 
-            var page = await _b2Service.ListFiles(request, userName, _stoppingToken.Token);
-
-            while (!string.IsNullOrEmpty(page.NextFileName) && !_stoppingToken.Token.IsCancellationRequested)
+            while (!_stoppingToken.Token.IsCancellationRequested)
             {
+                var page = await _b2Service.ListFiles(request, userName, _stoppingToken.Token);
                 await ProcessPage(page, userName, _stoppingToken.Token);
-                request.StartFile = page.NextFileName;
-                page = await _b2Service.ListFiles(request, userName, _stoppingToken.Token);
+                request.StartFile = page.NextFileName;               
+
+                // if there's no more files to process finish
+                if (string.IsNullOrEmpty(page.NextFileName))
+                {
+                    break;
+                }
             }
 
             _running = false;
+            _report.Finished = true;
 
             await _hubContext.Clients.All.SendAsync("update", _report);
         }
