@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Server.Arkaine;
@@ -11,9 +12,10 @@ using Server.Arkaine;
 namespace Server.Arkaine.Migrations.Migrations
 {
     [DbContext(typeof(ArkaineDbContext))]
-    partial class ArkaineDbContextModelSnapshot : ModelSnapshot
+    [Migration("20230305133958_Favourites-index-update")]
+    partial class Favouritesindexupdate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

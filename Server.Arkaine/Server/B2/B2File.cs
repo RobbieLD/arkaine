@@ -22,5 +22,8 @@ namespace Server.Arkaine.B2
 
         [JsonPropertyName("preview")]
         public string Thumbnail { get; set; } = string.Empty;
+
+        [JsonPropertyName("favourite")]
+        public bool IsFavoureite { get; set; }
     }
 }

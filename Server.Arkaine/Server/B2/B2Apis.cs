@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Server.Arkaine.Favourites;
 using System.Security.Claims;
 
 namespace Server.Arkaine.B2
@@ -11,19 +12,10 @@ namespace Server.Arkaine.B2
         {
             app.MapPost("/files",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async (FilesRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service) =>
+            async (FilesRequest request, CancellationToken cancelationToken, ClaimsPrincipal user, IB2Service service, IFavouritesService favouritesService) =>
             {
                 string userName = user?.Identity?.Name ?? string.Empty;
-                return Results.Ok(await service.ListFiles(request, userName, cancelationToken));
-            });
-
-            app.MapPost("/favourite",
-                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async (FavouriteRequest request, CancellationToken cancellation, ClaimsPrincipal user, IB2Service service) =>
-            {
-                string userName = user?.Identity?.Name ?? string.Empty;
-                await service.AddToFavourites(request, userName, cancellation);
-                return Results.Ok();
+                return Results.Ok(await service.ListFiles(request, userName, favouritesService, cancelationToken));
             });
 
             app.MapGet("/preview/{*file}",

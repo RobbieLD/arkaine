@@ -2,7 +2,7 @@
     <div class="content">
         <article class="item" v-for="(file, index) of files" :key="index">
 
-            <span v-if="file.isImage && !file.isFavourite" class="favourite" @click="fav(file)">♡</span>
+            <span v-if="file.isImage" class="favourite" :class="file.isFavourite ? 'favourite--confirmed' : ''" @click="fav(file)">♡</span>
             
             <!-- Folder -->
             <div class="folder" v-if="file.isDirectory">
@@ -77,8 +77,11 @@
             }
 
             const fav = async (file: ArkaineFile) => {
-                await store.dispatch('addToFavourite', file)
-                file.isFavourite = true
+                if (!file.isFavourite)
+                {
+                    await store.dispatch('addToFavourite', file)
+                    file.isFavourite = true
+                }
             }
 
             window.onscroll = () => {
@@ -118,6 +121,10 @@
         margin-right: 0.3em;
         justify-self: end;
         color: white;
+
+        &--confirmed {
+            color: rgb(192, 16, 69);
+        }
     }
 
     .title {

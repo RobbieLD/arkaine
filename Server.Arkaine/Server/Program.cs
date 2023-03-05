@@ -7,6 +7,7 @@ using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
+using Server.Arkaine.Favourites;
 using Server.Arkaine.Ingest;
 using Server.Arkaine.Notification;
 using Server.Arkaine.User;
@@ -46,6 +47,8 @@ builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddSingleton<ThumbnailManager>();
 builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
+builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
+builder.Services.AddScoped<IFavouritesService, FavouritesService>();
 builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
@@ -139,6 +142,7 @@ app.RegisterUserApis();
 app.RegisterB2Apis();
 app.RegisterIngestApis();
 app.RegisterAdminApis();
+app.RegisterFavouritesApis();
 
 if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
 {

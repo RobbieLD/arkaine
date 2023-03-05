@@ -148,6 +148,12 @@ export const store = createStore<State>({
         try {
             const service = new ArkaineService()
             const response = await service.Files(path, '')
+
+            // only add the favourites collection if we're a the top
+            if (!path) {
+                response.files.unshift(ArkaineFile.Favourite)
+            }
+
             commit('setFiles', response.files)
             commit('setNextFile', response.nextFile)
             commit('setAlert', null)

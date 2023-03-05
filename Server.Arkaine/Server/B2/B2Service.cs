@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Server.Arkaine.Favourites;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -48,53 +49,40 @@ namespace Server.Arkaine.B2
             return responseModel;
         }
 
-        public async Task AddToFavourites(FavouriteRequest request, string userName, CancellationToken cancellationToken)
-        {
-            var copyRequest = new CopyRequest
-            {
-                Id = request.Id,
-                FileName = request.Destination
-            };
-
-            var model = await MakeAuthenticatedRequest<CopyRequest, CopyResponse>(copyRequest, userName, "/b2api/v2/b2_copy_file", cancellationToken);
-
-            if (model.Result != "copy")
-            {
-                throw new($"File copy result was {model}");
-            }
-
-            // Now delete existing file 
-            var deleteRequest = new DeleteModel
-            {
-                Id = request.Id,
-                FileName = request.Source
-            };
-
-            await MakeAuthenticatedRequest<DeleteModel, DeleteModel>(deleteRequest, userName, "/b2api/v2/b2_delete_file_version", cancellationToken);
-        }
-
-        public async Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken)
+        public async Task<FilesResponse> ListFiles(FilesRequest request, string userName, IFavouritesService? favouritesService, CancellationToken cancellationToken)
         {
             // Fill in config options in the request
             request.BucketId = _options.BUCKET_ID;
             request.PageSize = request.PageSize > 0 ? request.PageSize : int.Parse(_options.PAGE_SIZE);
 
+            // This is a special case of a pseudo collection
+            if (favouritesService != null && (request.Prefix?.StartsWith("Favourites") ?? false))
+            {
+                var favouriteResponse = await favouritesService.GetAllFavouritesPage(userName, request.PageSize, request.StartFile);
+
+                foreach (var file in favouriteResponse.Files)
+                {
+                    file.Thumbnail = GetPreviewUrl(file.FileName, file.Type);
+                }
+
+                return favouriteResponse;
+            }
+
             var response = await MakeAuthenticatedRequest<FilesRequest, FilesResponse>(request, userName, "/b2api/v2/b2_list_file_names", cancellationToken);
+
+            IEnumerable<string> favourites = Array.Empty<string>();
+
+            if (favouritesService != null)
+            {
+                favourites = await favouritesService.GetAllFavourites(userName);
+            }
 
             // populate thumbnails
             foreach (var file in response.Files)
             {
-                var thumb = Path.Combine(_options.THUMBNAIL_DIR, file.FileName);
+                file.Thumbnail = GetPreviewUrl(file.FileName, file.Type);
 
-                if (file.Type == "folder")
-                {
-                    thumb = Path.Combine(thumb, "thumb.jpg");
-                }
-
-                if (File.Exists(thumb))
-                {
-                    file.Thumbnail = thumb;
-                }
+                file.IsFavoureite = favourites.Contains(file.FileName);
             }
 
             return response;
@@ -144,6 +132,23 @@ namespace Server.Arkaine.B2
             }
 
             return responseModel;
+        }
+
+        private string GetPreviewUrl(string fileName, string type)
+        {
+            var thumb = Path.Combine(_options.THUMBNAIL_DIR, fileName);
+
+            if (type == "folder")
+            {
+                thumb = Path.Combine(thumb, "thumb.jpg");
+            }
+
+            if (File.Exists(thumb))
+            {
+                return thumb;
+            }
+
+            return string.Empty;
         }
 
         private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken)

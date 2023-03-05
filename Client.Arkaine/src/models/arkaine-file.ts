@@ -20,7 +20,7 @@ export default class ArkaineFile {
         const pathParts = file.fileName.split('/').filter(f => f)
         this.name = pathParts[pathParts.length - 1]
         this.id = file.fileId
-        this.isFavourite = pathParts.filter(p => p.toLocaleLowerCase() === 'fav').length > 0
+        this.isFavourite = file.favourite
         this.isDirectory = file.action === 'folder'
         this.rawFileName = file.fileName
         this.size = file.contentLength
@@ -33,5 +33,21 @@ export default class ArkaineFile {
         this.thumb = `${baseUrl}/stream/${file.fileName}thumb.jpg`
         // This only applies to images
         this.preview = file.preview ? `${baseUrl}/preview/${file.preview}` : ''
+    }
+
+    public static Favourite: ArkaineFile = {
+        id:'',
+        contentType: '',
+        isAudio: false,
+        isDirectory: true,
+        isFavourite: false,
+        isImage: false,
+        isVideo: false,
+        name: 'Favourites',
+        preview: '',
+        rawFileName: '',
+        size: '',
+        thumb: 'favourite.png',
+        url: ''
     }
 }

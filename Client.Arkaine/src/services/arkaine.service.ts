@@ -33,12 +33,8 @@ export default class ArkaineService extends BaseService {
     }
 
     public async AddToFavourites(file: ArkaineFile): Promise<void> {
-        const fileNameParts = file.rawFileName.split('/')
-        fileNameParts.splice(1, 0, 'fav')
-        await this.http.post('/favourite', {
-            destination: fileNameParts[0] + '/fav/' + fileNameParts[fileNameParts.length - 1],
-            source: file.rawFileName,
-            id: file.id
+        await this.http.put('/favourite', {
+            fileName: file.rawFileName
         })
     }
 
@@ -67,10 +63,12 @@ export default class ArkaineService extends BaseService {
             startFileName: nextFile
         })
 
-        return {
-            files: results.data.files
+        const files = results.data.files
             .filter(f => !f.fileName.endsWith('thumb.jpg') && !f.fileName.endsWith('.bzEmpty'))
-            .map(f => new ArkaineFile(f, this.baseUrl)),
+            .map(f => new ArkaineFile(f, this.baseUrl))
+
+        return {
+            files,
             nextFile: results.data.nextFileName
         }
     }

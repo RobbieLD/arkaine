@@ -69,7 +69,7 @@ namespace Server.Arkaine.Admin
 
             while (!_stoppingToken.Token.IsCancellationRequested)
             {
-                var page = await _b2Service.ListFiles(request, userName, _stoppingToken.Token);
+                var page = await _b2Service.ListFiles(request, userName, null, _stoppingToken.Token);
                 await ProcessPage(page, userName, _stoppingToken.Token);
                 request.StartFile = page.NextFileName;               
 

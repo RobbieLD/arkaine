@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Server.Arkaine.Favourites;
 
 namespace Server.Arkaine
 {
@@ -28,5 +29,7 @@ namespace Server.Arkaine
                 x.EnableRetryOnFailure();
             });
         }
+
+        public DbSet<Favourite> Favourites => Set<Favourite>();
     }
 }

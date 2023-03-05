@@ -1,12 +1,9 @@
-﻿namespace Server.Arkaine.B2
+﻿using Server.Arkaine.Favourites;
+
+namespace Server.Arkaine.B2
 {
     public class MockB2 : IB2Service
     {
-        public Task AddToFavourites(FavouriteRequest request, string userName, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
@@ -23,7 +20,7 @@
             });
         }
 
-        public Task<FilesResponse> ListFiles(FilesRequest request, string userName, CancellationToken cancellationToken)
+        public Task<FilesResponse> ListFiles(FilesRequest request, string userName, IFavouritesService? favouriteService, CancellationToken cancellationToken)
         {
             var rand = new Random();
             var files = new List<B2File>();
