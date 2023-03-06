@@ -21,7 +21,7 @@
             
             <!-- Video File -->
             <div v-else-if="file.isVideo">
-                <video controls>
+                <video controls class="video">
                     <source :src="file.url" :type="file.contentType">
                 </video>
             </div>
@@ -37,7 +37,6 @@
                 <a :href="file.url" target="_blank">{{ file.name }}</a>
             </div>
         </article>
-        <button v-if="hasMoreFiles" @click="nextPage" :class="{ show: showMoreButton }" class="np">+</button>
     </div>
 </template>
 <script lang='ts'>
@@ -56,7 +55,6 @@
         setup() {
             const store = useStore(storeKey)
             const route = useRoute()
-            const showMoreButton = ref(false)
             const files = computed(() => store.getters['orderedFiles'])
             const hasMoreFiles = computed(() => store.getters['hasMoreFiles'])
 
@@ -84,13 +82,9 @@
                 }
             }
 
-            window.onscroll = () => {
-                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
-                    showMoreButton.value = true
-                }
-                else if (document.body.clientWidth <= 576)
-                {
-                    showMoreButton.value = false
+            window.onscroll = async () => {
+                if (hasMoreFiles.value && ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5)) {
+                    await store.dispatch('loadMoreFiles', route.params.path)
                 }
             }
             
@@ -99,7 +93,6 @@
                 files,
                 fav,
                 nextPage,
-                showMoreButton,
                 hasMoreFiles,
                 imageLoadErrorHandler
             }
@@ -135,11 +128,6 @@
         display: initial !important;
     }
 
-    .np {
-        font-size: 2em;
-        display: none;
-    }
-
     .player {
         padding-top: 2em;
     }
@@ -153,11 +141,8 @@
         width: 90vw;
     }
 
-    .video video {
-        width: 100%;
-        width: -moz-available;
-        width: -webkit-fill-available;
-        width: fill-available;
+    .video {
+        max-width: 90vw;
     }
 
     .image {
@@ -179,18 +164,5 @@
         .item {
             margin: 0;
         }        
-    }
-
-    @media only screen and (max-width: 600px) {
-        .np {
-            position: fixed;
-            top: 20%;
-            width: min-content;
-            right: 0;
-            padding-left: 0.8em;
-            padding-right: 0.8em;
-            border-bottom-right-radius: 0;
-            border-top-right-radius: 0;
-        }
     }
 </style>
