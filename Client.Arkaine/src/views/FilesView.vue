@@ -142,7 +142,7 @@
     }
 
     .video {
-        max-width: 90vw;
+        max-width: min(90vw, 30em);
     }
 
     .image {

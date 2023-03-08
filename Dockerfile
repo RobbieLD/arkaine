@@ -31,4 +31,6 @@ COPY --from=server-build /app/out .
 RUN rm -rf ./wwwroot/Identity
 COPY --from=client-build /app/dist ./wwwroot
 
+RUN apt-get -y update && apt-get -y upgrade && apt-get install -y --no-install-recommends ffmpeg
+
 CMD ASPNETCORE_URLS=http://*:$PORT dotnet Server.Arkaine.dll
