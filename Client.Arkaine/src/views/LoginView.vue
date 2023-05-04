@@ -104,6 +104,7 @@
                     await store.dispatch('twoFactorAuth', {
                         username: DOMPurify.sanitize(username.value || ''),
                         code: DOMPurify.sanitize(totp.value || ''),
+                        remember: remember.value
                     })
 
                     await store.dispatch('checkLogin')

@@ -19,9 +19,9 @@ namespace Server.Arkaine.User
             return result.RequiresTwoFactor;            
         }
 
-        public async Task<IList<string>?> TwoFactorAuthenticateAsync(string code, string username)
+        public async Task<IList<string>?> TwoFactorAuthenticateAsync(string code, string username, bool remember)
         {
-            var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(code, false, false);
+            var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(code, remember, remember);
             
             if (!result.Succeeded)
             {

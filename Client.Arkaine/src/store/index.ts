@@ -139,9 +139,9 @@ export const store = createStore<State>({
         await service.Login(payload.username, payload.password, payload.remember)
     },
 
-    twoFactorAuth: async (_, payload: { username: string, code: string}): Promise<void> => {
+    twoFactorAuth: async (_, payload: { username: string, code: string, remember: boolean}): Promise<void> => {
         const service = new ArkaineService()
-        await service.TwoFactorAuth(payload.username, payload.code)
+        await service.TwoFactorAuth(payload.username, payload.code, payload.remember)
     },
 
     loadFiles: async ({ commit }, path: string): Promise<void> => {
