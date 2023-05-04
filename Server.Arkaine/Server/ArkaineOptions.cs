@@ -18,8 +18,8 @@
         public string PUSHOVER_USER { get; set; } = string.Empty;
         public string PushoverUrl { get; set; } = string.Empty;
         public string THUMBNAIL_DIR { get; set; } = string.Empty;
-        public string THUMBNAIL_EXTENSIONS { get; set; } = string.Empty;
         public int THUMBNAIL_PAGE_SIZE { get; set; }
         public int THUMBNAIL_WIDTH { get; set; }
+        public string FFMPEG_PATH { get; set; } = string.Empty;
     }
 }

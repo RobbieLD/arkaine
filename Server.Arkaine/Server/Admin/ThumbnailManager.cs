@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using FFmpeg.NET;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Server.Arkaine.B2;
 using SixLabors.ImageSharp;
@@ -51,7 +52,6 @@ namespace Server.Arkaine.Admin
                     _options.THUMBNAIL_PAGE_SIZE,
                     _options.THUMBNAIL_WIDTH,
                     _options.THUMBNAIL_DIR,
-                    _options.THUMBNAIL_EXTENSIONS,
                     _running);
         }
 
@@ -97,12 +97,17 @@ namespace Server.Arkaine.Admin
                     return;
                 }
 
-                if (!_options.THUMBNAIL_EXTENSIONS.Contains(Path.GetExtension(file.FileName)))
+                if (!file.ContentType.StartsWith("image") && !file.ContentType.StartsWith("video"))
                 {
                     continue;
                 }
 
                 var fn = Path.Combine(_options.THUMBNAIL_DIR, file.FileName);
+
+                if (file.ContentType.StartsWith("video"))
+                {
+                    fn += ".jpg";
+                }
 
                 Directory.CreateDirectory(Path.GetDirectoryName(fn) ?? throw new($"{file.FileName} not a valid filename"));
 
@@ -111,7 +116,14 @@ namespace Server.Arkaine.Admin
                     try
                     {
                         // Don't cancel midway through making a thumbnail
-                        await GenerateThumbnail(userName, fn, file.FileName, CancellationToken.None);
+                        if (file.ContentType.StartsWith("image"))
+                        {
+                            await GenerateImageThumbnail(userName, fn, file.FileName, CancellationToken.None);
+                        } else if (file.ContentType.StartsWith("video"))
+                        {
+                            await GenerateVideoThumbnail(userName, fn, file.FileName, CancellationToken.None);
+                        }
+                        
                         _report.Generated++;
                     }
                     catch (Exception ex)
@@ -130,7 +142,17 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task GenerateThumbnail(string userName, string thumbnailName, string fileName, CancellationToken cancellationToken)
+        private async Task GenerateVideoThumbnail(string userName, string thumbnailName, string fileName, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation($"Generating thumbnail {thumbnailName}");
+            var stream = await _b2Service.Download(userName, fileName, cancellationToken);
+            
+            
+
+            
+        }
+
+        private async Task GenerateImageThumbnail(string userName, string thumbnailName, string fileName, CancellationToken cancellationToken)
         {
             // generate thumbnail
             _logger.LogInformation($"Generating thumbnail {thumbnailName}");

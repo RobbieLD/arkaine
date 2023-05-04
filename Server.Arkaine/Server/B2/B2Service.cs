@@ -220,10 +220,5 @@ namespace Server.Arkaine.B2
 
             return cacheModel;
         }
-
-        public Task<UploadResponse> Upload(string bucketId, string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
