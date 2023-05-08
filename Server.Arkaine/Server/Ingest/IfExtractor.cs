@@ -2,10 +2,11 @@
 
 namespace Server.Arkaine.Ingest
 {
-    public class SgExtractor : BaseExtractor, IExtractor
+    public class IfExtractor : BaseExtractor, IExtractor
     {
-        private readonly Regex _exp = new(@"https:\/\/media.*..net\/sounds\/(\d|[a-z])*.m4a");
-        public SgExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
+        private readonly Regex _exp = new(@"\/\/.+\/stream\/[a-z0-9,-]+\/[a-z0-9]+");
+
+        public IfExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
         {
         }
 

@@ -4,8 +4,6 @@ namespace Server.Arkaine.Ingest
 {
     public class WhExtractor : BaseExtractor, IExtractor
     {
-        public string Bucket => "be943557a8ccaf478310051d";
-
         public WhExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
         {
         }
