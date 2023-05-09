@@ -46,6 +46,7 @@ builder.Services.AddScoped<INotifier, Pushover>();
 builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddSingleton<ThumbnailManager>();
 builder.Services.AddScoped<WhExtractor>();
+builder.Services.AddScoped<IfExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
 builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
 builder.Services.AddScoped<IFavouritesService, FavouritesService>();

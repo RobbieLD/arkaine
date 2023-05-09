@@ -23,7 +23,7 @@ namespace Server.Arkaine.Ingest
             foreach (var key in keys)
             {
                 var pair = key.Split(":");
-                if (uri.Host == pair[0])
+                if (uri.Host.EndsWith(pair[0]))
                 {
                     var types = Assembly.GetExecutingAssembly().GetTypes();
                     var type = types.First(t => t.Name == pair[1]);
