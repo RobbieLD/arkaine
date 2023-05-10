@@ -182,17 +182,82 @@ namespace Server.Arkaine.B2
             return model;
         }
 
-        private async Task<UploadUrlResponse> GetUploadUri(CancellationToken cancellationToken)
+        // TODO: refactor to use make auth request
+        private async Task<GetUploadPartsResponse> GetPartUploadUri(string fileId, CancellationToken cancellationToken)
         {
+            // Auth
             var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
+            // Req
+            var req = new { fileId };
+            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
+            var byteContent = new ByteArrayContent(buffer);
+
+            // Resp
+            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_get_upload_part_url ", byteContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<GetUploadPartsResponse>(responseString) ?? throw new("Start part file response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Start part file call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
+        }
+
+        // TODO: refactor to use make auth request
+        private async Task<StartPartUploadResponse> StartPartUpload(string fileName, string contentType, CancellationToken cancellationToken)
+        {
+            // Auth
+            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            // Req
+            var req = new {
+                bucketId = _options.BUCKET_ID,
+                fileName,
+                contentType
+            };
+
+            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
+            var byteContent = new ByteArrayContent(buffer);
+
+            // Resp
+            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_start_large_file", byteContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<StartPartUploadResponse>(responseString) ?? throw new("Start part file response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Start part file call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
+        }
+
+        // TODO: refactor to use make auth request
+        private async Task<UploadUrlResponse> GetUploadUri(CancellationToken cancellationToken)
+        {
+            // Auth
+            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            // Req
             var req = new { bucketId = _options.BUCKET_ID };
             var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
             var byteContent = new ByteArrayContent(buffer);
             
+            // Resp
             var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_get_upload_url", byteContent, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<UploadUrlResponse>(responseString) ?? throw new("Upload url response is an invalid format");
@@ -219,11 +284,6 @@ namespace Server.Arkaine.B2
             }
 
             return cacheModel;
-        }
-
-        public Task<UploadResponse> Upload(string bucketId, string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
         }
     }
 }

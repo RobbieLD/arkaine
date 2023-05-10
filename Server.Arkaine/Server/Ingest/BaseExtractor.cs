@@ -13,11 +13,17 @@
         {
             var client = _httpClientFactory.CreateClient();
             var ext = Path.GetExtension(url);
+            // TODO: should this me get stream async?
             var contentResponse = await client.GetAsync(url, cancellationToken);
 
             if (!contentResponse.IsSuccessStatusCode)
             {
                 throw new($"Extract failed with status code: {contentResponse.StatusCode}");
+            }
+
+            if (string.IsNullOrEmpty(ext) && !string.IsNullOrEmpty(contentResponse.Content.Headers.ContentType?.MediaType))
+            {
+                ext = contentResponse.Content.Headers.ContentType?.MediaType?.Split("/")[1];
             }
 
             var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);

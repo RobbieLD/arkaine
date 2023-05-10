@@ -8,7 +8,6 @@ namespace Server.Arkaine.B2
         Task<FilesResponse> ListFiles(FilesRequest request, string userName, IFavouritesService? favouritesService, CancellationToken cancellationToken);
         Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken);
         IResult Preview(string fileName);
-        Task<UploadResponse> Upload(string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken);
         Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken);
     }
 }
