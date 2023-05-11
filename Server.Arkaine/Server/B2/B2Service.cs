@@ -5,9 +5,11 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Web;
+using System;
 
 namespace Server.Arkaine.B2
 {
+    // TODO: Add in Sha1 checking
     public class B2Service : IB2Service
     {
         private readonly IHttpClientFactory _httpClientFactory;
@@ -134,6 +136,93 @@ namespace Server.Arkaine.B2
             return responseModel;
         }
 
+        public async Task<UploadResponse> UploadParts(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken)
+        {
+            // Start the upload
+            var createFileResponse = await StartPartUpload(fileName, contentType, cancellationToken);
+
+            // Get the upload URI
+            var getUploadUriResponse = await GetPartUploadUri(createFileResponse.FileId, cancellationToken);
+
+            // Upload each chunk
+            int partNumber = 1;
+            byte[] data = new byte[_options.UPLOAD_CHUNK_SIZE];
+
+            while (true)
+            {
+                int count = await content.ReadAsync(data, 0, _options.UPLOAD_CHUNK_SIZE, cancellationToken);
+
+                if (count < 1)
+                {
+                    break;
+                }
+
+                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, count, data, cancellationToken);
+                partNumber++;
+            }
+
+            // Finish the upload
+            var finishFileResponse = await FinishUploadFile(createFileResponse.FileId, cancellationToken);
+
+            return finishFileResponse;
+        }
+
+        private async Task<UploadPartResponse> UploadPart(string url, string token, int partNumber, long contentLength, byte[] bytes, CancellationToken cancellationToken)
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Part-Number", partNumber.ToString());
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
+
+            var stream = new MemoryStream(bytes);
+            var content = new StreamContent(stream);
+
+            content.Headers.ContentLength = contentLength;
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json; charset=utf-8");
+
+            var response = await client.PostAsync(url, content, cancellationToken);
+
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<UploadPartResponse>(responseString) ?? throw new("Upload part response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
+        }
+
+        // TODO: Refactor to use make auth request
+        private async Task<UploadResponse> FinishUploadFile(string fileId, CancellationToken cancellationToken)
+        {
+            // Auth
+            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            // Req
+            var req = new { fileId };
+            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
+            var byteContent = new ByteArrayContent(buffer);
+
+            // Resp
+            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_finish_large_file ", byteContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<UploadResponse>(responseString) ?? throw new("Finish part file response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Finish part file call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
+        }
+
         private string GetPreviewUrl(string fileName, string type)
         {
             var thumb = Path.Combine(_options.THUMBNAIL_DIR, fileName);
@@ -217,6 +306,7 @@ namespace Server.Arkaine.B2
             var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             // Req

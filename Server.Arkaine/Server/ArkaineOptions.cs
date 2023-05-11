@@ -21,5 +21,6 @@
         public string THUMBNAIL_EXTENSIONS { get; set; } = string.Empty;
         public int THUMBNAIL_PAGE_SIZE { get; set; }
         public int THUMBNAIL_WIDTH { get; set; }
+        public int UPLOAD_CHUNK_SIZE { get; set; }
     }
 }

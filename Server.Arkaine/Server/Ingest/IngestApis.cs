@@ -26,8 +26,19 @@ namespace Server.Arkaine.Ingest
 
                     var extractor = extractorFactory.GetExtractor(request.Url);
                     var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
-                    var content = new StreamContent(resp.Content);
-                    var response = await b2ervice.Upload(resp.FileName, resp.MimeType, resp.Length, content, cancellationToken);
+                    
+                    UploadResponse response;
+
+                    // If the content is greater than 20mb 
+                    if (resp.Content.Length > config.Value.UPLOAD_CHUNK_SIZE)
+                    {
+                        response = await b2ervice.UploadParts(resp.FileName, resp.MimeType, resp.Length, resp.Content, cancellationToken);
+                    }
+                    else
+                    {
+                        response = await b2ervice.Upload(resp.FileName, resp.MimeType, resp.Length, new StreamContent(resp.Content), cancellationToken);
+                    }
+
                     return Results.Ok(response);
                 });
         }
