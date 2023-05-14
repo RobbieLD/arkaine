@@ -112,7 +112,7 @@ namespace Server.Arkaine.B2
             return await client.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
-        public async Task<UploadResponse> Upload(string fileName, string contentType, long length, StreamContent content, CancellationToken cancellationToken)
+        public async Task<UploadResponse> Upload(string fileName, string contentType, StreamContent content, CancellationToken cancellationToken)
         {
             var urlResponse = await GetUploadUri(cancellationToken);
             var client = _httpClientFactory.CreateClient();
@@ -121,7 +121,6 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Info-Author", "Arkaine");
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
-            content.Headers.ContentLength = length;
             content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
             
             var response = await client.PostAsync(urlResponse.UploadUrl, content, cancellationToken);
@@ -137,7 +136,7 @@ namespace Server.Arkaine.B2
             return responseModel;
         }
 
-        public async Task<UploadResponse> UploadParts(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken)
+        public async Task<UploadResponse> UploadParts(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
         {
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
@@ -175,7 +174,7 @@ namespace Server.Arkaine.B2
                     break;
                 }
 
-                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, count, data, cancellationToken);
+                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, data, cancellationToken);
                 partNumber++;
             }
 
@@ -185,7 +184,7 @@ namespace Server.Arkaine.B2
             return finishFileResponse;
         }
 
-        private async Task<UploadPartResponse> UploadPart(string url, string token, int partNumber, long contentLength, byte[] bytes, CancellationToken cancellationToken)
+        private async Task<UploadPartResponse> UploadPart(string url, string token, int partNumber, byte[] bytes, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
@@ -194,19 +193,12 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var stream = new MemoryStream(bytes);
-            var content = new StreamContent(stream);
-            content.Headers.ContentLength = contentLength;
+            // This probably isn't needed
+            client.DefaultRequestHeaders.Add("Connection", "Keep-Alive");
+            client.DefaultRequestHeaders.Add("Keep-Alive", "3600");
 
-            System.Net.ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
-
-            var message = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = content
-            };
-
-            var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
+            var content = new ByteArrayContent(bytes);
+            var response = await client.PostAsync(url, content, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<UploadPartResponse>(responseString) ?? throw new("Upload part response is an invalid format");
 
