@@ -30,7 +30,7 @@ namespace Server.Arkaine.Ingest
                     UploadResponse response;
 
                     // If the content is greater than 20mb 
-                    if (resp.Content.Length > config.Value.UPLOAD_CHUNK_SIZE)
+                    if (resp.Length > config.Value.UPLOAD_CHUNK_SIZE)
                     {
                         response = await b2ervice.UploadParts(resp.FileName, resp.MimeType, resp.Length, resp.Content, cancellationToken);
                     }

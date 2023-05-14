@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Web;
 using System;
+using System.Net;
 
 namespace Server.Arkaine.B2
 {
@@ -138,11 +139,28 @@ namespace Server.Arkaine.B2
 
         public async Task<UploadResponse> UploadParts(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken)
         {
-            // Start the upload
-            var createFileResponse = await StartPartUpload(fileName, contentType, cancellationToken);
+            // Check if this file is already partially uploaded.
+            var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
+            string fileId;
+
+            if (unfinishedFilesResponse.Files.Count > 1)
+            {
+                throw new($"There are multiple files started named {fileName}");
+            }
+            else if (unfinishedFilesResponse.Files.Count == 1)
+            {
+                fileId = unfinishedFilesResponse.Files[0].Id;
+            }
+            else
+            {
+                // Start the upload
+                var createFileResponse = await StartPartUpload(fileName, contentType, cancellationToken);
+                fileId = createFileResponse.FileId;
+            }
+
 
             // Get the upload URI
-            var getUploadUriResponse = await GetPartUploadUri(createFileResponse.FileId, cancellationToken);
+            var getUploadUriResponse = await GetPartUploadUri(fileId, cancellationToken);
 
             // Upload each chunk
             int partNumber = 1;
@@ -162,7 +180,7 @@ namespace Server.Arkaine.B2
             }
 
             // Finish the upload
-            var finishFileResponse = await FinishUploadFile(createFileResponse.FileId, cancellationToken);
+            var finishFileResponse = await FinishUploadFile(fileId, cancellationToken);
 
             return finishFileResponse;
         }
@@ -174,14 +192,20 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Part-Number", partNumber.ToString());
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var stream = new MemoryStream(bytes);
             var content = new StreamContent(stream);
-
             content.Headers.ContentLength = contentLength;
-            content.Headers.ContentType = new MediaTypeHeaderValue("application/json; charset=utf-8");
 
-            var response = await client.PostAsync(url, content, cancellationToken);
+            System.Net.ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
+
+            var message = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = content
+            };
+
+            var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<UploadPartResponse>(responseString) ?? throw new("Upload part response is an invalid format");
@@ -289,6 +313,39 @@ namespace Server.Arkaine.B2
             var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_get_upload_part_url ", byteContent, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<GetUploadPartsResponse>(responseString) ?? throw new("Start part file response is an invalid format");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Start part file call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            return responseModel;
+        }
+
+        // TODO: Refactor to use make auth request
+        private async Task<FilesResponse> CheckForUnfinishedFile(string fileName, CancellationToken cancellationToken)
+        {
+            // Auth
+            var auth = await GetToken(_options.B2_KEY_READ, cancellationToken);
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            // Req
+            var req = new
+            {
+                bucketId = _options.BUCKET_ID,
+                namePrefix = fileName,
+            };
+
+            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
+            var byteContent = new ByteArrayContent(buffer);
+
+            // Resp
+            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_list_unfinished_large_files", byteContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<FilesResponse>(responseString) ?? throw new("List unfinished files response is an invalid format");
 
             if (!response.IsSuccessStatusCode)
             {
