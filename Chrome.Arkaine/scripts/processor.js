@@ -23,17 +23,46 @@ const post = async (url, key, api, name) => {
     return await response.json()
 }
 
+const connect = (url) => {
+
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl(url + "/updates")
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    async function start() {
+        try {
+            await connection.start();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+    
+    connection.onclose(async () => {
+        await start();
+    });
+
+    connection.on("update", (_, message) => {
+        log(message)        
+    })
+    
+    // Start the connection.
+    start();
+}
+
 const process = () => {
-    log('Starting ...')
+    log('Connecting to updates hub')
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
         // Get the Tab url we're going to use
         let url = tabs[0].url;
-        log(url)
+        log("Url:" + url)
 
         // Get the api key
         chrome.storage.sync.get({ key: '', url: '' }, (items) => {
             const input = document.getElementById('file-name')
-            log(input.value)
+            log("FileName:" + input.value)
+            connect(url)
+
             try {
                 post(url, items.key, items.url, input.value).then((response) => {
                     log(`${response.fileName} uploaded at ${response.contentLength}`)
