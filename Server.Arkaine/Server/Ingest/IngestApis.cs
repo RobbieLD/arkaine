@@ -9,6 +9,8 @@ namespace Server.Arkaine.Ingest
     {
         public static void RegisterIngestApis(this WebApplication app)
         {
+            app.MapHub<UpdateHub>("/updates");
+
             app.MapPost("/ingest",
                 [AllowAnonymous]
             async (IngestRequest request, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IB2Service b2ervice, IMemoryCache cache, IExtractorFactory extractorFactory) =>
@@ -27,19 +29,18 @@ namespace Server.Arkaine.Ingest
                     var extractor = extractorFactory.GetExtractor(request.Url);
                     var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
                     
-                    UploadResponse response;
-
                     // If the content is greater than 20mb 
+                    // These methods are fire and forget because the calling client opens a web sockets connection to listen for updates
                     if (resp.Length > config.Value.UPLOAD_CHUNK_SIZE)
                     {
-                        response = await b2ervice.UploadParts(resp.FileName, resp.MimeType, resp.Content, cancellationToken);
+                        await Task.Run(() => b2ervice.UploadParts(resp.FileName, resp.MimeType, resp.Content, cancellationToken)).ConfigureAwait(false);
                     }
                     else
                     {
-                        response = await b2ervice.Upload(resp.FileName, resp.MimeType, new StreamContent(resp.Content), cancellationToken);
+                        await Task.Run(() => b2ervice.Upload(resp.FileName, resp.MimeType, new StreamContent(resp.Content), cancellationToken)).ConfigureAwait(false);
                     }
 
-                    return Results.Ok(response);
+                    return Results.Ok();
                 });
         }
     }
