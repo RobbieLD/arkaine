@@ -20,13 +20,18 @@ const post = async (url, key, api, name) => {
         })
     })
 
-    return await response.json()
+    if (response.ok) {
+        return await response.json()
+    }
+    else {
+        throw await response.text()
+    }    
 }
 
-const connect = (url) => {
+const connect = async (url) => {
 
     const connection = new signalR.HubConnectionBuilder()
-        .withUrl(url + "/updates")
+        .withUrl(url + "/progress")
         .configureLogging(signalR.LogLevel.Information)
         .build();
 
@@ -34,7 +39,7 @@ const connect = (url) => {
         try {
             await connection.start();
         } catch (err) {
-            console.error(err);
+            log(err)
         }
     };
     
@@ -42,34 +47,38 @@ const connect = (url) => {
         await start();
     });
 
-    connection.on("update", (_, message) => {
+    connection.on("update", (message) => {
         log(message)        
     })
     
     // Start the connection.
-    start();
+    await start();
 }
 
 const process = () => {
-    log('Connecting to updates hub')
+    log('Starting Processing')
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
         // Get the Tab url we're going to use
         let url = tabs[0].url;
-        log("Url:" + url)
+        log("Url: " + url)
 
         // Get the api key
         chrome.storage.sync.get({ key: '', url: '' }, (items) => {
             const input = document.getElementById('file-name')
-            log("FileName:" + input.value)
-            connect(url)
-
-            try {
-                post(url, items.key, items.url, input.value).then((response) => {
-                    log(`${response.fileName} uploaded at ${response.contentLength}`)
-                })
-            } catch (e) {
-                log(e)
-            }
+            log("FileName: " + input.value)
+            connect(items.url).then(() => {
+                try {
+                    post(url, items.key, items.url + "/ingest", input.value)
+                        .then((response) => {
+                            log(`${response.fileName} uploaded at ${response.contentLength}`)
+                        })
+                        .catch((err) => {
+                            log('Upload failed: ' + err)
+                        })
+                } catch (e) {
+                    log(e)
+                }
+            })            
         })
     })
 }
