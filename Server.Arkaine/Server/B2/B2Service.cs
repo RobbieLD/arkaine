@@ -175,21 +175,14 @@ namespace Server.Arkaine.B2
 
             // Upload each chunk
             var partNumber = 1;
-            var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
-
+            var buffer = new Memory<byte>();
+            
             while (true)
             {
-                int totalRead = 0;
-
-                while(totalRead < buffer.Length)
-                {
-                    int read = await content.ReadAsync(buffer, totalRead, buffer.Length - totalRead, cancellationToken);
-                    if (read == 0) break;
-                    totalRead += read;
-                }
+                int read = await content.ReadAtLeastAsync(buffer, _options.UPLOAD_CHUNK_SIZE, false, cancellationToken);
                 
-                if (totalRead < 1) break;
-                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, totalRead, cancellationToken);
+                if (read < 1) break;
+                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
                 partNumber++;
             }
 
@@ -198,7 +191,7 @@ namespace Server.Arkaine.B2
             await _hubContext.Clients.All.SendAsync("update", $"Upload multi part file {fileName} succeeded", cancellationToken);
         }
 
-        private async Task UploadPart(string url, string token, int partNumber, byte[] bytes, int count, CancellationToken cancellationToken)
+        private async Task UploadPart(string url, string token, int partNumber, Memory<byte> bytes, int count, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
@@ -213,11 +206,11 @@ namespace Server.Arkaine.B2
 
             var stream = File.OpenWrite(@"C:\Temp\new_test.mp4");
             stream.Seek(0, SeekOrigin.End);
-            stream.Write(bytes, 0, count);
+            stream.Write(bytes.ToArray(), 0, count);
             stream.Close();
             return;
 
-            var content = new ByteArrayContent(bytes, 0, count);
+            var content = new ByteArrayContent(bytes.ToArray(), 0, count);
             try
             {
                 var response = await client.PostAsync(url, content, cancellationToken);
