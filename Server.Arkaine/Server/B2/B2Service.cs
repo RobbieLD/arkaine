@@ -10,6 +10,8 @@ using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
 using System.Linq;
+using System.Security.Cryptography;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Server.Arkaine.B2
 {
@@ -175,15 +177,17 @@ namespace Server.Arkaine.B2
 
             // Upload each chunk
             var partNumber = 1;
-            var buffer = new Memory<byte>();
+            var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
+            var shas = new List<string>();
             
             while (true)
             {
-                int read = await content.ReadAtLeastAsync(buffer, _options.UPLOAD_CHUNK_SIZE, false, cancellationToken);
-                
+                int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
                 if (read < 1) break;
-                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
+
+                var sha = await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
                 partNumber++;
+                shas.Append(sha);
             }
 
             // Finish the upload
@@ -191,31 +195,28 @@ namespace Server.Arkaine.B2
             await _hubContext.Clients.All.SendAsync("update", $"Upload multi part file {fileName} succeeded", cancellationToken);
         }
 
-        private async Task UploadPart(string url, string token, int partNumber, Memory<byte> bytes, int count, CancellationToken cancellationToken)
+        private async Task<string> UploadPart(string url, string token, int partNumber, byte[] bytes, int count, CancellationToken cancellationToken)
         {
+            // Compute the hash
+            var hashBuilder = new StringBuilder();
+            var sha = SHA1.HashData(bytes.AsSpan(0, count));
+            foreach (byte b in sha)
+            {
+                hashBuilder.Append(b.ToString("x2"));
+            }
+
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Part-Number", partNumber.ToString());
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", hashBuilder.ToString());
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var content = new ByteArrayContent(bytes, 0, count);
 
-            // This probably isn't needed
-            //client.DefaultRequestHeaders.Add("Connection", "Keep-Alive");
-            //client.DefaultRequestHeaders.Add("Keep-Alive", "3600");
-
-            var stream = File.OpenWrite(@"C:\Temp\new_test.mp4");
-            stream.Seek(0, SeekOrigin.End);
-            stream.Write(bytes.ToArray(), 0, count);
-            stream.Close();
-            return;
-
-            var content = new ByteArrayContent(bytes.ToArray(), 0, count);
             try
             {
                 var response = await client.PostAsync(url, content, cancellationToken);
                 var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-                
+
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
@@ -223,16 +224,18 @@ namespace Server.Arkaine.B2
                     throw new(responseString);
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Console.WriteLine(e);
             }
 
             await _hubContext.Clients.All.SendAsync("update", $"Upload part {partNumber} succeeded", cancellationToken);
+
+            return hashBuilder.ToString();
         }
 
         // TODO: Refactor to use make auth request
-        private async Task FinishUploadFile(string fileId, CancellationToken cancellationToken)
+        private async Task FinishUploadFile(string fileId, IEnumerable<string> hashes, CancellationToken cancellationToken)
         {
             // Auth
             var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
@@ -241,7 +244,12 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             // Req
-            var req = new { fileId };
+            var req = new
+            {
+                fileId,
+                partSha1Array = hashes.ToArray()
+            };
+
             var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
             var byteContent = new ByteArrayContent(buffer);
 
