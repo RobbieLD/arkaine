@@ -9,7 +9,7 @@ namespace Server.Arkaine.Ingest
     {
         public static void RegisterIngestApis(this WebApplication app)
         {
-            app.MapHub<UpdateHub>("/updates");
+            app.MapHub<IngestHub>("/progress");
 
             app.MapPost("/ingest",
                 [AllowAnonymous]

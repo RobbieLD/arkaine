@@ -2,6 +2,6 @@
 
 namespace Server.Arkaine.Admin
 {
-    public class UpdatesHub : Hub
+    public class AdminHub : Hub
     {}
 }

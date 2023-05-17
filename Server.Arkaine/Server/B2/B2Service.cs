@@ -9,6 +9,7 @@ using System;
 using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
+using System.Linq;
 
 namespace Server.Arkaine.B2
 {
@@ -18,14 +19,14 @@ namespace Server.Arkaine.B2
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger _logger;
         private readonly IMemoryCache _cache;
-        private readonly IHubContext<UpdateHub> _hubContext;
+        private readonly IHubContext<IngestHub> _hubContext;
         private readonly ArkaineOptions _options;
 
         public B2Service(
             IHttpClientFactory httpClientFactory,
             IMemoryCache cache,
             IOptions<ArkaineOptions> config,
-            IHubContext<UpdateHub> hubContext,
+            IHubContext<IngestHub> hubContext,
             ILogger<B2Service> logger)
         {
             _httpClientFactory = httpClientFactory;
@@ -150,6 +151,7 @@ namespace Server.Arkaine.B2
         {
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             string fileId;
 
             if (unfinishedFilesResponse.Files.Count > 1)
@@ -172,19 +174,22 @@ namespace Server.Arkaine.B2
             var getUploadUriResponse = await GetPartUploadUri(fileId, cancellationToken);
 
             // Upload each chunk
-            int partNumber = 1;
-            byte[] data = new byte[_options.UPLOAD_CHUNK_SIZE];
+            var partNumber = 1;
+            var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
 
             while (true)
             {
-                int count = await content.ReadAsync(data, 0, _options.UPLOAD_CHUNK_SIZE, cancellationToken);
+                int read = 0, totalRead = 0;
 
-                if (count < 1)
+                while(totalRead < buffer.Length)
                 {
-                    break;
+                    read = await content.ReadAsync(buffer, totalRead, buffer.Length - totalRead,  cancellationToken);
+                    if (read == 0) break;
+                    totalRead += read;
                 }
-
-                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, data, cancellationToken);
+                
+                if (totalRead < 1) break;
+                await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, totalRead, cancellationToken);
                 partNumber++;
             }
 
@@ -193,7 +198,7 @@ namespace Server.Arkaine.B2
             await _hubContext.Clients.All.SendAsync("update", $"Upload multi part file {fileName} succeeded", cancellationToken);
         }
 
-        private async Task UploadPart(string url, string token, int partNumber, byte[] bytes, CancellationToken cancellationToken)
+        private async Task UploadPart(string url, string token, int partNumber, byte[] bytes, int count, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
@@ -206,15 +211,28 @@ namespace Server.Arkaine.B2
             //client.DefaultRequestHeaders.Add("Connection", "Keep-Alive");
             //client.DefaultRequestHeaders.Add("Keep-Alive", "3600");
 
-            var content = new ByteArrayContent(bytes);
-            var response = await client.PostAsync(url, content, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var stream = File.OpenWrite(@"C:\Temp\new_test.mp4");
+            stream.Seek(0, SeekOrigin.End);
+            stream.Write(bytes, 0, count);
+            stream.Close();
+            return;
 
-            if (!response.IsSuccessStatusCode)
+            var content = new ByteArrayContent(bytes, 0, count);
+            try
             {
-                _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Upload part failed with {responseString}", cancellationToken);
-                throw new(responseString);
+                var response = await client.PostAsync(url, content, cancellationToken);
+                var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
+                    await _hubContext.Clients.All.SendAsync("update", $"Upload part failed with {responseString}", cancellationToken);
+                    throw new(responseString);
+                }
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e);
             }
 
             await _hubContext.Clients.All.SendAsync("update", $"Upload part {partNumber} succeeded", cancellationToken);

@@ -34,7 +34,7 @@ namespace Server.Arkaine.Admin
                 return Results.Ok(manager.GetSettings());
             });
 
-            app.MapHub<UpdatesHub>("/updates");
+            app.MapHub<AdminHub>("/updates");
         }
     }
 }

@@ -12,12 +12,12 @@ namespace Server.Arkaine.Admin
         private readonly ArkaineOptions _options;
         private readonly ILogger _logger;
         private CancellationTokenSource _stoppingToken;
-        private readonly IHubContext<UpdatesHub> _hubContext;
+        private readonly IHubContext<AdminHub> _hubContext;
         private GenerationReport _report;
         private bool _running = false;
         
 
-        public ThumbnailManager(IB2Service b2Service, IOptions<ArkaineOptions> config, IHubContext<UpdatesHub> hubContext, ILogger<ThumbnailManager> logger)
+        public ThumbnailManager(IB2Service b2Service, IOptions<ArkaineOptions> config, IHubContext<AdminHub> hubContext, ILogger<ThumbnailManager> logger)
         {
             _b2Service = b2Service;
             _options = config.Value;

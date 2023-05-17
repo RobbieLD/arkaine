@@ -2,7 +2,7 @@
 
 namespace Server.Arkaine.Ingest
 {
-    public class UpdateHub : Hub
+    public class IngestHub : Hub
     {
         public override async Task OnConnectedAsync()
         {
