@@ -179,11 +179,11 @@ namespace Server.Arkaine.B2
 
             while (true)
             {
-                int read = 0, totalRead = 0;
+                int totalRead = 0;
 
                 while(totalRead < buffer.Length)
                 {
-                    read = await content.ReadAsync(buffer, totalRead, buffer.Length - totalRead,  cancellationToken);
+                    int read = await content.ReadAsync(buffer, totalRead, buffer.Length - totalRead, cancellationToken);
                     if (read == 0) break;
                     totalRead += read;
                 }
