@@ -70,7 +70,7 @@ const process = () => {
                 try {
                     post(url, items.key, items.url + "/ingest", input.value)
                         .then((response) => {
-                            log(`${response.fileName} uploaded at ${response.contentLength}`)
+                            log(`Upload: ${response}`)
                         })
                         .catch((err) => {
                             log('Upload failed: ' + err)

@@ -179,19 +179,21 @@ namespace Server.Arkaine.B2
             var partNumber = 1;
             var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
             var shas = new List<string>();
-            
+
             while (true)
             {
                 int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
                 if (read < 1) break;
 
+                await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
                 var sha = await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
+                
                 partNumber++;
-                shas.Append(sha);
+                shas.Add(sha);
             }
 
             // Finish the upload
-            await FinishUploadFile(fileId, cancellationToken);
+            await FinishUploadFile(fileId, shas, cancellationToken);
             await _hubContext.Clients.All.SendAsync("update", $"Upload multi part file {fileName} succeeded", cancellationToken);
         }
 
@@ -212,23 +214,16 @@ namespace Server.Arkaine.B2
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             var content = new ByteArrayContent(bytes, 0, count);
 
-            try
-            {
-                var response = await client.PostAsync(url, content, cancellationToken);
-                var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var response = await client.PostAsync(url, content, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
-                    await _hubContext.Clients.All.SendAsync("update", $"Upload part failed with {responseString}", cancellationToken);
-                    throw new(responseString);
-                }
-            }
-            catch (Exception e)
+            if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine(e);
+                _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
+                await _hubContext.Clients.All.SendAsync("update", $"Upload part failed with {responseString}", cancellationToken);
+                throw new(responseString);
             }
-
+            
             await _hubContext.Clients.All.SendAsync("update", $"Upload part {partNumber} succeeded", cancellationToken);
 
             return hashBuilder.ToString();
