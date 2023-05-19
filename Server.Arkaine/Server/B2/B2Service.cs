@@ -4,18 +4,13 @@ using Server.Arkaine.Favourites;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Web;
-using System;
 using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
-using System.Linq;
 using System.Security.Cryptography;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Server.Arkaine.B2
 {
-    // TODO: Add in Sha1 checking
     public class B2Service : IB2Service
     {
         private readonly IHttpClientFactory _httpClientFactory;
@@ -123,33 +118,7 @@ namespace Server.Arkaine.B2
             return await client.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
-        public async Task Upload(string fileName, string contentType, StreamContent content, CancellationToken cancellationToken)
-        {
-            var urlResponse = await GetUploadUri(cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", urlResponse.Token);
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-File-Name", HttpUtility.UrlEncode(fileName));
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Info-Author", "Arkaine");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
-            content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
-            
-            var response = await client.PostAsync(urlResponse.UploadUrl, content, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation($"Upload API call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Upload file {fileName} succeeded", cancellationToken);
-            }
-            else
-            {
-                await _hubContext.Clients.All.SendAsync("update", $"Upload file {fileName} succeeded", cancellationToken);
-                _logger.LogInformation($"File upload compelted: {fileName}");
-            }
-        }
-
-        public async Task UploadParts(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
+        public async Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
         {
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
@@ -170,7 +139,6 @@ namespace Server.Arkaine.B2
                 var createFileResponse = await StartPartUpload(fileName, contentType, cancellationToken);
                 fileId = createFileResponse.FileId;
             }
-
 
             // Get the upload URI
             var getUploadUriResponse = await GetPartUploadUri(fileId, cancellationToken);
@@ -229,38 +197,16 @@ namespace Server.Arkaine.B2
             return hashBuilder.ToString();
         }
 
-        // TODO: Refactor to use make auth request
-        private async Task FinishUploadFile(string fileId, IEnumerable<string> hashes, CancellationToken cancellationToken)
+        private async Task<FinishUploadFileResponse> FinishUploadFile(string fileId, IEnumerable<string> hashes, CancellationToken cancellationToken)
         {
-            // Auth
-            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            // Req
-            var req = new
+            var response = await MakeAuthenticatedRequest<FinishUploadFileRequest, FinishUploadFileResponse>(new FinishUploadFileRequest
             {
-                fileId,
-                partSha1Array = hashes.ToArray()
-            };
+                FileId = fileId,
+                Hashes = hashes,
+            }, "api", "/b2api/v2/b2_finish_large_file", cancellationToken);
 
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
-            var byteContent = new ByteArrayContent(buffer);
-
-            // Resp
-            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_finish_large_file ", byteContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation($"Finish part file call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Finish multi part file {fileId} failed with {responseString}", cancellationToken);
-                throw new(responseString);
-            }
-
-            _logger.LogInformation($"Finished multi part file: {fileId}");
-            await _hubContext.Clients.All.SendAsync("update", $"Finish multi part file {fileId} succeeded", cancellationToken);
+            await _hubContext.Clients.All.SendAsync("update", $"Finish multi part file returned code: {response.Action}", cancellationToken);
+            return response;
         }
 
         private string GetPreviewUrl(string fileName, string type)
@@ -311,139 +257,51 @@ namespace Server.Arkaine.B2
             return model;
         }
 
-        // TODO: refactor to use make auth request
         private async Task<GetUploadPartsResponse> GetPartUploadUri(string fileId, CancellationToken cancellationToken)
         {
-            // Auth
-            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            // Req
-            var req = new { fileId };
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
-            var byteContent = new ByteArrayContent(buffer);
-
-            // Resp
-            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_get_upload_part_url ", byteContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-            var responseModel = JsonSerializer.Deserialize<GetUploadPartsResponse>(responseString) ?? throw new("Start part file response is an invalid format");
-
-            if (!response.IsSuccessStatusCode)
+            var response = await MakeAuthenticatedRequest<GetUploadPartsRequest, GetUploadPartsResponse>(new GetUploadPartsRequest
             {
-                _logger.LogInformation($"Start part file call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Get upload url for file {fileId} failed with {responseString}", cancellationToken);
-                throw new(responseString);
-            }
-
-            _logger.LogInformation("Get upload url succeeded");
-            await _hubContext.Clients.All.SendAsync("update", $"Get upload url for file {fileId} succeeded", cancellationToken);
-            return responseModel;
+                FileId = fileId,
+            }, "api", "/b2api/v2/b2_get_upload_part_url", cancellationToken);
+            await _hubContext.Clients.All.SendAsync("update", $"Get upload url for file succeeded", cancellationToken);
+            return response;
         }
 
-        // TODO: Refactor to use make auth request
         private async Task<FilesResponse> CheckForUnfinishedFile(string fileName, CancellationToken cancellationToken)
         {
-            // Auth
-            var auth = await GetToken(_options.B2_KEY_READ, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            // Req
-            var req = new
+            var response = await MakeAuthenticatedRequest<CheckForUnfinishedFilesRequest, FilesResponse>(new CheckForUnfinishedFilesRequest
             {
-                bucketId = _options.BUCKET_ID,
-                namePrefix = fileName,
-            };
+                BucketId = _options.BUCKET_ID,
+                NamePrefix = fileName
+            }, "api", "/b2api/v2/b2_list_unfinished_large_files", cancellationToken);
 
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
-            var byteContent = new ByteArrayContent(buffer);
-
-            // Resp
-            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_list_unfinished_large_files", byteContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-            var responseModel = JsonSerializer.Deserialize<FilesResponse>(responseString) ?? throw new("List unfinished files response is an invalid format");
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation($"Start part file call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"check for unfinished files failed with {responseString}", cancellationToken);
-                throw new(responseString);
-            }
-
-            _logger.LogInformation("Check for finished files succeeded");
-            await _hubContext.Clients.All.SendAsync("update", $"Check for unfinished files finished and found {responseModel.Files.Count} files", cancellationToken);
-            return responseModel;
+            await _hubContext.Clients.All.SendAsync("update", $"Check for unfinished files finished and found {response.Files.Count} files", cancellationToken);
+            return response;
         }
 
-        // TODO: refactor to use make auth request
         private async Task<StartPartUploadResponse> StartPartUpload(string fileName, string contentType, CancellationToken cancellationToken)
         {
-            // Auth
-            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            // Req
-            var req = new {
-                bucketId = _options.BUCKET_ID,
-                fileName,
-                contentType
-            };
-
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
-            var byteContent = new ByteArrayContent(buffer);
-
-            // Resp
-            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_start_large_file", byteContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-            var responseModel = JsonSerializer.Deserialize<StartPartUploadResponse>(responseString) ?? throw new("Start part file response is an invalid format");
-
-            if (!response.IsSuccessStatusCode)
+            var response = await MakeAuthenticatedRequest<StartPartUploadRequest, StartPartUploadResponse>(new StartPartUploadRequest
             {
-                _logger.LogInformation($"Start part file call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Start multi part file failed with {responseString}", cancellationToken);
-                throw new(responseString);
-            }
+                BucketId = _options.BUCKET_ID,
+                ContentType = contentType,
+                FileName = fileName
+            }, "api", "/b2api/v2/b2_start_large_file", cancellationToken);
 
             _logger.LogInformation("Start multi part file succeeded");
-            await _hubContext.Clients.All.SendAsync("update", $"Start multi part file for file {fileName} succeeded", cancellationToken);
-            return responseModel;
+            await _hubContext.Clients.All.SendAsync("update", $"Start multi part file for file succeeded", cancellationToken);
+            return response;
         }
 
-        // TODO: refactor to use make auth request
         private async Task<UploadUrlResponse> GetUploadUri(CancellationToken cancellationToken)
         {
-            // Auth
-            var auth = await GetToken(_options.B2_KEY_WRITE, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", auth.Token);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            // Req
-            var req = new { bucketId = _options.BUCKET_ID };
-            var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
-            var byteContent = new ByteArrayContent(buffer);
-            
-            // Resp
-            var response = await client.PostAsync(auth.ApiBaseUrl + "/b2api/v2/b2_get_upload_url", byteContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-            var responseModel = JsonSerializer.Deserialize<UploadUrlResponse>(responseString) ?? throw new("Upload url response is an invalid format");
-
-            if (!response.IsSuccessStatusCode)
+            var response = await MakeAuthenticatedRequest<UploadUrlRequest, UploadUrlResponse>(new UploadUrlRequest
             {
-                _logger.LogInformation($"Get Upload URL API call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Get upload url failed with {responseString}", cancellationToken);
-                throw new(responseString);
-            }
+                BucketId = _options.BUCKET_ID
+            }, "api", "/b2api/v2/b2_get_upload_url", cancellationToken);
 
-            _logger.LogInformation("Get upload uri suceeded");
             await _hubContext.Clients.All.SendAsync("update", $"Get upload url succeeded", cancellationToken);
-            return responseModel;
+            return response;
         }
 
         private async Task<CacheModel> GetCache(string key, CancellationToken cancellationToken)

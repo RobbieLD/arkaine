@@ -13,7 +13,7 @@ namespace Server.Arkaine.Ingest
 
             app.MapPost("/ingest",
                 [AllowAnonymous]
-            async (IngestRequest request, CancellationToken cancellationToken, IOptions<ArkaineOptions> config, IB2Service b2ervice, IMemoryCache cache, IExtractorFactory extractorFactory) =>
+            async (IngestRequest request, IOptions<ArkaineOptions> config, IBackgroundTaskQueue queue, CancellationToken cancellationToken) =>
                 {
                     // Validate api key
                     if (request.Key != config.Value.API_KEY)
@@ -26,19 +26,9 @@ namespace Server.Arkaine.Ingest
                         return Results.BadRequest("No url supplied");
                     }
 
-                    var extractor = extractorFactory.GetExtractor(request.Url);
-                    var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
-                    
-                    if (resp.Length > config.Value.UPLOAD_CHUNK_SIZE)
-                    {
-                        _ = Task.Run(() => b2ervice.UploadParts(resp.FileName, resp.MimeType, resp.Content, cancellationToken)).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        _ = Task.Run(() => b2ervice.Upload(resp.FileName, resp.MimeType, new StreamContent(resp.Content), cancellationToken)).ConfigureAwait(false);
-                    }
+                    await queue.EnqueueAsync(request, cancellationToken);
 
-                    return Results.Ok("Processing");
+                    return Results.Ok("Request Enqueued");
                 });
         }
     }

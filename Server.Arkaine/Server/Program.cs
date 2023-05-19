@@ -38,8 +38,12 @@ builder.Services.AddAuthentication(options =>
 
 var lifetimeKey = Guid.NewGuid();
 builder.Services.Configure<ArkaineOptions>(config);
+builder.Services.AddSingleton<IBackgroundTaskQueue, UploadQueue>();
 builder.Services.AddTransient<GlobalExceptionHandler>();
-builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(s, config["MAX_COOKIE_LIFETIME"], lifetimeKey));
+builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(
+    s,
+    config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set"),
+    lifetimeKey));
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INotifier, Pushover>();
@@ -55,6 +59,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
+builder.Services.AddHostedService<UploadService>();
 
 if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
 {
