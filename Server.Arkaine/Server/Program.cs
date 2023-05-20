@@ -45,16 +45,16 @@ builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCooki
     config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set"),
     lifetimeKey));
 builder.Services.AddHttpClient();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<INotifier, Pushover>();
-builder.Services.AddScoped<SgExtractor>();
+builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.AddTransient<INotifier, Pushover>();
+builder.Services.AddTransient<SgExtractor>();
 builder.Services.AddSingleton<ThumbnailManager>();
-builder.Services.AddScoped<WhExtractor>();
-builder.Services.AddScoped<IfExtractor>();
-builder.Services.AddScoped<EchoExtractor>();
-builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
-builder.Services.AddScoped<IFavouritesService, FavouritesService>();
-builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
+builder.Services.AddTransient<WhExtractor>();
+builder.Services.AddTransient<IfExtractor>();
+builder.Services.AddTransient<EchoExtractor>();
+builder.Services.AddTransient<IFavouriteRepository, FavouriteRepository>();
+builder.Services.AddTransient<IFavouritesService, FavouritesService>();
+builder.Services.AddTransient<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();

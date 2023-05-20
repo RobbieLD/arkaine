@@ -289,7 +289,7 @@ namespace Server.Arkaine.B2
             }, "api", "/b2api/v2/b2_start_large_file", cancellationToken);
 
             _logger.LogInformation("Start multi part file succeeded");
-            await _hubContext.Clients.All.SendAsync("update", $"Start multi part file for file succeeded", cancellationToken);
+            await _hubContext.Clients.All.SendAsync("update", $"Start multi part file succeeded", cancellationToken);
             return response;
         }
 
