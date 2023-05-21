@@ -1,5 +1,6 @@
 name: Publish Chrome Extension
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'Chrome.Arkaine/update.xml'
