@@ -1,5 +1,5 @@
 # Build Server
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS server-build
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS server-build
 WORKDIR /app
 
 COPY Server.Arkaine/Server/*.csproj ./
@@ -19,7 +19,7 @@ ENV VUE_APP_ARKAINE_VERSION=$VERSION
 RUN yarn run build
 
 # Build Release
-FROM mcr.microsoft.com/dotnet/aspnet:6.0
+FROM mcr.microsoft.com/dotnet/aspnet:7.0
 ENV DB_CONNECTION_STRING=$DB_CONNECTION_STIRNG
 ENV ACCEPT_IP_RANGE=$ACCEPT_IP_RANGE
 ENV B2_KEY=$B2_KEY
