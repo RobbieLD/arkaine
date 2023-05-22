@@ -7,6 +7,7 @@ namespace Server.Arkaine.Ingest
     {
         private readonly IBackgroundTaskQueue _taskQueue;
         private readonly IB2Service _uploader;
+        private readonly ILogger _logger;
         private readonly IExtractorFactory _extractorFactory;
         private readonly IHubContext<IngestHub> _hubContext;
 
@@ -14,12 +15,14 @@ namespace Server.Arkaine.Ingest
             IBackgroundTaskQueue taskQueue,
             IB2Service uploader,
             IExtractorFactory extractorFactory,
-            IHubContext<IngestHub> hub)
+            IHubContext<IngestHub> hub,
+            ILogger<UploadService> logger)
         {
             _taskQueue = taskQueue;
             _uploader = uploader;
             _extractorFactory = extractorFactory;
             _hubContext = hub;
+            _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -42,6 +45,8 @@ namespace Server.Arkaine.Ingest
                 }
                 catch(Exception ex)
                 {
+                    _logger.LogError(ex.Message);
+                    _logger.LogError(ex.StackTrace);
                     await _hubContext.Clients.All.SendAsync("update", $"Error processing upload: {ex.Message}", cancellationToken);
                 }
                 
