@@ -6,7 +6,7 @@ namespace Server.Arkaine.Ingest
     {
         private readonly Regex _exp = new(@"src='\/\/.+\/stream\/[a-z0-9,-]+\/[a-z0-9]+");
 
-        public IfExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
+        public IfExtractor(IHttpClientFactory httpClientFactory, ILogger<IExtractor> logger) : base(httpClientFactory, logger)
         {
         }
 

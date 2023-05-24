@@ -4,7 +4,7 @@ namespace Server.Arkaine.Ingest
 {
     public class WhExtractor : BaseExtractor, IExtractor
     {
-        public WhExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
+        public WhExtractor(IHttpClientFactory httpClientFactory, ILogger<IExtractor> logger) : base(httpClientFactory, logger)
         {
         }
 

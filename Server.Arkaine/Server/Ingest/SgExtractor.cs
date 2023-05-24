@@ -5,7 +5,7 @@ namespace Server.Arkaine.Ingest
     public class SgExtractor : BaseExtractor, IExtractor
     {
         private readonly Regex _exp = new(@"https:\/\/media.*..net\/sounds\/(\d|[a-z])*.m4a");
-        public SgExtractor(IHttpClientFactory httpClientFactory) : base(httpClientFactory)
+        public SgExtractor(IHttpClientFactory httpClientFactory, ILogger<SgExtractor> logger) : base(httpClientFactory, logger)
         {
         }
 
