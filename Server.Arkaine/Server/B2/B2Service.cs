@@ -8,6 +8,7 @@ using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
 using System.Security.Cryptography;
+using System;
 
 namespace Server.Arkaine.B2
 {
@@ -147,13 +148,11 @@ namespace Server.Arkaine.B2
             var partNumber = 1;
             var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
             var shas = new List<string>();
-
-            content.Seek(0, SeekOrigin.Begin);
-
+            
             while (true)
             {
-                int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
-                _logger.LogInformation($"Stream Can Read: {content.CanRead} and Read: {read}");
+                int read = await content.ReadAsync(buffer, cancellationToken);
+                _logger.LogInformation($"Stream Read: {read}");
 
                 if (read < 1) break;
 
