@@ -151,7 +151,7 @@ namespace Server.Arkaine.B2
             while (true)
             {
                 int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
-                _logger.LogInformation($"Stream Length/Position: {content.Length}/{content.Position} and Read: {read}");
+                _logger.LogInformation($"Stream Position: {content.Position} and Read: {read}");
 
                 if (read < 1) break;
 
