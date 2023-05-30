@@ -34,6 +34,8 @@ namespace Server.Arkaine.Ingest
 
             var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);
 
+            _logger.LogInformation($"Stream is: {content.GetType().Name}");
+
             // TODO: handle situations where content length/media type is not returned
             return new ExtractorResponse(content, fileName + ext, contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty, contentResponse.Content.Headers.ContentLength ?? 0);
         }

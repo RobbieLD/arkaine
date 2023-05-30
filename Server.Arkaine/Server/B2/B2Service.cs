@@ -8,7 +8,6 @@ using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
 using System.Security.Cryptography;
-using System;
 
 namespace Server.Arkaine.B2
 {
@@ -151,9 +150,7 @@ namespace Server.Arkaine.B2
             
             while (true)
             {
-                int read = await content.ReadAsync(buffer, cancellationToken);
-                _logger.LogInformation($"Stream Read: {read}");
-
+                int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
                 if (read < 1) break;
 
                 await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
