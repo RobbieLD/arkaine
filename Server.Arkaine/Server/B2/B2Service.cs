@@ -148,6 +148,8 @@ namespace Server.Arkaine.B2
             var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
             var shas = new List<string>();
 
+            content.Seek(0, SeekOrigin.Begin);
+
             while (true)
             {
                 int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
