@@ -2,7 +2,7 @@
 {
     public class EchoExtractor : BaseExtractor, IExtractor
     {
-        public EchoExtractor(IHttpClientFactory httpClientFactory, ILogger<IExtractor> logger) : base(httpClientFactory, logger)
+        public EchoExtractor(HttpClient httpClient, ILogger<IExtractor> logger) : base(httpClient, logger)
         {
         }
 

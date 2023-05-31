@@ -13,20 +13,20 @@ namespace Server.Arkaine.B2
 {
     public class B2Service : IB2Service
     {
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly IMemoryCache _cache;
         private readonly IHubContext<IngestHub> _hubContext;
         private readonly ArkaineOptions _options;
 
         public B2Service(
-            IHttpClientFactory httpClientFactory,
+            HttpClient httpClient,
             IMemoryCache cache,
             IOptions<ArkaineOptions> config,
             IHubContext<IngestHub> hubContext,
             ILogger<B2Service> logger)
         {
-            _httpClientFactory = httpClientFactory;
+            _httpClient = httpClient;
             _logger = logger;
             _cache = cache;
             _options = config.Value;
@@ -35,13 +35,12 @@ namespace Server.Arkaine.B2
 
         public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
         {
-            var client = _httpClientFactory.CreateClient();
             string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(key));
 
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var response = await client.GetAsync(_options.B2AuthUrl, cancellationToken);
+            var response = await _httpClient.GetAsync(_options.B2AuthUrl, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<AuthResponse>(responseString) ?? throw new("Response not in the correct form");
 
@@ -105,24 +104,21 @@ namespace Server.Arkaine.B2
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            var stream = await client.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
+            var stream = await _httpClient.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
 
         public async Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
-            return await client.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
+            return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
         public async Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
         {
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             string fileId;
 
             if (unfinishedFilesResponse.Files.Count > 1)
@@ -175,14 +171,13 @@ namespace Server.Arkaine.B2
                 hashBuilder.Append(b.ToString("x2"));
             }
 
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Part-Number", partNumber.ToString());
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", hashBuilder.ToString());
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Part-Number", partNumber.ToString());
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", hashBuilder.ToString());
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             var content = new ByteArrayContent(bytes, 0, count);
 
-            var response = await client.PostAsync(url, content, cancellationToken);
+            var response = await _httpClient.PostAsync(url, content, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -229,9 +224,8 @@ namespace Server.Arkaine.B2
         private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var content = JsonSerializer.Serialize(request, options: new JsonSerializerOptions
             {
@@ -242,7 +236,7 @@ namespace Server.Arkaine.B2
             var buffer = Encoding.UTF8.GetBytes(content);
 
             var byteContent = new ByteArrayContent(buffer);
-            var response = await client.PostAsync(cacheModel.ApiUrl + url, byteContent, cancellationToken);
+            var response = await _httpClient.PostAsync(cacheModel.ApiUrl + url, byteContent, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)

@@ -4,20 +4,19 @@ namespace Server.Arkaine.Ingest
 {
     public abstract class BaseExtractor
     {
-        protected readonly IHttpClientFactory _httpClientFactory;
+        protected readonly HttpClient _httpClient;
         private readonly ILogger _logger;
 
-        public BaseExtractor(IHttpClientFactory httpClientFactory, ILogger<IExtractor> logger)
+        public BaseExtractor(HttpClient httpClient, ILogger<IExtractor> logger)
         {
-            _httpClientFactory = httpClientFactory;
+            _httpClient = httpClient;
             _logger = logger;
         }
 
         protected async Task<ExtractorResponse> OpenMediaStream(string url, string fileName, CancellationToken cancellationToken)
         {
-            var client = _httpClientFactory.CreateClient();
             var ext = Path.GetExtension(url);
-            var contentResponse = await client.GetAsync(url, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            var contentResponse = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (!contentResponse.IsSuccessStatusCode)
             {
