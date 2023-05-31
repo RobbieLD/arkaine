@@ -2,9 +2,9 @@
 
 namespace Server.Arkaine.Ingest
 {
-    public class SgExtractor : BaseExtractor, IExtractor
+    public partial class SgExtractor : BaseExtractor, IExtractor
     {
-        private readonly Regex _exp = new(@"https:\/\/media.*..net\/sounds\/(\d|[a-z])*.m4a");
+        private readonly Regex _exp = Regex();
         public SgExtractor(HttpClient httpClient, ILogger<SgExtractor> logger) : base(httpClient, logger)
         {
         }
@@ -15,5 +15,8 @@ namespace Server.Arkaine.Ingest
             var filePath = _exp.Match(response).Value;
             return await OpenMediaStream(filePath, fileName, cancellationToken);
         }
+
+        [GeneratedRegex("https:\\/\\/media.*..net\\/sounds\\/(\\d|[a-z])*.m4a")]
+        private static partial Regex Regex();
     }
 }
