@@ -17,7 +17,7 @@ namespace Server.Arkaine.Ingest
         {
             var client = _httpClientFactory.CreateClient();
             var ext = Path.GetExtension(url);
-            var contentResponse = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var contentResponse = await client.GetAsync(url, HttpCompletionOption.ResponseContentRead, cancellationToken);
 
             if (!contentResponse.IsSuccessStatusCode)
             {
