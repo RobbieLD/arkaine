@@ -36,7 +36,7 @@ namespace Server.Arkaine.B2
         public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
         {
             string credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(key));
-
+            _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -104,6 +104,7 @@ namespace Server.Arkaine.B2
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
+            _httpClient.DefaultRequestHeaders.Clear();
             var stream = await _httpClient.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
@@ -111,6 +112,7 @@ namespace Server.Arkaine.B2
         public async Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
+            _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
@@ -171,6 +173,7 @@ namespace Server.Arkaine.B2
                 hashBuilder.Append(b.ToString("x2"));
             }
 
+            _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", token);
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Part-Number", partNumber.ToString());
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", hashBuilder.ToString());
@@ -224,6 +227,7 @@ namespace Server.Arkaine.B2
         private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken)
         {
             var cacheModel = await GetCache(userName, cancellationToken);
+            _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
