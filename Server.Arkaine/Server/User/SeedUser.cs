@@ -8,7 +8,7 @@ namespace Server.Arkaine.User
         public async static Task Initialize(IServiceProvider serviceProvider)
         {
             using var scope = serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetService<ArkaineDbContext>();
+            var context = scope.ServiceProvider.GetService<ArkaineDbContext>() ?? throw new("Db Context Not Created");
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
 
             string[] roles = new string[] { "User", "Admin" };
@@ -54,7 +54,7 @@ namespace Server.Arkaine.User
             if (!context!.Users.Any(u => u.UserName == user.UserName))
             {
                 await userManager.CreateAsync(user, ".Password1");
-                var dbUser = await userManager.FindByNameAsync("user");
+                var dbUser = await userManager.FindByNameAsync("user") ?? throw new("User not found");
                 await userManager.AddToRolesAsync(dbUser, new[] { "User" });
             }
 
@@ -62,7 +62,7 @@ namespace Server.Arkaine.User
             if (!context!.Users.Any(u => u.UserName == admin.UserName))
             {
                 await userManager.CreateAsync(admin, ".Password1");
-                var dbAdmin = await userManager.FindByNameAsync("admin");
+                var dbAdmin = await userManager.FindByNameAsync("admin") ?? throw new("User not found");
                 await userManager.AddToRolesAsync(dbAdmin, new[] { "Admin" });
             }
 

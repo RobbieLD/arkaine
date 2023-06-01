@@ -28,7 +28,8 @@ namespace Server.Arkaine.User
                 return null;
             }
 
-            var user = await _userManager.FindByNameAsync(username);
+            var user = await _userManager.FindByNameAsync(username) ?? throw new("User not found");
+
             return await _userManager.GetRolesAsync(user);
         }
     }

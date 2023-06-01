@@ -7,19 +7,20 @@ namespace Server.Arkaine.Notification
         private readonly ILogger<Pushover> _logger;
         private readonly HttpClient _httpClient;
         private readonly ArkaineOptions _options;
+        private readonly bool _dev;
 
-        public Pushover(HttpClient httpClient, IOptions<ArkaineOptions> config, ILogger<Pushover> logger)
+        public Pushover(HttpClient httpClient, IOptions<ArkaineOptions> config, ILogger<Pushover> logger, bool dev)
         {
             _logger = logger;
             _httpClient = httpClient;
             _options = config.Value;
+            _dev = dev;
         }
 
         public async Task Send(string message)
         {
-#if DEBUG
-            return;
-#endif
+            if (_dev) return;
+
             var request = new FormUrlEncodedContent(new KeyValuePair<string, string>[]
             {
                 new KeyValuePair<string, string>("token", _options.PUSHOVER_TOKEN),

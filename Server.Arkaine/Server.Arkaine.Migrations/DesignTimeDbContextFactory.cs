@@ -17,7 +17,7 @@ namespace Server.Arkaine.Migrations
 
             IConfigurationRoot config = builder.Build();
 
-            string connectionString = config["DB_CONNECTION_STRING"];
+            string connectionString = config["DB_CONNECTION_STRING"] ?? throw new("Connection string not found");
 
             Console.WriteLine($"DesignTimeDbContextFactory: using base path = {path}");
             Console.WriteLine($"DesignTimeDbContextFactory: using connection string = {connectionString}");

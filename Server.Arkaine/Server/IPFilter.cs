@@ -17,8 +17,8 @@ namespace Server.Arkaine
         {
             IPAddress ipAddress;
 
-            var forwarded = context.Request.Headers["X-Forwarded-For"];
-
+            var forwarded = context.Request.Headers["X-Forwarded-For"].ToString();
+            
             if (!string.IsNullOrEmpty(forwarded))
             {
                 ipAddress = IPAddress.Parse(forwarded);

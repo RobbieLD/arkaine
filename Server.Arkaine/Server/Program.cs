@@ -15,6 +15,7 @@ using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 var cors = "arkaineCors";
+var dev = builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
 
 IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.json")
@@ -46,7 +47,7 @@ builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCooki
     lifetimeKey));
 builder.Services.AddHttpClient();
 builder.Services.AddTransient<IUserService, UserService>();
-builder.Services.AddTransient<INotifier, Pushover>();
+builder.Services.AddTransient<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
 builder.Services.AddTransient<SgExtractor>();
 builder.Services.AddSingleton<ThumbnailManager>();
 builder.Services.AddTransient<WhExtractor>();
@@ -86,7 +87,7 @@ builder.Services.AddDefaultIdentity<IdentityUser>()
 
 // We only need CORS for development
 #if DEBUG
-if (builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development")
+if (dev)
 {
     builder.Services.AddCors(options =>
     {
@@ -117,7 +118,7 @@ var cookiePolicy = new CookiePolicyOptions
 
  if (!app.Environment.IsDevelopment())
 {
-    app.UseIPFilter(builder.Configuration["ACCEPT_IP_RANGE"].Split(",").Select(ip => IPAddress.Parse(ip)));
+    app.UseIPFilter(builder.Configuration["ACCEPT_IP_RANGE"]?.Split(",")?.Select(ip => IPAddress.Parse(ip)) ?? new List<IPAddress>());
     app.UserSecurityHeaders();
 }
 
