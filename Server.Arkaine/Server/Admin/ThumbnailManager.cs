@@ -8,20 +8,20 @@ namespace Server.Arkaine.Admin
 {
     public class ThumbnailManager
     {
-        private readonly IB2Service _b2Service;
         private readonly ArkaineOptions _options;
         private readonly ILogger _logger;
         private CancellationTokenSource _stoppingToken;
         private readonly IHubContext<AdminHub> _hubContext;
+        private readonly IServiceProvider _serviceProvider;
         private GenerationReport _report;
         private bool _running = false;
         
 
-        public ThumbnailManager(IB2Service b2Service, IOptions<ArkaineOptions> config, IHubContext<AdminHub> hubContext, ILogger<ThumbnailManager> logger)
+        public ThumbnailManager(IServiceProvider serviceProvider, IOptions<ArkaineOptions> config, IHubContext<AdminHub> hubContext, ILogger<ThumbnailManager> logger)
         {
-            _b2Service = b2Service;
             _options = config.Value;
             _logger = logger;
+            _serviceProvider = serviceProvider;
             _hubContext = hubContext;
             _stoppingToken = new CancellationTokenSource();
             _report = new GenerationReport();
@@ -69,8 +69,11 @@ namespace Server.Arkaine.Admin
 
             while (!_stoppingToken.Token.IsCancellationRequested)
             {
-                var page = await _b2Service.ListFiles(request, userName, null, _stoppingToken.Token);
-                await ProcessPage(page, userName, _stoppingToken.Token);
+                using var scope = _serviceProvider.CreateScope();
+                var uploader = scope.ServiceProvider.GetRequiredService<IB2Service>();
+
+                var page = await uploader.ListFiles(request, userName, null, _stoppingToken.Token);
+                await ProcessPage(page, userName, uploader, _stoppingToken.Token);
                 request.StartFile = page.NextFileName;               
 
                 // if there's no more files to process finish
@@ -86,7 +89,7 @@ namespace Server.Arkaine.Admin
             await _hubContext.Clients.All.SendAsync("update", _report);
         }
 
-        private async Task ProcessPage(FilesResponse page, string userName, CancellationToken cancellationToken)
+        private async Task ProcessPage(FilesResponse page, string userName, IB2Service updloader, CancellationToken cancellationToken)
         {
             foreach (var file in page.Files)
             {
@@ -111,7 +114,7 @@ namespace Server.Arkaine.Admin
                     try
                     {
                         // Don't cancel midway through making a thumbnail
-                        await GenerateThumbnail(userName, fn, file.FileName, CancellationToken.None);
+                        await GenerateThumbnail(userName, fn, file.FileName, updloader, CancellationToken.None);
                         _report.Generated++;
                     }
                     catch (Exception ex)
@@ -130,11 +133,11 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task GenerateThumbnail(string userName, string thumbnailName, string fileName, CancellationToken cancellationToken)
+        private async Task GenerateThumbnail(string userName, string thumbnailName, string fileName, IB2Service uploader, CancellationToken cancellationToken)
         {
             // generate thumbnail
             _logger.LogInformation($"Generating thumbnail {thumbnailName}");
-            var stream = await _b2Service.Download(userName, fileName, cancellationToken);
+            var stream = await uploader.Download(userName, fileName, cancellationToken);
             using var image = Image.Load(stream);
             image.Mutate(x => x.Resize(350, 0));
             await image.SaveAsync(thumbnailName, cancellationToken);

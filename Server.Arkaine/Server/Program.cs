@@ -40,22 +40,22 @@ builder.Services.AddAuthentication(options =>
 var lifetimeKey = Guid.NewGuid();
 builder.Services.Configure<ArkaineOptions>(config);
 builder.Services.AddSingleton<IBackgroundTaskQueue, UploadQueue>();
-builder.Services.AddTransient<GlobalExceptionHandler>();
-builder.Services.AddTransient(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(
+builder.Services.AddScoped<GlobalExceptionHandler>();
+builder.Services.AddScoped(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(
     s,
     config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set"),
     lifetimeKey));
 builder.Services.AddHttpClient();
-builder.Services.AddTransient<IUserService, UserService>();
-builder.Services.AddTransient<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
-builder.Services.AddTransient<SgExtractor>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
+builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddSingleton<ThumbnailManager>();
-builder.Services.AddTransient<WhExtractor>();
-builder.Services.AddTransient<IfExtractor>();
-builder.Services.AddTransient<EchoExtractor>();
-builder.Services.AddTransient<IFavouriteRepository, FavouriteRepository>();
-builder.Services.AddTransient<IFavouritesService, FavouritesService>();
-builder.Services.AddTransient<IExtractorFactory, ExtractorFactory>();
+builder.Services.AddScoped<WhExtractor>();
+builder.Services.AddScoped<IfExtractor>();
+builder.Services.AddScoped<EchoExtractor>();
+builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
+builder.Services.AddScoped<IFavouritesService, FavouritesService>();
+builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));
 builder.Services.AddAuthorization();
@@ -64,23 +64,25 @@ builder.Services.AddHostedService<UploadService>();
 
 if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
 {
-    builder.Services.AddTransient<IB2Service, MockB2>();
+    builder.Services.AddScoped<IB2Service, MockB2>();
 }
 else
 {
-    builder.Services.AddTransient<IB2Service, B2Service>();
+    builder.Services.AddScoped<IB2Service, B2Service>();
 }
 
 builder.Services.AddHttpsRedirection(options =>
 {
     options.HttpsPort = 443;
 });
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
 });
+
 builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ArkaineDbContext>();

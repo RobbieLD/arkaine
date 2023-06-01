@@ -6,22 +6,19 @@ namespace Server.Arkaine.Ingest
     public class UploadService : BackgroundService
     {
         private readonly IBackgroundTaskQueue _taskQueue;
-        private readonly IB2Service _uploader;
         private readonly ILogger _logger;
-        private readonly IExtractorFactory _extractorFactory;
         private readonly IHubContext<IngestHub> _hubContext;
+        private readonly IServiceProvider _serviceProvider;
 
         public UploadService(
             IBackgroundTaskQueue taskQueue,
-            IB2Service uploader,
-            IExtractorFactory extractorFactory,
             IHubContext<IngestHub> hub,
+            IServiceProvider serviceProvider,
             ILogger<UploadService> logger)
         {
             _taskQueue = taskQueue;
-            _uploader = uploader;
-            _extractorFactory = extractorFactory;
             _hubContext = hub;
+            _serviceProvider = serviceProvider;
             _logger = logger;
         }
 
@@ -36,12 +33,16 @@ namespace Server.Arkaine.Ingest
             {
                 var request = await _taskQueue.DequeueAsync(cancellationToken);
 
-                var extractor = _extractorFactory.GetExtractor(request.Url);
+                using var scope = _serviceProvider.CreateScope();
+
+                var extractor = scope.ServiceProvider.GetRequiredService<IExtractorFactory>().GetExtractor(request.Url);
+                var uploader = scope.ServiceProvider.GetRequiredService<IB2Service>();
+
                 var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
 
                 try
                 {
-                    await _uploader.Upload(resp.FileName, resp.MimeType, resp.Content, cancellationToken);
+                    await uploader.Upload(resp.FileName, resp.MimeType, resp.Content, cancellationToken);
                 }
                 catch(Exception ex)
                 {
