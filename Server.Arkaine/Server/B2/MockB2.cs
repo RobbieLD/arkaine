@@ -48,7 +48,7 @@ namespace Server.Arkaine.B2
             return Task.FromResult(Results.Stream(File.OpenRead("test.jpg"), contentType: "image/jpg", enableRangeProcessing: false));
         }
 
-        public Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
+        public Task Upload(string fileName, string url, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }

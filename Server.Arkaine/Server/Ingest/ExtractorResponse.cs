@@ -2,18 +2,15 @@
 {
     public class ExtractorResponse
     {
-        public ExtractorResponse(Stream content, string fileName, string mimeType, long length)
+        public ExtractorResponse(string fileName, string url)
         {
-            Content = content;
             FileName = fileName;
-            MimeType = mimeType;
-            Length = length;
+            Url = url;
         }
 
-        public Stream Content { get; }
+        public string Url { get; }
+
         public string FileName { get; }
-        public string MimeType { get; }
-        public long Length { get; }
 
     }
 }

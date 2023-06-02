@@ -6,7 +6,7 @@ namespace Server.Arkaine.Ingest
     {
         private readonly Regex _exp = Regex();
 
-        public IfExtractor(HttpClient httpClient, ILogger<IExtractor> logger) : base(httpClient, logger)
+        public IfExtractor(HttpClient httpClient) : base(httpClient)
         {
         }
 
@@ -14,8 +14,8 @@ namespace Server.Arkaine.Ingest
         {
             string response = await _httpClient.GetStringAsync(url, cancellationToken);
             var chunks = _exp.Match(response).Value.Split("'");
-            var filePath = "http://" + chunks[chunks.Length - 1].Substring(2);
-            return await OpenMediaStream(filePath, fileName, cancellationToken);
+            var filePath = "http://" + chunks[chunks.Length - 1][2..];
+            return new ExtractorResponse(fileName, filePath);
         }
 
         [GeneratedRegex("src='\\/\\/.+\\/stream\\/[a-z0-9,-]+\\/[a-z0-9]+")]

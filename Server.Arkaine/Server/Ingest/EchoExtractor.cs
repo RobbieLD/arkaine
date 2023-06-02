@@ -2,7 +2,7 @@
 {
     public class EchoExtractor : BaseExtractor, IExtractor
     {
-        public EchoExtractor(HttpClient httpClient, ILogger<IExtractor> logger) : base(httpClient, logger)
+        public EchoExtractor(HttpClient httpClient) : base(httpClient)
         {
         }
 
@@ -10,7 +10,7 @@
 
         public async Task<ExtractorResponse> Extract(string url, string fileName, CancellationToken cancellationToken)
         {
-            return await OpenMediaStream(url, fileName, cancellationToken);
+            return await Task.FromResult(new ExtractorResponse(fileName, url));
         }
     }
 }

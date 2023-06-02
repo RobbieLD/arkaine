@@ -117,8 +117,33 @@ namespace Server.Arkaine.B2
             return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
-        public async Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
+        public async Task Upload(string fileName, string url, CancellationToken cancellationToken)
         {
+            // Open the media stream
+            var ext = Path.GetExtension(url);
+            var contentResponse = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            
+            if (!contentResponse.IsSuccessStatusCode)
+            {
+                throw new($"Extract failed with status code: {contentResponse.StatusCode}");
+            }
+
+            if (string.IsNullOrEmpty(ext) && !string.IsNullOrEmpty(contentResponse.Content.Headers.ContentType?.MediaType))
+            {
+                ext = "." + contentResponse.Content.Headers.ContentType?.MediaType?.Split("/")[1];
+            }
+
+            _logger.LogInformation($"Media stream content length: {contentResponse.Content.Headers.ContentLength}");
+            _logger.LogInformation($"Media stream headers {contentResponse.Content.Headers}");
+
+            var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);
+
+            _logger.LogInformation($"Stream is: {content.GetType().Name}");
+
+            fileName += ext;
+
+            var contentType = contentResponse.Content.Headers.ContentType?.MediaType ?? throw new("No content type returned");
+
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
             string fileId;
