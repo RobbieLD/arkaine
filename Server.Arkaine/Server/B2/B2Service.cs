@@ -123,30 +123,24 @@ namespace Server.Arkaine.B2
         public async Task Upload(string fileName, string url, CancellationToken cancellationToken)
         {
             // Open the media stream
-            var streamClient = _httpClientFactory.CreateClient();
             var ext = Path.GetExtension(url);
-            var contentResponse = await streamClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var mediaTypeResponse = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             
-            if (!contentResponse.IsSuccessStatusCode)
+            if (!mediaTypeResponse.IsSuccessStatusCode)
             {
-                throw new($"Extract failed with status code: {contentResponse.StatusCode}");
+                throw new($"Extract failed with status code: {mediaTypeResponse.StatusCode}");
             }
 
-            if (string.IsNullOrEmpty(ext) && !string.IsNullOrEmpty(contentResponse.Content.Headers.ContentType?.MediaType))
+            if (string.IsNullOrEmpty(ext) && !string.IsNullOrEmpty(mediaTypeResponse.Content.Headers.ContentType?.MediaType))
             {
-                ext = "." + contentResponse.Content.Headers.ContentType?.MediaType?.Split("/")[1];
+                ext = "." + mediaTypeResponse.Content.Headers.ContentType?.MediaType?.Split("/")[1];
             }
 
-            _logger.LogInformation($"Media stream content length: {contentResponse.Content.Headers.ContentLength}");
-            _logger.LogInformation($"Media stream headers {contentResponse.Content.Headers}");
-
-            var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);
-
-            _logger.LogInformation($"Stream is: {content.GetType().Name}");
+            //_logger.LogInformation($"Stream is: {content.GetType().Name}");
 
             fileName += ext;
 
-            var contentType = contentResponse.Content.Headers.ContentType?.MediaType ?? throw new("No content type returned");
+            var contentType = mediaTypeResponse.Content.Headers.ContentType?.MediaType ?? throw new("No content type returned");
 
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
@@ -174,7 +168,11 @@ namespace Server.Arkaine.B2
             var partNumber = 1;
             var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
             var shas = new List<string>();
-            
+
+            var streamClient = _httpClientFactory.CreateClient();
+            var contentResponse = await streamClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);
+
             while (true)
             {
                 int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
