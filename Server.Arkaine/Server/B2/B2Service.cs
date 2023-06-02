@@ -14,6 +14,7 @@ namespace Server.Arkaine.B2
     public class B2Service : IB2Service
     {
         private readonly HttpClient _httpClient;
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger _logger;
         private readonly IMemoryCache _cache;
         private readonly IHubContext<IngestHub> _hubContext;
@@ -24,13 +25,15 @@ namespace Server.Arkaine.B2
             IMemoryCache cache,
             IOptions<ArkaineOptions> config,
             IHubContext<IngestHub> hubContext,
-            ILogger<B2Service> logger)
+            ILogger<B2Service> logger,
+            IHttpClientFactory httpClientFactory)
         {
             _httpClient = httpClient;
             _logger = logger;
             _cache = cache;
             _options = config.Value;
             _hubContext = hubContext;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
@@ -120,8 +123,9 @@ namespace Server.Arkaine.B2
         public async Task Upload(string fileName, string url, CancellationToken cancellationToken)
         {
             // Open the media stream
+            var streamClient = _httpClientFactory.CreateClient();
             var ext = Path.GetExtension(url);
-            var contentResponse = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var contentResponse = await streamClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             
             if (!contentResponse.IsSuccessStatusCode)
             {
