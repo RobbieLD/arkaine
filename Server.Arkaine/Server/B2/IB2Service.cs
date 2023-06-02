@@ -1,4 +1,5 @@
 ﻿using Server.Arkaine.Favourites;
+using Server.Arkaine.Ingest;
 
 namespace Server.Arkaine.B2
 {
@@ -8,7 +9,7 @@ namespace Server.Arkaine.B2
         Task<FilesResponse> ListFiles(FilesRequest request, string userName, IFavouritesService? favouritesService, CancellationToken cancellationToken);
         Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken);
         IResult Preview(string fileName);
-        Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken);
+        Task Upload(IngestRequest request, CancellationToken cancellationToken);
         Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken);
     }
 }

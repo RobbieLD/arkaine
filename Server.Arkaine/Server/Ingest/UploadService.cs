@@ -34,23 +34,18 @@ namespace Server.Arkaine.Ingest
                 var request = await _taskQueue.DequeueAsync(cancellationToken);
 
                 using var scope = _serviceProvider.CreateScope();
-
-                var extractor = scope.ServiceProvider.GetRequiredService<IExtractorFactory>().GetExtractor(request.Url);
                 var uploader = scope.ServiceProvider.GetRequiredService<IB2Service>();
-
-                var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
 
                 try
                 {
-                    await uploader.Upload(resp.FileName, resp.MimeType, resp.Content, cancellationToken);
+                    await uploader.Upload(request, cancellationToken);
                 }
                 catch(Exception ex)
                 {
                     _logger.LogError(ex.Message);
                     _logger.LogError(ex.StackTrace);
                     await _hubContext.Clients.All.SendAsync("update", $"Error processing upload: {ex.Message}", cancellationToken);
-                }
-                
+                }                
             }
         }
     }

@@ -4,7 +4,6 @@ using Server.Arkaine.Favourites;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
 using System.Security.Cryptography;
@@ -18,18 +17,21 @@ namespace Server.Arkaine.B2
         private readonly IMemoryCache _cache;
         private readonly IHubContext<IngestHub> _hubContext;
         private readonly ArkaineOptions _options;
+        private readonly IExtractorFactory _extractorFactory;
 
         public B2Service(
             HttpClient httpClient,
             IMemoryCache cache,
             IOptions<ArkaineOptions> config,
             IHubContext<IngestHub> hubContext,
+            IExtractorFactory extractorFactory,
             ILogger<B2Service> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
             _cache = cache;
             _options = config.Value;
+            _extractorFactory = extractorFactory;
             _hubContext = hubContext;
         }
 
@@ -117,15 +119,19 @@ namespace Server.Arkaine.B2
             return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
-        public async Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
+        public async Task Upload(IngestRequest request, CancellationToken cancellationToken)
         {
+            // Open the stream 
+            var extractor = _extractorFactory.GetExtractor(request.Url);
+            var ingestResponse = await extractor.Extract(request.Url, request.Name, cancellationToken);
+
             // Check if this file is already partially uploaded.
-            var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
+            var unfinishedFilesResponse = await CheckForUnfinishedFile(ingestResponse.FileName, cancellationToken);
             string fileId;
 
             if (unfinishedFilesResponse.Files.Count > 1)
             {
-                throw new($"There are multiple files started named {fileName}");
+                throw new($"There are multiple files started named {ingestResponse.FileName}");
             }
             else if (unfinishedFilesResponse.Files.Count == 1)
             {
@@ -134,7 +140,7 @@ namespace Server.Arkaine.B2
             else
             {
                 // Start the upload
-                var createFileResponse = await StartPartUpload(fileName, contentType, cancellationToken);
+                var createFileResponse = await StartPartUpload(ingestResponse.FileName, ingestResponse.MimeType, cancellationToken);
                 fileId = createFileResponse.FileId;
             }
 
@@ -148,7 +154,7 @@ namespace Server.Arkaine.B2
             
             while (true)
             {
-                int read = await content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
+                int read = await ingestResponse.Content.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
                 if (read < 1) break;
 
                 await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
@@ -160,7 +166,7 @@ namespace Server.Arkaine.B2
 
             // Finish the upload
             await FinishUploadFile(fileId, shas, cancellationToken);
-            await _hubContext.Clients.All.SendAsync("update", $"Upload multi part file {fileName} succeeded", cancellationToken);
+            await _hubContext.Clients.All.SendAsync("update", $"Upload multi part file {ingestResponse.FileName} succeeded", cancellationToken);
         }
 
         private async Task<string> UploadPart(string url, string token, int partNumber, byte[] bytes, int count, CancellationToken cancellationToken)

@@ -1,4 +1,5 @@
 ﻿using Server.Arkaine.Favourites;
+using Server.Arkaine.Ingest;
 
 namespace Server.Arkaine.B2
 {
@@ -48,7 +49,7 @@ namespace Server.Arkaine.B2
             return Task.FromResult(Results.Stream(File.OpenRead("test.jpg"), contentType: "image/jpg", enableRangeProcessing: false));
         }
 
-        public Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
+        public Task Upload(IngestRequest request, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }
