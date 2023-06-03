@@ -125,7 +125,14 @@ namespace Server.Arkaine.B2
             // Open the media stream
             var ext = Path.GetExtension(url);
             var mediaTypeResponse = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            
+            var content = await mediaTypeResponse.Content.ReadAsStreamAsync(cancellationToken);
+
+            var testBuf = new byte[1024];
+            int number = await content.ReadAtLeastAsync(testBuf, testBuf.Length, false, cancellationToken);
+
+            throw new("Bytes Read: " + number);
+
+
             if (!mediaTypeResponse.IsSuccessStatusCode)
             {
                 throw new($"Extract failed with status code: {mediaTypeResponse.StatusCode}");
@@ -168,10 +175,6 @@ namespace Server.Arkaine.B2
             var partNumber = 1;
             var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
             var shas = new List<string>();
-
-            var streamClient = _httpClientFactory.CreateClient();
-            var contentResponse = await streamClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            var content = await contentResponse.Content.ReadAsStreamAsync(cancellationToken);
 
             while (true)
             {
