@@ -153,7 +153,11 @@ namespace Server.Arkaine.B2
                 {
                     _logger.LogInformation("No more bytes to read, finished upload");
                     break;
-                };
+                }
+                else
+                {
+                    _logger.LogInformation($"Bytes Read: {read}");
+                }
 
                 await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
                 var sha = await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
