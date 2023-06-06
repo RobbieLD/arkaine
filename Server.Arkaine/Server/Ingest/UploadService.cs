@@ -42,7 +42,7 @@ namespace Server.Arkaine.Ingest
 
                 try
                 {
-                    await uploader.Upload(resp.FileName, resp.MimeType, resp.Content, cancellationToken);
+                    await uploader.Upload(resp.FileName, resp.MimeType, resp.Content, resp.ChunkSize, cancellationToken);
                 }
                 catch(Exception ex)
                 {

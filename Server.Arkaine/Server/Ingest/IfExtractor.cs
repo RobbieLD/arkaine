@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using Microsoft.Extensions.Options;
+using System.Text.RegularExpressions;
 
 namespace Server.Arkaine.Ingest
 {
@@ -6,7 +7,7 @@ namespace Server.Arkaine.Ingest
     {
         private readonly Regex _exp = Regex();
 
-        public IfExtractor(HttpClient httpClient, ILogger<IExtractor> logger) : base(httpClient, logger)
+        public IfExtractor(HttpClient httpClient, ILogger<IExtractor> logger, IOptions<ArkaineOptions> config) : base(httpClient, logger, config)
         {
         }
 

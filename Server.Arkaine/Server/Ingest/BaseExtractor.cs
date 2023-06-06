@@ -1,4 +1,5 @@
-﻿using Server.Arkaine.B2;
+﻿using Microsoft.Extensions.Options;
+using Server.Arkaine.B2;
 
 namespace Server.Arkaine.Ingest
 {
@@ -6,11 +7,13 @@ namespace Server.Arkaine.Ingest
     {
         protected readonly HttpClient _httpClient;
         private readonly ILogger _logger;
+        private readonly ArkaineOptions _options;
 
-        public BaseExtractor(HttpClient httpClient, ILogger<IExtractor> logger)
+        public BaseExtractor(HttpClient httpClient, ILogger<IExtractor> logger, IOptions<ArkaineOptions> config)
         {
             _httpClient = httpClient;
             _logger = logger;
+            _options = config.Value;
         }
 
         protected async Task<ExtractorResponse> OpenMediaStream(string url, string fileName, CancellationToken cancellationToken)
@@ -36,7 +39,12 @@ namespace Server.Arkaine.Ingest
             _logger.LogInformation($"Stream is: {content.GetType().Name}");
 
             // TODO: handle situations where content length/media type is not returned
-            return new ExtractorResponse(content, fileName + ext, contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty, contentResponse.Content.Headers.ContentLength ?? 0);
+            return new ExtractorResponse(
+                content,
+                fileName + ext,
+                contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty,
+                contentResponse.Content.Headers.ContentLength ?? 0,
+                contentResponse.Content.Headers.ContentLength > _options.UPLOAD_CHUNK_SIZE ? _options.UPLOAD_CHUNK_SIZE : _options.UPLOAD_CHUNK_SIZE - 1024);
         }
     }
 }

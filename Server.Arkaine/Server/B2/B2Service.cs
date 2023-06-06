@@ -117,7 +117,7 @@ namespace Server.Arkaine.B2
             return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
-        public async Task Upload(string fileName, string contentType, Stream content, CancellationToken cancellationToken)
+        public async Task Upload(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken)
         {
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
@@ -143,7 +143,7 @@ namespace Server.Arkaine.B2
 
             // Upload each chunk
             var partNumber = 1;
-            var buffer = new byte[_options.UPLOAD_CHUNK_SIZE];
+            var buffer = new byte[chunkSize];
             var shas = new List<string>();
             
             while (true)

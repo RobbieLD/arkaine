@@ -1,11 +1,12 @@
-﻿using System.Text.RegularExpressions;
+﻿using Microsoft.Extensions.Options;
+using System.Text.RegularExpressions;
 
 namespace Server.Arkaine.Ingest
 {
     public partial class SgExtractor : BaseExtractor, IExtractor
     {
         private readonly Regex _exp = Regex();
-        public SgExtractor(HttpClient httpClient, ILogger<SgExtractor> logger) : base(httpClient, logger)
+        public SgExtractor(HttpClient httpClient, ILogger<SgExtractor> logger, IOptions<ArkaineOptions> config) : base(httpClient, logger, config)
         {
         }
 

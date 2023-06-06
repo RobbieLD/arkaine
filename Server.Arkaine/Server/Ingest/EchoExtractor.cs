@@ -1,8 +1,10 @@
-﻿namespace Server.Arkaine.Ingest
+﻿using Microsoft.Extensions.Options;
+
+namespace Server.Arkaine.Ingest
 {
     public class EchoExtractor : BaseExtractor, IExtractor
     {
-        public EchoExtractor(HttpClient httpClient, ILogger<IExtractor> logger) : base(httpClient, logger)
+        public EchoExtractor(HttpClient httpClient, ILogger<IExtractor> logger, IOptions<ArkaineOptions> config) : base(httpClient, logger, config)
         {
         }
 

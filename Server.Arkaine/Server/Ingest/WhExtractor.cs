@@ -1,10 +1,11 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace Server.Arkaine.Ingest
 {
     public class WhExtractor : BaseExtractor, IExtractor
     {
-        public WhExtractor(HttpClient httpClient, ILogger<IExtractor> logger) : base(httpClient, logger)
+        public WhExtractor(HttpClient httpClient, ILogger<IExtractor> logger, IOptions<ArkaineOptions> config) : base(httpClient, logger, config)
         {
         }
 
