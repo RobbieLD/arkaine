@@ -10,6 +10,7 @@ using Server.Arkaine.B2;
 using Server.Arkaine.Favourites;
 using Server.Arkaine.Ingest;
 using Server.Arkaine.Notification;
+using Server.Arkaine.Tags;
 using Server.Arkaine.User;
 using System.Net;
 
@@ -54,6 +55,8 @@ builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<IfExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
 builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
+builder.Services.AddScoped<ITagService, TagService>();
+builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IFavouritesService, FavouritesService>();
 builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
@@ -152,6 +155,7 @@ app.RegisterB2Apis();
 app.RegisterIngestApis();
 app.RegisterAdminApis();
 app.RegisterFavouritesApis();
+app.RegisterTagApis();
 
 if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
 {

@@ -1,17 +1,17 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
-namespace Server.Arkaine.Favourites
+namespace Server.Arkaine.Tags
 {
-    [Index(nameof(UserName), IsUnique = false)]
+    [Index(nameof(FileName), IsUnique = false)]
     [Index(nameof(Name), IsUnique = false)]
-    public class Favourite
+    public class Tag
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string UserName { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
     }
 }

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Server.Arkaine.Favourites;
+using Server.Arkaine.Tags;
 
 namespace Server.Arkaine
 {
@@ -31,5 +32,6 @@ namespace Server.Arkaine
         }
 
         public DbSet<Favourite> Favourites => Set<Favourite>();
+        public DbSet<Tag> Tags => Set<Tag>();
     }
 }
