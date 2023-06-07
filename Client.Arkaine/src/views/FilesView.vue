@@ -21,6 +21,7 @@
             
             <!-- Video File -->
             <div v-else-if="file.isVideo">
+                <div class="caption">{{ file.name }}</div>
                 <video controls class="video">
                     <source :src="file.url" :type="file.contentType">
                 </video>
@@ -118,6 +119,11 @@
         &--confirmed {
             color: rgb(192, 16, 69);
         }
+    }
+
+    .caption {
+        margin-bottom: 0.5em;
+        font-size: 0.8em;
     }
 
     .title {
