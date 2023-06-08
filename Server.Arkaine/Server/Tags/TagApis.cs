@@ -10,9 +10,9 @@ namespace Server.Arkaine.Tags
         {
             app.MapGet("/tags/{*file}",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async ([FromRoute] string fileName, ITagService service) =>
+            async ([FromRoute] string file, ITagService service) =>
                 {
-                    return Results.Ok(await service.GetTagsForFile(fileName));
+                    return Results.Ok(await service.GetTagsForFile(file));
                 });
 
             app.MapPost("/tags/add",

@@ -38,13 +38,14 @@ namespace Server.Arkaine.Ingest
 
             _logger.LogInformation($"Stream is: {content.GetType().Name}");
 
+            // Note: The int to long cast below is safe because the length has already been checked and is known to be below the max int value
             // TODO: handle situations where content length/media type is not returned
             return new ExtractorResponse(
                 content,
                 fileName + ext,
                 contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty,
                 contentResponse.Content.Headers.ContentLength ?? 0,
-                contentResponse.Content.Headers.ContentLength > _options.UPLOAD_CHUNK_SIZE ? _options.UPLOAD_CHUNK_SIZE : _options.UPLOAD_CHUNK_SIZE - 1024);
+                contentResponse.Content.Headers.ContentLength > _options.UPLOAD_CHUNK_SIZE ? _options.UPLOAD_CHUNK_SIZE : (int)(contentResponse.Content.Headers.ContentLength ?? 0) - 1024);
         }
     }
 }
