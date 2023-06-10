@@ -19,11 +19,13 @@ namespace Server.Arkaine.Ingest
             var uri = new Uri(url);
 
             var keys = _options.SITE_KEYS.Split(",");
+            var hostParts = uri.Host.Split('.');
 
             foreach (var key in keys)
             {
                 var pair = key.Split(":");
-                if (uri.Host.Split('.')[0].EndsWith(pair[0]))
+                                
+                if (hostParts[hostParts.Length - 2].EndsWith(pair[0]))
                 {
                     var types = Assembly.GetExecutingAssembly().GetTypes();
                     var type = types.First(t => t.Name == pair[1]);
