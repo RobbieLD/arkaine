@@ -168,6 +168,21 @@ export const store = createStore<State>({
         }
     },
 
+    addTag: async ({ commit }, request : { name: string, file: string}): Promise<void> => {
+        try {
+            const service = new ArkaineService()
+            await service.AddTag(request.name, request.file)
+        }
+        catch (e) {
+            commit('setAlert', {
+                isError: true,
+                message: e
+            })
+
+            throw e
+        }
+    },
+
     addToFavourite: async ({ commit }, file: ArkaineFile): Promise<void> => {
         try {
             const service = new ArkaineService()

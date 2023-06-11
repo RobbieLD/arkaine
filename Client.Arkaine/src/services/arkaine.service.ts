@@ -33,6 +33,13 @@ export default class ArkaineService extends BaseService {
         })
     }
 
+    public async AddTag(name: string, file: string): Promise<void> {
+        await this.http.post<void>('/tags/add', {
+            file: name,
+            fileName: file
+        })
+    }
+
     public async AddToFavourites(file: ArkaineFile): Promise<void> {
         await this.http.put('/favourite', {
             fileName: file.rawFileName

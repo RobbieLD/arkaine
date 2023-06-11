@@ -31,6 +31,25 @@
             <div v-else-if="file.isAudio" class="audio">
                 <a :href="file.url" target="_blank">{{ file.name }}</a>
                 <audio-player :src="file.url" class="player" :fileName="file.name"></audio-player>
+                <div class="tags">
+                    <div class="tags__container">
+                        <span class="tags__tag">one</span>
+                        <span class="tags__tag">two</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                        <span class="tags__tag">three</span>
+                    </div>
+                    <div class="tags__add">+</div>
+                </div>
             </div>
 
             <!-- Other file types -->
@@ -118,6 +137,36 @@
 
         &--confirmed {
             color: rgb(192, 16, 69);
+        }
+    }
+
+    .tags {
+        margin: 0.5em;
+        display: grid;
+        grid-auto-flow: column;
+        align-items: center;
+
+        &__container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 0.5em;
+        }
+
+        &__tag {
+            border-radius: var(--border-radius);
+            background-color: var(--primary);
+            color: var(--primary-inverse);
+            text-align: center;
+            padding-right: 0.5em;
+            padding-left: 0.5em;
+        }
+
+        &__add {
+            font-size: 2.5em;
+            font-weight: bold;
+            justify-self: end;
+            margin-right: 0.5em;
         }
     }
 
