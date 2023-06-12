@@ -8,13 +8,6 @@ namespace Server.Arkaine.Tags
     {
         public static void RegisterTagApis(this WebApplication app)
         {
-            app.MapGet("/tags/{*file}",
-                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async ([FromRoute] string file, ITagService service) =>
-                {
-                    return Results.Ok(await service.GetTagsForFile(file));
-                });
-
             app.MapPost("/tags/add",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (AddTagRequest request, ITagService service) =>

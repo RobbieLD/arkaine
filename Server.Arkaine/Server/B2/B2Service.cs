@@ -8,6 +8,7 @@ using System.Net;
 using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
 using System.Security.Cryptography;
+using Server.Arkaine.Tags;
 
 namespace Server.Arkaine.B2
 {
@@ -18,12 +19,14 @@ namespace Server.Arkaine.B2
         private readonly IMemoryCache _cache;
         private readonly IHubContext<IngestHub> _hubContext;
         private readonly ArkaineOptions _options;
+        private readonly ITagService _tagService;
 
         public B2Service(
             HttpClient httpClient,
             IMemoryCache cache,
             IOptions<ArkaineOptions> config,
             IHubContext<IngestHub> hubContext,
+            ITagService tagService,
             ILogger<B2Service> logger)
         {
             _httpClient = httpClient;
@@ -31,6 +34,7 @@ namespace Server.Arkaine.B2
             _cache = cache;
             _options = config.Value;
             _hubContext = hubContext;
+            _tagService = tagService;
         }
 
         public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
@@ -91,6 +95,17 @@ namespace Server.Arkaine.B2
                 file.Thumbnail = GetPreviewUrl(file.FileName, file.Type);
 
                 file.IsFavoureite = favourites.Contains(file.FileName);
+            }
+
+            // Populate Tags
+            var tags = await _tagService.GetTagsForFile(response.Files.Select(f => f.FileName));
+
+            foreach(var file in response.Files)
+            {
+                if (tags.ContainsKey(file.FileName))
+                {
+                    file.Tags = tags[file.FileName];
+                }
             }
 
             return response;

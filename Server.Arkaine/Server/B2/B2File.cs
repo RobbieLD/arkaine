@@ -25,5 +25,8 @@ namespace Server.Arkaine.B2
 
         [JsonPropertyName("favourite")]
         public bool IsFavoureite { get; set; }
+
+        [JsonPropertyName("tags")] 
+        public IEnumerable<string> Tags { get; set; } = Array.Empty<string>();
     }
 }

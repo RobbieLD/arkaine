@@ -45,7 +45,13 @@ export const store = createStore<State>({
   mutations: {
     setAuthenticated: (state: State, authed: boolean): void => {
         state.isAuthenticated = authed
-        
+    },
+
+    addTag: (state: State, request: { name: string, file: string}): void => {
+        const file = state.files.find(f => f.rawFileName === request.file)
+        if (file) {
+            file.tags.push(request.name)
+        }
     },
 
     setSettings: (state: State, settings: Settings): void => {
@@ -172,6 +178,7 @@ export const store = createStore<State>({
         try {
             const service = new ArkaineService()
             await service.AddTag(request.name, request.file)
+            commit('addTag', request)
         }
         catch (e) {
             commit('setAlert', {

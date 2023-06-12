@@ -16,9 +16,9 @@ namespace Server.Arkaine.Tags
             await _repository.Add(request.Name, request.FileName);
         }
 
-        public async Task<IEnumerable<Tag>> GetTagsForFile(string fileName)
+        public async Task<IDictionary<string, IEnumerable<string>>> GetTagsForFile(IEnumerable<string> files)
         {
-            return await _repository.GetTags(fileName);
+            return await _repository.GetTags(files);
         }
 
         public async Task<IEnumerable<string>> GetFileNamesForTag(string name)

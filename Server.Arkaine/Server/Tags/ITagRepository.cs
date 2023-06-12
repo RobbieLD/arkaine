@@ -4,6 +4,6 @@
     {
         Task Add(string name, string fileName);
         Task<IEnumerable<string>> GetFiles(string name);
-        Task<IEnumerable<Tag>> GetTags(string fileName);
+        Task<IDictionary<string, IEnumerable<string>>> GetTags(IEnumerable<string> files);
     }
 }

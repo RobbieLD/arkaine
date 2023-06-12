@@ -21,9 +21,12 @@ namespace Server.Arkaine.Tags
             await _context.SaveChangesAsync();
         }
 
-        public async Task<IEnumerable<Tag>> GetTags(string fileName)
+        public async Task<IDictionary<string, IEnumerable<string>>> GetTags(IEnumerable<string> files)
         {
-            return await _context.Tags.Where(t => t.FileName.Equals(fileName)).ToListAsync();
+            return await _context.Tags
+                .Where(t => files.Contains(t.FileName))
+                .GroupBy(t => t.FileName)
+                .ToDictionaryAsync(t => t.Key, k => k.Select(t => t.Name));
         }
 
         public async Task<IEnumerable<string>> GetFiles(string name)

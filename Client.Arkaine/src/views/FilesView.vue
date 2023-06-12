@@ -33,22 +33,9 @@
                 <audio-player :src="file.url" class="player" :fileName="file.name"></audio-player>
                 <div class="tags">
                     <div class="tags__container">
-                        <span class="tags__tag">one</span>
-                        <span class="tags__tag">two</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
-                        <span class="tags__tag">three</span>
+                        <span v-for="(tag, index) of file.tags" :key="index" class="tags__tag">{{ tag }}</span>
                     </div>
-                    <div class="tags__add">+</div>
+                    <div class="tags__add" @click="openAddTagDialog(file.rawFileName)">+</div>
                 </div>
             </div>
 
@@ -58,6 +45,32 @@
             </div>
         </article>
     </div>
+    <dialog id="tag-add" :open="open">
+        <article>
+            <h3>Enter Tag Name</h3>
+            <input
+                placeholder="Name"
+                v-model="newTagName"
+            />
+            <footer class="dialog__buttons">
+                <button 
+                    href="#"
+                    role="button"
+                    class="secondary"
+                    @click="closeAddTagDialog"
+                    data-target="tag-add">
+                    Cancel
+                </button>
+                <button
+                    href="#"
+                    role="button"
+                    @click="saveTag"
+                    data-target="tag-add">
+                    Confirm
+                </button>
+            </footer>
+        </article>
+    </dialog>
 </template>
 <script lang='ts'>
     import { storeKey } from '@/store'
@@ -74,6 +87,9 @@
         },
         setup() {
             const store = useStore(storeKey)
+            const open = ref(false)
+            const selectedFile = ref('')
+            const newTagName = ref('')
             const route = useRoute()
             const files = computed(() => store.getters['orderedFiles'])
             const hasMoreFiles = computed(() => store.getters['hasMoreFiles'])
@@ -107,14 +123,37 @@
                     await store.dispatch('loadMoreFiles', route.params.path)
                 }
             }
-            
+
+            const openAddTagDialog = (file: string) => {
+                selectedFile.value = file
+                open.value = true
+            }
+
+            const closeAddTagDialog = () => {
+                open.value = false
+            }
+
+            const saveTag = async () => {
+                closeAddTagDialog()
+                await store.dispatch('addTag', {
+                    name: newTagName.value,
+                    file: selectedFile.value
+                })
+
+                newTagName.value = ''
+            }
 
             return {
                 files,
                 fav,
+                openAddTagDialog,
+                closeAddTagDialog,
+                saveTag,
                 nextPage,
                 hasMoreFiles,
-                imageLoadErrorHandler
+                imageLoadErrorHandler,
+                open,
+                newTagName
             }
         },
     })
@@ -138,6 +177,11 @@
         &--confirmed {
             color: rgb(192, 16, 69);
         }
+    }
+
+    .dialog__buttons {
+        display: grid;
+        grid-auto-flow: column;
     }
 
     .tags {

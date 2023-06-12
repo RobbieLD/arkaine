@@ -15,6 +15,7 @@ export default class ArkaineFile {
     id: string
     isFavourite: boolean
     preview: string
+    tags: string[]
 
     constructor(file: B2File, baseUrl: string) {
         const pathParts = file.fileName.split('/').filter(f => f)
@@ -24,6 +25,7 @@ export default class ArkaineFile {
         this.isDirectory = file.action === 'folder'
         this.rawFileName = file.fileName
         this.size = file.contentLength
+        this.tags = file.tags
         this.isImage = file.contentType?.startsWith('image') || false
         this.isAudio = file.contentType?.startsWith('audio') || false
         this.isVideo = file.contentType?.startsWith('video') || false
@@ -48,6 +50,7 @@ export default class ArkaineFile {
         rawFileName: '',
         size: '',
         thumb: 'favourite.png',
-        url: ''
+        url: '',
+        tags: []
     }
 }

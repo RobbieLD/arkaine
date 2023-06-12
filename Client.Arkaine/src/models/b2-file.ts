@@ -5,5 +5,6 @@ export default interface B2File {
     action: string,
     fileId: string,
     preview: string,
-    favourite: boolean
+    favourite: boolean,
+    tags: string[]
 }
