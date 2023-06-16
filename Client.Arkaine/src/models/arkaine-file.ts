@@ -1,4 +1,5 @@
 import B2File from './b2-file'
+import Tag from './tag'
 
 export default class ArkaineFile {
 
@@ -15,7 +16,7 @@ export default class ArkaineFile {
     id: string
     isFavourite: boolean
     preview: string
-    tags: string[]
+    tags: Tag[]
 
     constructor(file: B2File, baseUrl: string) {
         const pathParts = file.fileName.split('/').filter(f => f)

@@ -13,10 +13,10 @@ namespace Server.Arkaine.Tags
 
         public async Task AddTag(AddTagRequest request)
         {
-            await _repository.Add(request.Name, request.FileName);
+            await _repository.Add(request.Name, request.FileName, request.TimeStamp);
         }
 
-        public async Task<IDictionary<string, IEnumerable<string>>> GetTagsForFile(IEnumerable<string> files)
+        public async Task<IDictionary<string, IEnumerable<Tag>>> GetTagsForFile(IEnumerable<string> files)
         {
             return await _repository.GetTags(files);
         }

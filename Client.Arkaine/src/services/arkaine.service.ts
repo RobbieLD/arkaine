@@ -33,10 +33,11 @@ export default class ArkaineService extends BaseService {
         })
     }
 
-    public async AddTag(name: string, file: string): Promise<void> {
+    public async AddTag(name: string, file: string, time: number): Promise<void> {
         await this.http.post<void>('/tags/add', {
             name: name,
-            fileName: file
+            fileName: file,
+            timeStamp: time
         })
     }
 

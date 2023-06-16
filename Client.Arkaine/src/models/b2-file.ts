@@ -1,3 +1,5 @@
+import Tag from './tag'
+
 export default interface B2File {
     fileName: string,
     contentType?: string,
@@ -6,5 +8,5 @@ export default interface B2File {
     fileId: string,
     preview: string,
     favourite: boolean,
-    tags: string[]
+    tags: Tag[]
 }

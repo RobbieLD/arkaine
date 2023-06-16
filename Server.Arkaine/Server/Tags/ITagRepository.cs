@@ -2,8 +2,8 @@
 {
     public interface ITagRepository
     {
-        Task Add(string name, string fileName);
+        Task Add(string name, string fileName, int timeStamp);
         Task<IEnumerable<string>> GetFiles(string name);
-        Task<IDictionary<string, IEnumerable<string>>> GetTags(IEnumerable<string> files);
+        Task<IDictionary<string, IEnumerable<Tag>>> GetTags(IEnumerable<string> files);
     }
 }

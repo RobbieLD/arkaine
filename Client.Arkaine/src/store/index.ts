@@ -47,10 +47,13 @@ export const store = createStore<State>({
         state.isAuthenticated = authed
     },
 
-    addTag: (state: State, request: { name: string, file: string}): void => {
+    addTag: (state: State, request: { name: string, file: string, time: number }): void => {
         const file = state.files.find(f => f.rawFileName === request.file)
         if (file) {
-            file.tags.push(request.name)
+            file.tags.push({
+                name: request.name,
+                timestamp: request.time
+            })
         }
     },
 
@@ -174,11 +177,26 @@ export const store = createStore<State>({
         }
     },
 
-    addTag: async ({ commit }, request : { name: string, file: string}): Promise<void> => {
+    addTag: async ({ commit }, request : { name: string, file: string, time: string }): Promise<void> => {
         try {
             const service = new ArkaineService()
-            await service.AddTag(request.name, request.file)
-            commit('addTag', request)
+            let seconds = 0
+
+            if (request.time) {
+                const parts = request.time.split(':')
+
+                for (let i = parts.length - 1; i >= 0; i--) {
+                    const exp = Math.pow(60, (parts.length - i) - 1)
+                    seconds += Number.parseInt(parts[i]) * exp
+                }
+            }
+            
+            await service.AddTag(request.name, request.file, seconds)
+            commit('addTag', {
+                name: request.name,
+                file: request.file,
+                time: seconds
+            })
         }
         catch (e) {
             commit('setAlert', {

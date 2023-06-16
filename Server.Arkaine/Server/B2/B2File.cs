@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using Server.Arkaine.Tags;
+using System.Text.Json.Serialization;
 
 namespace Server.Arkaine.B2
 {
@@ -27,6 +28,6 @@ namespace Server.Arkaine.B2
         public bool IsFavoureite { get; set; }
 
         [JsonPropertyName("tags")] 
-        public IEnumerable<string> Tags { get; set; } = Array.Empty<string>();
+        public IEnumerable<Tag> Tags { get; set; } = Array.Empty<Tag>();
     }
 }
