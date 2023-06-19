@@ -15,10 +15,12 @@
                 <span v-for="(tag, index) of file.tags" :key="index" class="tags__tag" @click="setTime(tag.timestamp)"
                     :class="tag.timestamp ? 'tags__tag--time' : ''">{{ tag.name }} {{ tag.timestamp ? formatTime(tag.timestamp) : '' }}</span>
             </div>
-            <div class="tags__add" @click="openAddTagDialog(file.rawFileName)">+</div>
+            <div class="tags__action" @click="openRemoveTagDialog(file.rawFileName)">-</div>
+            <div class="tags__action" @click="openAddTagDialog(file.rawFileName)">+</div>
         </div>
     </div>
-    <dialog id="tag-add" :open="open">
+    <!-- Add Tag -->
+    <dialog id="tag-add" :open="openAddTag">
         <article>
             <h3>Enter Tag Name</h3>
             <input placeholder="Name" v-model="newTagName" />
@@ -29,6 +31,19 @@
                 </button>
                 <button href="#" role="button" @click="saveTag" data-target="tag-add">
                     Confirm
+                </button>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- Remove Tag -->
+    <dialog id="remove-add" :open="openRemoveTag">
+        <article>
+            <h3>Click To Delete</h3>
+            <button v-for="(tag, key) of file.tags" href="#" class="secondary" role="button" :key="key" @click="deleteTag">{{ tag.name }} {{ tag.timestamp ? formatTime(tag.timestamp) : '' }}</button>
+            <footer class="dialog__buttons">
+                <button href="#" role="button" @click="closeRemoveTagDialog" data-target="remove-add">
+                    Done
                 </button>
             </footer>
         </article>
@@ -61,7 +76,8 @@
             const selectedFile = ref('')
             const newTagName = ref('')
             const newTagTimeStamp = ref('')
-            const open = ref(false)
+            const openAddTag = ref(false)
+            const openRemoveTag = ref(false)
             const store = useStore(storeKey)
 
             const seek = async (ev: Event) => {
@@ -71,6 +87,10 @@
 
             const setTime = (time: number) => {
                 if (audio.value) audio.value.currentTime = time
+            }
+
+            const deleteTag = () => {
+                console.log('We need the tag ID to delete it')
             }
 
             const toggle = () => {
@@ -96,17 +116,31 @@
                 return `${minutes}:${returnedSeconds}`
             }
 
+            const openRemoveTagDialog = (file: string) => {
+                selectedFile.value = file
+                openRemoveTag.value = true
+            }
+
+            const closeRemoveTagDialog = () => {
+                openRemoveTag.value = false
+            }
+
             const openAddTagDialog = (file: string) => {
                 selectedFile.value = file
-                open.value = true
+                openAddTag.value = true
             }
 
             const closeAddTagDialog = () => {
-                open.value = false
+                openAddTag.value = false
             }
 
             const saveTag = async () => {
                 closeAddTagDialog()
+
+                if (!newTagName.value) {
+                    return
+                }
+
                 await store.dispatch('addTag', {
                     name: newTagName.value,
                     file: selectedFile.value,
@@ -154,8 +188,12 @@
                 saveTag,
                 newTagName,
                 newTagTimeStamp,
-                open,
-                formatTime
+                openAddTag,
+                formatTime,
+                openRemoveTagDialog,
+                openRemoveTag,
+                closeRemoveTagDialog,
+                deleteTag
             }
         },
     })
@@ -172,6 +210,7 @@
     display: grid;
     grid-auto-flow: column;
     align-items: center;
+    grid-template-columns: 1fr auto auto;
 
     &__container {
         display: flex;
@@ -193,7 +232,7 @@
         }
     }
 
-    &__add {
+    &__action {
         font-size: 2.5em;
         font-weight: bold;
         justify-self: end;
