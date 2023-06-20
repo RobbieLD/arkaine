@@ -4,6 +4,7 @@ import BaseService from './base.service'
 import ArkaineFile from '@/models/arkaine-file'
 import Login from '@/models/login'
 import Settings from '@/models/settings'
+import Tag from '@/models/tag'
 
 export default class ArkaineService extends BaseService {
     private baseUrl: string
@@ -33,12 +34,19 @@ export default class ArkaineService extends BaseService {
         })
     }
 
-    public async AddTag(name: string, file: string, time: number): Promise<void> {
-        await this.http.post<void>('/tags/add', {
+    public async DeleteTag(id: number) : Promise<Tag[]> {
+        const results = await this.http.delete<Tag[]>(`/tags/delete/${id}`)
+        return results.data
+    }
+
+    public async AddTag(name: string, file: string, time: number): Promise<Tag[]> {
+        const results = await this.http.post<Tag[]>('/tags/add', {
             name: name,
             fileName: file,
             timeStamp: time
         })
+
+        return results.data
     }
 
     public async AddToFavourites(file: ArkaineFile): Promise<void> {

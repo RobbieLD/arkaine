@@ -11,9 +11,10 @@ namespace Server.Arkaine.Tags
             _repository = repository;
         }
 
-        public async Task AddTag(AddTagRequest request)
+        public async Task<IEnumerable<Tag>> AddTag(AddTagRequest request)
         {
             await _repository.Add(request.Name, request.FileName, request.TimeStamp);
+            return await _repository.GetTags(request.FileName);
         }
 
         public async Task<IDictionary<string, IEnumerable<Tag>>> GetTagsForFile(IEnumerable<string> files)
@@ -24,6 +25,12 @@ namespace Server.Arkaine.Tags
         public async Task<IEnumerable<string>> GetFileNamesForTag(string name)
         {
             return await _repository.GetFiles(name);
+        }
+
+        public async Task<IEnumerable<Tag>> DeleteTag(int id)
+        {
+            var fileName = await _repository.Delete(id);
+            return await _repository.GetTags(fileName);
         }
     }
 }

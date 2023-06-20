@@ -12,8 +12,16 @@ namespace Server.Arkaine.Tags
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (AddTagRequest request, ITagService service) =>
                 {
-                    await service.AddTag(request);
-                    return Results.Ok();
+                    var tags = await service.AddTag(request);
+                    return Results.Ok(tags);
+                });
+
+            app.MapDelete("/tags/delete/{id}",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
+            async ([FromRoute] int id, ITagService service) =>
+                {
+                    var tags = await service.DeleteTag(id);
+                    return Results.Ok(tags);
                 });
         }
     }

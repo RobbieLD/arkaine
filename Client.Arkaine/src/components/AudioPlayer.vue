@@ -40,7 +40,8 @@
     <dialog id="remove-add" :open="openRemoveTag">
         <article>
             <h3>Click To Delete</h3>
-            <button v-for="(tag, key) of file.tags" href="#" class="secondary" role="button" :key="key" @click="deleteTag">{{ tag.name }} {{ tag.timestamp ? formatTime(tag.timestamp) : '' }}</button>
+            <button v-for="(tag, key) of file.tags" href="#" class="secondary" role="button"
+                :key="key" @click="deleteTag(tag.id)">{{ tag.name }} {{ tag.timestamp ? formatTime(tag.timestamp) : '' }}</button>
             <footer class="dialog__buttons">
                 <button href="#" role="button" @click="closeRemoveTagDialog" data-target="remove-add">
                     Done
@@ -89,8 +90,11 @@
                 if (audio.value) audio.value.currentTime = time
             }
 
-            const deleteTag = () => {
-                console.log('We need the tag ID to delete it')
+            const deleteTag = async (id : number) => {
+                await store.dispatch('deleteTag', {
+                    id,
+                    fileName: selectedFile.value
+                })
             }
 
             const toggle = () => {

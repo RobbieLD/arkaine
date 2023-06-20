@@ -34,5 +34,16 @@ namespace Server.Arkaine.Tags
         {
             return await _context.Tags.Where(t => t.Name.Equals(name)).Select(t => t.Name).ToListAsync();
         }
+
+        public async Task<string> Delete(int id)
+        {
+            var tag = await _context.Tags.FirstAsync(t => t.Id == id);
+            var fileName = tag.FileName;
+            _context.Tags.Remove(tag);
+            await _context.SaveChangesAsync();
+
+            return fileName;
+            
+        }
     }
 }

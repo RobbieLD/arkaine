@@ -7,6 +7,7 @@ import ArkaineFile from '@/models/arkaine-file'
 import Settings from '@/models/settings'
 import Progress from '@/models/progress'
 import { HubConnectionBuilder } from '@microsoft/signalr'
+import Tag from '@/models/tag'
 
 export const storeKey: InjectionKey<Store<State>> = Symbol('store')
 
@@ -47,13 +48,10 @@ export const store = createStore<State>({
         state.isAuthenticated = authed
     },
 
-    addTag: (state: State, request: { name: string, file: string, time: number }): void => {
+    setTags: (state: State, request: { file: string, tags: Tag[] }): void => {
         const file = state.files.find(f => f.rawFileName === request.file)
         if (file) {
-            file.tags.push({
-                name: request.name,
-                timestamp: request.time
-            })
+            file.tags = request.tags
         }
     },
 
@@ -91,7 +89,7 @@ export const store = createStore<State>({
 
     setProgress: (state: State, progress: Progress): void => {
         state.progress = progress
-    }
+    },
   },
   actions: {
     checkLogin: async ({ commit }) : Promise<boolean> => {
@@ -103,9 +101,14 @@ export const store = createStore<State>({
         return true
     },
 
+    deleteTag: async ({ commit }, request: { id: number, fileName: string }) : Promise<void> => {
+        const service = new ArkaineService()
+        const tags = await service.DeleteTag(request.id)
+        commit('setTags', { file: request.fileName, tags })
+    },
+
     subscribeToUpdates: async ({ commit }): Promise<void> => {
         // TODO: don't make a new connection if there is already one there
-
         const connection = new HubConnectionBuilder()
             .withUrl(process.env?.VUE_APP_ARKAINE_SERVER + '/updates')
             .build()
@@ -191,12 +194,9 @@ export const store = createStore<State>({
                 }
             }
             
-            await service.AddTag(request.name, request.file, seconds)
-            commit('addTag', {
-                name: request.name,
-                file: request.file,
-                time: seconds
-            })
+            const tags = await service.AddTag(request.name, request.file, seconds)
+
+            commit('setTags', { file: request.file, tags })
         }
         catch (e) {
             commit('setAlert', {
