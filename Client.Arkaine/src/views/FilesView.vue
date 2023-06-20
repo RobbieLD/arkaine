@@ -59,6 +59,7 @@
             const route = useRoute()
             const files = computed(() => store.getters['orderedFiles'])
             const hasMoreFiles = computed(() => store.getters['hasMoreFiles'])
+            let loadFiles = true
 
             const imageLoadErrorHandler = (e: Event) => {
                 (e.target as HTMLImageElement).src = 'folder.png'
@@ -84,8 +85,14 @@
             }
 
             window.onscroll = async () => {
-                if (hasMoreFiles.value && ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5)) {
+                if (loadFiles && hasMoreFiles.value && ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5)) {
+                    loadFiles = false
                     await store.dispatch('loadMoreFiles', route.params.path)
+
+                    // Allow loading again in 5 seconds
+                    setTimeout(() => {
+                        loadFiles = true
+                    }, 5000)
                 }
             }
 

@@ -45,5 +45,10 @@ namespace Server.Arkaine.Tags
             return fileName;
             
         }
+
+        public async Task<IEnumerable<Tag>> GetTags(string fileName)
+        {
+            return await _context.Tags.Where(t => t.FileName == fileName).ToListAsync();
+        }
     }
 }
