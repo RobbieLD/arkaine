@@ -4,9 +4,13 @@
         <input type="range" @input="seek" v-bind:value="playerTime" :disabled="!enableSeek" class="player__seek" min="0" :max="audio?.duration" />
         <div class="player__controls">
             <div class="player__current-time">{{ current }}</div>
-            <div class="player__button-container" @click="toggle">
-                <img src="play.svg" v-show="!playing" class="player__button" />
-                <img src="pause.svg" v-show="playing" class="player__button" />
+            <div class="player__button-container">
+                <img src="replay-10.png" class="player__button" @click="jump(-10)" />
+                <div @click="toggle">
+                    <img src="play.svg" v-show="!playing" class="player__button" />
+                    <img src="pause.svg" v-show="playing" class="player__button" />
+                </div>
+                <img src="forward-10.png" class="player__button" @click="jump(10)" />
             </div>
             <div class="player__total-time">{{ total }}</div>
         </div>
@@ -47,6 +51,10 @@
 
             const setTime = (time: number) => {
                 if (audio.value) audio.value.currentTime = time
+            }
+
+            const jump = (offset: number) => {
+                if (audio.value) audio.value.currentTime += offset
             }
 
             const toggle = () => {
@@ -97,6 +105,7 @@
                 seekPosition,
                 bufferPosition,
                 enableSeek,
+                jump
             }
         },
     })
@@ -125,12 +134,16 @@
 
         &__button {
             width: 2.5em;
+            margin-left: 0.5em;
+            margin-right: 0.5em;
         }
 
         &__button-container {
 
             grid-column: 2;
             justify-self: center;
+            display: grid;
+            grid-auto-flow: column;
         }
 
         &__current-time {
