@@ -22,10 +22,8 @@
 
             <!-- Video File -->
             <div v-else-if="file.isVideo">
-                <div class="caption">{{ file.name }}</div>
-                <video controls class="video">
-                    <source :src="file.url" :type="file.contentType">
-                </video>
+                <a :href="file.url" target="_blank">{{ file.name }}</a>
+                <video-player :file="file" class="player" ></video-player>
             </div>
 
             <!-- Audio File -->
@@ -47,12 +45,14 @@
     import { onBeforeRouteUpdate, useRoute } from 'vue-router'
     import { useStore } from 'vuex'
     import AudioPlayer from '@/components/AudioPlayer.vue'
+    import VideoPlayer from '@/components/VideoPLayer.vue'
     import ArkaineFile from '@/models/arkaine-file'
 
     export default defineComponent({
         name: 'FilesView',
         components: {
             AudioPlayer,
+            VideoPlayer
         },
         setup() {
             const store = useStore(storeKey)
@@ -155,10 +155,6 @@
 
 .audio {
     width: 90vw;
-}
-
-.video {
-    max-width: min(90vw, 30em);
 }
 
 .image {
