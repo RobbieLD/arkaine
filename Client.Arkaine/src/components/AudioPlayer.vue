@@ -85,6 +85,10 @@
                         total.value = secondsToTime(audio.value?.duration || 0)
                     }
 
+                    audio.value.onended = () => {
+                        playing.value = false
+                    }
+
                     audio.value.onprogress = () => {
                         const bufferedAmount = Math.floor(audio.value!.buffered.end(audio.value!.buffered.length - 1))
                         const relativePosition = Math.floor((bufferedAmount / (audio.value?.duration || 1)) * 100)
