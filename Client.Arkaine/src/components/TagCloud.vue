@@ -12,7 +12,8 @@
         <article>
             <h3>Enter Tag Name</h3>
             <input placeholder="Name" v-model="newTagName" />
-            <input placeholder="Time Stamp" v-model="newTagTimeStamp" />
+            <input type="number" placeholder="0000" v-model="newTagTimeStamp"/>
+            <!-- <input placeholder="Time Stamp" v-model="newTagTimeStamp" /> -->
             <footer class="dialog__buttons">
                 <button href="#" role="button" class="secondary" @click="closeAddTagDialog" data-target="tag-add">
                     Cancel
@@ -97,10 +98,13 @@
                     return
                 }
 
+                const value = newTagTimeStamp.value.toString()
+                const position = value.length > 1 ? value.length - 2 : 1
+
                 await store.dispatch('addTag', {
                     name: newTagName.value,
                     file: props.file.rawFileName,
-                    time: newTagTimeStamp.value
+                    time: position > 1 ? `${value.slice(0, position) || 0}:${value.slice(position)}` : `0:${value}`
                 })
 
                 newTagName.value = ''
@@ -162,5 +166,15 @@
             justify-self: end;
             margin-right: 0.5em;
         }
+    }
+
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    input[type=number] {
+        -moz-appearance: textfield;
     }
 </style>
