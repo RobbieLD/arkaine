@@ -35,7 +35,7 @@ namespace Server.Arkaine.User
                     IMemoryCache cache,
                     INotifier notifier) =>
             {
-                var roles = await userService.TwoFactorAuthenticateAsync(request.Code, request.Username, request.Rememeber);
+                var roles = await userService.TwoFactorAuthenticateAsync(request.Code, request.Username, request.Remember);
 
                 if (roles == null)
                 {
@@ -60,7 +60,7 @@ namespace Server.Arkaine.User
                 var authProperties = new AuthenticationProperties
                 {
                     AllowRefresh = true,
-                    IsPersistent = request.Rememeber,
+                    IsPersistent = request.Remember,
                 };
 
                 await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
