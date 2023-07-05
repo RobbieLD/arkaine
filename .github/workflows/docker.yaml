@@ -39,5 +39,5 @@ jobs:
 
       - name: Watchtower update
         run: |
-          curl -H "Authorization: ${{ secrets.UPDATE_TOKEN }}" https://update.robdavis.dev/v1/update
+          curl -H "Authorization: Bearer ${{ secrets.UPDATE_TOKEN }}" https://update.robdavis.dev/v1/update
         shell: bash
