@@ -32,3 +32,12 @@ jobs:
           push: true
           tags: robbield/arkaine:latest,robbield/arkaine:${{ github.ref_name }}
           build-args: VERSION=${{ github.ref_name }}
+
+      - name: Wait
+        run: sleep 2m
+        shell: bash
+
+      - name: Watchtower update
+        run: |
+          curl -H "Authorization: ${{ secrets.UPDATE_TOKEN }}" https://update.robdavis.dev/v1/update
+        shell: bash
