@@ -52,6 +52,7 @@ builder.Services.AddSingleton<ThumbnailManager>();
 builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<IfExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
+builder.Services.AddScoped<LrExtractor>();
 builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
