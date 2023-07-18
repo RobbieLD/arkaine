@@ -42,7 +42,15 @@ namespace Server.Arkaine.Ingest
 
                 try
                 {
-                    await uploader.Upload(resp.FileName, resp.MimeType, resp.Content, resp.ChunkSize, cancellationToken);
+                    // Decide which method to call based on the length of the response
+                    if (resp.Length > resp.ChunkSize)
+                    {
+                        await uploader.UploadMultiPartFile(resp.FileName, resp.MimeType, resp.Content, resp.ChunkSize, cancellationToken);
+                    }
+                    else
+                    {
+                        await uploader.UploadSingleFile(resp.FileName, resp.MimeType, resp.Length, resp.Content, cancellationToken);
+                    }
                 }
                 catch(Exception ex)
                 {

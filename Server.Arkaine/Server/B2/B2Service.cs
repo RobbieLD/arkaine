@@ -9,6 +9,10 @@ using Microsoft.AspNetCore.SignalR;
 using Server.Arkaine.Ingest;
 using System.Security.Cryptography;
 using Server.Arkaine.Tags;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Net.Http;
+using System.Web;
 
 namespace Server.Arkaine.B2
 {
@@ -132,7 +136,33 @@ namespace Server.Arkaine.B2
             return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
         }
 
-        public async Task Upload(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken)
+        public async Task UploadSingleFile(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken)
+        {
+            var urlResponse = await GetUploadUri(cancellationToken);
+            
+            var streamContent = new StreamContent(content);
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", urlResponse.Token);
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-File-Name", HttpUtility.UrlEncode(fileName));
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Content-Sha1", "do_not_verify");
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Info-Author", "Arkaine");
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Bz-Server-Side-Encryption", "AES256");
+            streamContent.Headers.ContentLength = length;
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+
+            var response = await _httpClient.PostAsync(urlResponse.UploadUrl, streamContent, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation($"Upload API call responded with: {response.StatusCode}");
+                throw new(responseString);
+            }
+
+            await _hubContext.Clients.All.SendAsync("update", $"Upload single part file {fileName} succeeded", cancellationToken);
+        }
+
+        public async Task UploadMultiPartFile(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken)
         {
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);

@@ -45,7 +45,7 @@ namespace Server.Arkaine.Ingest
                 fileName + ext,
                 contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty,
                 contentResponse.Content.Headers.ContentLength ?? 0,
-                contentResponse.Content.Headers.ContentLength > _options.UPLOAD_CHUNK_SIZE ? _options.UPLOAD_CHUNK_SIZE : (int)(contentResponse.Content.Headers.ContentLength ?? 0) - 1024);
+                _options.UPLOAD_CHUNK_SIZE);
         }
     }
 }
