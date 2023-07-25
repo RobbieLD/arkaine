@@ -82,14 +82,20 @@
             const login = async () => {
                 loggingIn.value = true
                 try {
-                    await store.dispatch('login', {
+                    const requires2Fa = await store.dispatch('login', {
                         username: DOMPurify.sanitize(username.value || ''),
                         password: DOMPurify.sanitize(password.value || ''),
                         remember: remember.value
                     })
 
-                    isTotp.value = true
                     loggingIn.value = false
+                    
+                    if (requires2Fa) {
+                        isTotp.value = true
+                    }
+                    else {
+                        error.value = 'Old Cookie Need To Be Cleared, Please Try Again'
+                    }
 
                 } catch (e) {
                     error.value = (e as Error).message

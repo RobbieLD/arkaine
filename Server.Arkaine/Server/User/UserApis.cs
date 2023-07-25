@@ -92,14 +92,24 @@ namespace Server.Arkaine.User
                     return Results.BadRequest("Username and password are required");
                 }
                 
-                var passwordCorrect = await userService.LoginUserAsync(request.Username, request.Password, request.Remember);
-                if (!passwordCorrect)
+                var signInResult = await userService.LoginUserAsync(request.Username, request.Password, request.Remember);
+                if (signInResult.Succeeded)
+                {
+                    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    context.Response.Cookies.Delete(".AspNetCore.Identity.Application");
+                    context.Response.Cookies.Delete("Identity.TwoFactorRememberMe");
+
+                    return Results.Ok(false);
+                }
+                else if (signInResult.RequiresTwoFactor)
+                {
+                    return Results.Ok(true);
+                }
+                else
                 {
                     await notifier.Send($"{request.Username} failed to sign in");
                     return Results.Unauthorized();
                 }
-
-                return Results.Ok();                
             });
 
             app.MapGet("/logout",
@@ -107,6 +117,8 @@ namespace Server.Arkaine.User
             async (HttpContext context) =>
             {
                 await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                context.Response.Cookies.Delete(".AspNetCore.Identity.Application");
+                context.Response.Cookies.Delete("Identity.TwoFactorRememberMe");
             });
         }
     }

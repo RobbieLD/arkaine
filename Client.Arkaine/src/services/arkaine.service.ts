@@ -14,12 +14,14 @@ export default class ArkaineService extends BaseService {
         this.baseUrl = process.env?.VUE_APP_ARKAINE_SERVER
     }
 
-    public async Login(username: string, password: string, remember: boolean): Promise<void> {
-        await this.http.post<string>('/login',{
+    public async Login(username: string, password: string, remember: boolean): Promise<boolean> {
+        const results = await this.http.post<boolean>('/login',{
             username,
             password,
             remember
         })
+
+        return results.data
     }
 
     public async Logout(): Promise<void> {
