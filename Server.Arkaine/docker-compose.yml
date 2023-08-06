@@ -30,3 +30,25 @@ services:
 
     ports:
       - 8080:8080
+  
+  arkaine:
+    container_name: arkaine
+    image: index.docker.io/robbield/arkaine:latest
+    profiles: 
+      - linux
+    environment:
+      ACCEPT_IP_RANGE: "172.23.0.1,172.24.0.1,172.25.0.1,172.25.0.1,172.27.0.1"
+      API_KEY: "123"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      B2_KEY_READ: "004e4578cf7305d0000000014:K004ZeANbhtiP4F8xQijLD1c1D//NTk"
+      B2_KEY_WRITE: "004e4578cf7305d0000000017:K00419QOa9YdhOQwq/l8trI8VUOG47w"
+      BUCKET_NAME: "rld-private"
+      BUCKET_ID: "fe54d5c7189cbf978350051d"
+      DB_CONNECTION_STRING: "Server=localhost;Port=5432;Database=arkaine;User Id=admin;Password=password;"
+      MAX_COOKIE_LIFETIME: "2"
+      SITE_KEYS: "soundgasm.net:SgExtractor,whyp.it:WhExtractor,incestflix.com:IfExtractor"
+      ASPNETCORE_URLS: "http://+:80"
+      PAGE_SIZE: "100"
+
+    ports:
+      - 8888:80

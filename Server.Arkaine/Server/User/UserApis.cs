@@ -69,7 +69,7 @@ namespace Server.Arkaine.User
                 // B2 tokens expire in 24 hours
                 cache.Set(request.Username,
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
-                    DateTime.UtcNow.AddHours(24));
+                    DateTime.UtcNow.AddHours(23));
                 await notifier.Send($"{request.Username} Successfully logged in");
 
                 var response = new LoginResponse(request.Username, roles.Contains("Admin"));

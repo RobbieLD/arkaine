@@ -7,12 +7,12 @@ namespace Server.Arkaine
     {
         private const string TicketIssuedTicks = nameof(TicketIssuedTicks);
         private const string LifeTimeKey = nameof(LifeTimeKey);
-        private readonly int _hours;
+        private readonly int _days;
         private readonly Guid _lifetimeKey;
 
-        public CustomCookieAuthenticationEvent(string hours, Guid lifetimeKey)
+        public CustomCookieAuthenticationEvent(string days, Guid lifetimeKey)
         {
-            _hours = int.Parse(hours);
+            _days = int.Parse(days);
             _lifetimeKey = lifetimeKey;
         }
 
@@ -47,7 +47,7 @@ namespace Server.Arkaine
             var ticketIssuedUtc =
                 new DateTimeOffset(ticketIssuedTicks, TimeSpan.FromHours(0));
 
-            if (DateTimeOffset.UtcNow - ticketIssuedUtc > TimeSpan.FromDays(_hours))
+            if (DateTimeOffset.UtcNow - ticketIssuedUtc > TimeSpan.FromDays(_days))
             {
                 await RejectPrincipalAsync(context);
                 return;

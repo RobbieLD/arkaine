@@ -364,7 +364,7 @@ namespace Server.Arkaine.B2
                 _logger.LogWarning($"Cache model not found for {key}");
                 var response = await GetToken(_options.B2_KEY_READ, cancellationToken);
                 cacheModel = new CacheModel(response.Token, response.DownloadBaseUrl, response.ApiBaseUrl, response.AccountId);
-                _cache.Set(key, cacheModel);
+                _cache.Set(key, cacheModel, DateTime.UtcNow.AddHours(23));
             }
 
             return cacheModel;

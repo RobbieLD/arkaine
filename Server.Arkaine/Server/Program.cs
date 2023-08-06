@@ -34,6 +34,7 @@ builder.Services.AddAuthentication(options =>
     options.AccessDeniedPath = "/forbidden";
     options.LoginPath = new PathString("/login");
     options.EventsType = typeof(CustomCookieAuthenticationEvent);
+    options.ExpireTimeSpan = TimeSpan.FromDays(int.Parse(config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set")));
 });
 
 var lifetimeKey = Guid.NewGuid();
