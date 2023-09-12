@@ -104,7 +104,7 @@
                 await store.dispatch('addTag', {
                     name: newTagName.value,
                     file: props.file.rawFileName,
-                    time: value.length > 1 ? `${value.slice(0, position) || 0}:${value.slice(position)}` : `0:${value}`
+                    time: value ? (value.length > 1 ? `${value.slice(0, position) || 0}:${value.slice(position)}` : `0:${value}`) : 0
                 })
 
                 newTagName.value = ''

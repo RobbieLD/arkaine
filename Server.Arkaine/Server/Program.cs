@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Net.Http.Headers;
 using Server.Arkaine;
 using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
