@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Globalization;
 
 namespace Server.Arkaine.B2
 {
@@ -7,7 +8,17 @@ namespace Server.Arkaine.B2
     {
         public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            long length = reader.GetInt64();
+            long length = reader.TokenType switch
+            {
+                JsonTokenType.Number => reader.GetInt64(),
+                JsonTokenType.String when long.TryParse(
+                    reader.GetString(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var parsedLength) => parsedLength,
+                _ => throw new JsonException("Content length must be a number or numeric string.")
+            };
+
             return ToLargestUnit(length);
         }
 
