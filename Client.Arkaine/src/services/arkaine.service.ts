@@ -5,13 +5,14 @@ import ArkaineFile from '@/models/arkaine-file'
 import Login from '@/models/login'
 import Settings from '@/models/settings'
 import Tag from '@/models/tag'
+import { serverUrl } from '@/config'
 
 export default class ArkaineService extends BaseService {
     private baseUrl: string
 
     constructor() {
-        super(process.env?.VUE_APP_ARKAINE_SERVER)
-        this.baseUrl = process.env?.VUE_APP_ARKAINE_SERVER
+        super(serverUrl)
+        this.baseUrl = serverUrl
     }
 
     public async Login(username: string, password: string, remember: boolean): Promise<boolean> {

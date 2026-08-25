@@ -53,6 +53,7 @@
     import { useStore } from 'vuex'
     import DOMPurify from 'dompurify'
     import { useRouter } from 'vue-router'
+    import { version } from '@/config'
 
     export default defineComponent({
         name: 'LoginView',
@@ -130,7 +131,7 @@
                 isTotp,
                 error,
                 remember,
-                version: process.env?.VUE_APP_ARKAINE_VERSION,
+                version,
             }
         },
     })

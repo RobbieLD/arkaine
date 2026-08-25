@@ -2,40 +2,38 @@
   "name": "client.arkaine",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
-    "serve": "vue-cli-service serve --port 8081",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "serve": "vite --port 8081",
+    "build": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build",
+    "lint": "eslint .",
+    "type-check": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@microsoft/signalr": "^7.0.3",
-    "@picocss/pico": "^1.5.3",
-    "axios": "^0.27.2",
-    "core-js": "^3.23.1",
-    "dompurify": "^2.3.8",
-    "vue": "^3.2.37",
-    "vue-router": "^4.0.16",
-    "vuex": "^4.0.2"
+    "@microsoft/signalr": "^10.0.11",
+    "@picocss/pico": "^2.1.1",
+    "axios": "^1.19.0",
+    "dompurify": "^3.4.14",
+    "vue": "^3.5.41",
+    "vue-router": "^5.2.0",
+    "vuex": "^4.1.0"
   },
   "devDependencies": {
-    "@types/dompurify": "^2.3.3",
-    "@typescript-eslint/eslint-plugin": "^5.28.0",
-    "@typescript-eslint/parser": "^5.28.0",
-    "@vue/cli-plugin-babel": "~5.0.6",
-    "@vue/cli-plugin-eslint": "~5.0.6",
-    "@vue/cli-plugin-router": "~5.0.6",
-    "@vue/cli-plugin-typescript": "~5.0.6",
-    "@vue/cli-plugin-vuex": "~5.0.6",
-    "@vue/cli-service": "~5.0.6",
-    "@vue/eslint-config-standard": "^7.0.0",
-    "@vue/eslint-config-typescript": "^11.0.0",
-    "eslint": "^8.18.0",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^6.0.0",
-    "eslint-plugin-vue": "^9.1.1",
-    "sass": "^1.52.3",
-    "sass-loader": "^13.0.0",
-    "typescript": "~4.7.4"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.3.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "eslint": "^10.9.1",
+    "eslint-plugin-vue": "^10.10.0",
+    "globals": "^17.11.0",
+    "sass": "^1.103.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.68.0",
+    "vite": "^8.2.2",
+    "vue-tsc": "^3.3.11",
+    "vue-eslint-parser": "^10.4.1"
   }
 }

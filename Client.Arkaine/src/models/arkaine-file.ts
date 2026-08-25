@@ -51,7 +51,7 @@ export default class ArkaineFile {
         preview: '',
         rawFileName: '',
         size: '',
-        thumb: 'favourite.png',
+        thumb: '/favourite.png',
         url: '',
         tags: []
     }

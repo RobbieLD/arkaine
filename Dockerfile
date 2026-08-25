@@ -9,13 +9,13 @@ COPY Server.Arkaine/Server/ .
 RUN dotnet publish -c Release -o out
 
 # Build Client
-FROM node:16 AS client-build
+FROM node:22 AS client-build
 ARG VERSION=DEV
 WORKDIR /app
-COPY Client.Arkaine/package*.json ./
-RUN yarn install
+COPY Client.Arkaine/package.json Client.Arkaine/yarn.lock ./
+RUN yarn install --frozen-lockfile
 COPY Client.Arkaine/. ./
-ENV VUE_APP_ARKAINE_VERSION=$VERSION
+ENV VITE_ARKAINE_VERSION=$VERSION
 RUN yarn run build
 
 # Build Release

@@ -62,7 +62,7 @@
             let loadFiles = true
 
             const imageLoadErrorHandler = (e: Event) => {
-                (e.target as HTMLImageElement).src = 'folder.png'
+                (e.target as HTMLImageElement).src = '/folder.png'
             }
 
             onMounted(async () => {

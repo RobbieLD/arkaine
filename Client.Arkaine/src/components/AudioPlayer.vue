@@ -5,12 +5,12 @@
         <div class="player__controls">
             <div class="player__current-time">{{ current }}</div>
             <div class="player__button-container">
-                <img src="replay-10.png" class="player__button" @click="jump(-10)" />
+                <img src="/replay-10.png" class="player__button" @click="jump(-10)" />
                 <div @click="toggle">
-                    <img src="play.svg" v-show="!playing" class="player__button" />
-                    <img src="pause.svg" v-show="playing" class="player__button" />
+                    <img src="/play.svg" v-show="!playing" class="player__button" />
+                    <img src="/pause.svg" v-show="playing" class="player__button" />
                 </div>
-                <img src="forward-10.png" class="player__button" @click="jump(10)" />
+                <img src="/forward-10.png" class="player__button" @click="jump(10)" />
             </div>
             <div class="player__total-time">{{ total }}</div>
         </div>

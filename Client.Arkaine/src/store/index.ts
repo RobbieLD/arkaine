@@ -8,6 +8,7 @@ import Settings from '@/models/settings'
 import Progress from '@/models/progress'
 import { HubConnectionBuilder } from '@microsoft/signalr'
 import Tag from '@/models/tag'
+import { serverUrl } from '@/config'
 
 export const storeKey: InjectionKey<Store<State>> = Symbol('store')
 
@@ -110,7 +111,7 @@ export const store = createStore<State>({
     subscribeToUpdates: async ({ commit }): Promise<void> => {
         // TODO: don't make a new connection if there is already one there
         const connection = new HubConnectionBuilder()
-            .withUrl(process.env?.VUE_APP_ARKAINE_SERVER + '/updates')
+            .withUrl(serverUrl + '/updates')
             .build()
 
         connection.on('update', (data: Progress) => {
