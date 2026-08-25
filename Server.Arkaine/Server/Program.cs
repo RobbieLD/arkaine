@@ -193,7 +193,8 @@ var cookiePolicy = new CookiePolicyOptions
 
  if (!app.Environment.IsDevelopment())
 {
-    app.UseIPFilter(allowedIpAddresses);
+    // Don't need this right now as reverse proxy handle this for us. 
+    //app.UseIPFilter(allowedIpAddresses);
     app.UserSecurityHeaders();
 }
 
@@ -223,7 +224,8 @@ app.MapGet("/forbidden", () => "You do not have access to this page");
 app.RegisterUserApis();
 app.RegisterProfileApis();
 app.RegisterB2Apis();
-app.RegisterIngestApis();
+// Removing these as they are not used.
+//app.RegisterIngestApis();
 app.RegisterAdminApis();
 app.RegisterFavouritesApis();
 app.RegisterTagApis();
