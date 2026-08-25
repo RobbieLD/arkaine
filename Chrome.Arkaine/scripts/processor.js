@@ -11,11 +11,11 @@ const post = async (url, key, api, name) => {
         method: 'POST',
         cache: 'no-cache',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Arkaine-Api-Key': key
         },
         body: JSON.stringify({
             Url: url,
-            Key: key,
             Name: name
         })
     })
@@ -26,33 +26,6 @@ const post = async (url, key, api, name) => {
     else {
         throw await response.text()
     }    
-}
-
-const connect = async (url) => {
-
-    const connection = new signalR.HubConnectionBuilder()
-        .withUrl(url + "/progress")
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-    async function start() {
-        try {
-            await connection.start();
-        } catch (err) {
-            log(err)
-        }
-    };
-    
-    connection.onclose(async () => {
-        await start();
-    });
-
-    connection.on("update", (message) => {
-        log(message)        
-    })
-    
-    // Start the connection.
-    await start();
 }
 
 const process = () => {
@@ -66,19 +39,17 @@ const process = () => {
         chrome.storage.sync.get({ key: '', url: '' }, (items) => {
             const input = document.getElementById('file-name')
             log("FileName: " + input.value)
-            connect(items.url).then(() => {
-                try {
-                    post(url, items.key, items.url + "/ingest", input.value)
-                        .then((response) => {
-                            log(`Upload: ${response}`)
-                        })
-                        .catch((err) => {
-                            log('Upload failed: ' + err)
-                        })
-                } catch (e) {
-                    log(e)
-                }
-            })            
+            try {
+                post(url, items.key, items.url + "/ingest", input.value)
+                    .then((response) => {
+                        log(`Upload: ${response}`)
+                    })
+                    .catch((err) => {
+                        log('Upload failed: ' + err)
+                    })
+            } catch (e) {
+                log(e)
+            }
         })
     })
 }

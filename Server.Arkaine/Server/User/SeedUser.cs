@@ -1,79 +1,104 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 
 namespace Server.Arkaine.User
 {
     public class SeedUser
     {
-        public async static Task Initialize(IServiceProvider serviceProvider)
+        public static async Task Initialize(IServiceProvider serviceProvider)
         {
             using var scope = serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetService<ArkaineDbContext>() ?? throw new("Db Context Not Created");
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
-            string[] roles = new string[] { "User", "Admin" };
-
-            foreach (string role in roles)
+            foreach (var role in new[] { "User", "Admin" })
             {
-                var roleStore = new RoleStore<IdentityRole>(context);
-
-                if (!context!.Roles.Any(r => r.Name == role))
+                if (!await roleManager.RoleExistsAsync(role))
                 {
-                    await roleStore.CreateAsync(new IdentityRole
-                    {
-                        Name = role,
-                        NormalizedName = role.ToUpper(),
-                    });
+                    EnsureSucceeded(
+                        await roleManager.CreateAsync(new IdentityRole(role)),
+                        $"Creating role '{role}'");
                 }
             }
 
-            var user = new IdentityUser
-            {
-                Email = "user@localhost.com",
-                NormalizedEmail = "USER@LOCALHOST.COM",
-                UserName = "user",
-                NormalizedUserName = "USER",
-                EmailConfirmed = true,
-                PhoneNumberConfirmed = true,
-                SecurityStamp = Guid.NewGuid().ToString("D"),
-                TwoFactorEnabled = true,
-            };
-
-            var admin = new IdentityUser
-            {
-                Email = "admin@localhost.com",
-                NormalizedEmail = "ADMIN@LOCALHOST.COM",
-                UserName = "admin",
-                NormalizedUserName = "ADMIN",
-                EmailConfirmed = true,
-                PhoneNumberConfirmed = true,
-                SecurityStamp = Guid.NewGuid().ToString("D"),
-                TwoFactorEnabled = true,
-            };
-
-            if (!context!.Users.Any(u => u.UserName == user.UserName))
-            {
-                await userManager.CreateAsync(user, ".Password1");
-                var dbUser = await userManager.FindByNameAsync("user") ?? throw new("User not found");
-                await userManager.AddToRolesAsync(dbUser, new[] { "User" });
-            }
-
-
-            if (!context!.Users.Any(u => u.UserName == admin.UserName))
-            {
-                await userManager.CreateAsync(admin, ".Password1");
-                var dbAdmin = await userManager.FindByNameAsync("admin") ?? throw new("User not found");
-                await userManager.AddToRolesAsync(dbAdmin, new[] { "Admin" });
-            }
-
-            await context.SaveChangesAsync();
-
-            await userManager.ResetAuthenticatorKeyAsync(user);
-            Console.WriteLine("Authenticator Key: " + user.UserName + ": " + await userManager.GetAuthenticatorKeyAsync(user));
-
-            await userManager.ResetAuthenticatorKeyAsync(admin);
-            Console.WriteLine("Authenticator Key: " + admin.UserName + ": " + await userManager.GetAuthenticatorKeyAsync(admin));
+            await EnsureUserAsync(
+                userManager,
+                configuration,
+                "user",
+                "user@localhost.com",
+                "SEED_USER_PASSWORD",
+                "SEED_USER_AUTHENTICATOR_KEY",
+                "User");
+            await EnsureUserAsync(
+                userManager,
+                configuration,
+                "admin",
+                "admin@localhost.com",
+                "SEED_ADMIN_PASSWORD",
+                "SEED_ADMIN_AUTHENTICATOR_KEY",
+                "Admin");
         }
 
+        private static async Task EnsureUserAsync(
+            UserManager<IdentityUser> userManager,
+            IConfiguration configuration,
+            string userName,
+            string email,
+            string passwordSetting,
+            string authenticatorKeySetting,
+            string role)
+        {
+            var user = await userManager.FindByNameAsync(userName);
+            if (user == null)
+            {
+                var password = configuration[passwordSetting];
+                if (string.IsNullOrWhiteSpace(password) || password.Length < 16)
+                {
+                    throw new InvalidOperationException(
+                        $"{passwordSetting} must be set to a password of at least 16 characters.");
+                }
+
+                var authenticatorKey = configuration[authenticatorKeySetting];
+                user = new IdentityUser
+                {
+                    Email = email,
+                    UserName = userName,
+                    EmailConfirmed = true,
+                    TwoFactorEnabled = !string.IsNullOrWhiteSpace(authenticatorKey)
+                };
+
+                EnsureSucceeded(
+                    await userManager.CreateAsync(user, password),
+                    $"Creating user '{userName}'");
+
+                if (!string.IsNullOrWhiteSpace(authenticatorKey))
+                {
+                    EnsureSucceeded(
+                        await userManager.SetAuthenticationTokenAsync(
+                            user,
+                            TokenOptions.DefaultAuthenticatorProvider,
+                            "AuthenticatorKey",
+                            authenticatorKey),
+                        $"Setting the authenticator key for '{userName}'");
+                }
+            }
+
+            if (!await userManager.IsInRoleAsync(user, role))
+            {
+                EnsureSucceeded(
+                    await userManager.AddToRoleAsync(user, role),
+                    $"Adding '{userName}' to role '{role}'");
+            }
+        }
+
+        private static void EnsureSucceeded(IdentityResult result, string operation)
+        {
+            if (!result.Succeeded)
+            {
+                var codes = string.Join(", ", result.Errors.Select(error => error.Code));
+                throw new InvalidOperationException($"{operation} failed: {codes}");
+            }
+        }
     }
 }

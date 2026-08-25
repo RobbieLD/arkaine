@@ -18,8 +18,9 @@ namespace Server.Arkaine.Ingest
 
         protected async Task<ExtractorResponse> OpenMediaStream(string url, string fileName, CancellationToken cancellationToken)
         {
+            var safeUri = await UrlSafetyValidator.GetSafeUriAsync(url, cancellationToken);
             var ext = Path.GetExtension(url);
-            var contentResponse = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var contentResponse = await _httpClient.GetAsync(safeUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (!contentResponse.IsSuccessStatusCode)
             {
@@ -46,6 +47,12 @@ namespace Server.Arkaine.Ingest
                 contentResponse.Content.Headers.ContentType?.MediaType ?? string.Empty,
                 contentResponse.Content.Headers.ContentLength ?? 0,
                 _options.UPLOAD_CHUNK_SIZE);
+        }
+
+        protected async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
+        {
+            var safeUri = await UrlSafetyValidator.GetSafeUriAsync(url, cancellationToken);
+            return await _httpClient.GetStringAsync(safeUri, cancellationToken);
         }
     }
 }

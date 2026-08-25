@@ -28,10 +28,9 @@ export default class ArkaineService extends BaseService {
         await this.http.get<void>('/logout')
     }
 
-    public async TwoFactorAuth(username: string, code: string, remember: boolean): Promise<void> {
+    public async TwoFactorAuth(code: string, remember: boolean): Promise<void> {
         await this.http.post<string>('/twofactorauth', {
             code,
-            username,
             remember
         })
     }

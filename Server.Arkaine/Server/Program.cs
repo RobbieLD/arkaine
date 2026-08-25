@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Options;
 using Server.Arkaine;
 using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
@@ -22,6 +24,10 @@ IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.local.json", true)
     .AddEnvironmentVariables()
     .Build();
+var trustedProxyAddresses = ParseIpAddresses(config["TRUSTED_PROXY_IPS"], "TRUSTED_PROXY_IPS");
+var allowedIpAddresses = dev
+    ? Array.Empty<IPAddress>()
+    : ParseIpAddresses(config["ACCEPT_IP_RANGE"], "ACCEPT_IP_RANGE");
 
 builder.Services.AddAuthentication(options =>
 {
@@ -45,6 +51,18 @@ builder.Services.AddScoped(s => ActivatorUtilities.CreateInstance<CustomCookieAu
     config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set"),
     lifetimeKey));
 builder.Services.AddHttpClient();
+builder.Services.Configure<HttpClientFactoryOptions>(Options.DefaultName, options =>
+{
+    options.HttpMessageHandlerBuilderActions.Add(builder =>
+    {
+        builder.PrimaryHandler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            ConnectCallback = UrlSafetyValidator.ConnectAsync
+        };
+    });
+});
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
 builder.Services.AddScoped<SgExtractor>();
@@ -81,8 +99,14 @@ builder.Services.AddHttpsRedirection(options =>
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
+    options.ForwardLimit = 1;
+
+    foreach (var address in trustedProxyAddresses)
+    {
+        options.KnownProxies.Add(address);
+    }
 });
 
 builder.Services.AddDefaultIdentity<IdentityUser>()
@@ -107,7 +131,10 @@ if (dev)
 #endif
 
 var app = builder.Build();
-app.UseForwardedHeaders();
+if (trustedProxyAddresses.Count > 0)
+{
+    app.UseForwardedHeaders();
+}
 
 var cookiePolicy = new CookiePolicyOptions
 {
@@ -122,7 +149,7 @@ var cookiePolicy = new CookiePolicyOptions
 
  if (!app.Environment.IsDevelopment())
 {
-    app.UseIPFilter(builder.Configuration["ACCEPT_IP_RANGE"]?.Split(",")?.Select(ip => IPAddress.Parse(ip)) ?? new List<IPAddress>());
+    app.UseIPFilter(allowedIpAddresses);
     app.UserSecurityHeaders();
 }
 
@@ -156,9 +183,42 @@ app.RegisterAdminApis();
 app.RegisterFavouritesApis();
 app.RegisterTagApis();
 
-if (!string.IsNullOrEmpty(builder.Configuration["SEED_DB"]))
+var seedDb = false;
+var seedDbSetting = config["SEED_DB"];
+if (!string.IsNullOrWhiteSpace(seedDbSetting) && !bool.TryParse(seedDbSetting, out seedDb))
 {
+    throw new InvalidOperationException("SEED_DB must be set to true or false.");
+}
+
+if (seedDb)
+{
+    if (!dev)
+    {
+        throw new InvalidOperationException("SEED_DB is only supported in the Development environment.");
+    }
+
     await SeedUser.Initialize(app.Services);
 }
     
 app.Run();
+
+static IReadOnlyList<IPAddress> ParseIpAddresses(string? value, string settingName)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return Array.Empty<IPAddress>();
+    }
+
+    var addresses = new List<IPAddress>();
+    foreach (var item in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        if (!IPAddress.TryParse(item, out var address))
+        {
+            throw new InvalidOperationException($"{settingName} contains an invalid IP address.");
+        }
+
+        addresses.Add(address);
+    }
+
+    return addresses;
+}

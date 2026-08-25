@@ -13,7 +13,7 @@ namespace Server.Arkaine.Ingest
         {
             var uri = new Uri(url);
             var apiUrl = "https://api.whyp.it/api" + uri.PathAndQuery;
-            string apiResponse = await _httpClient.GetStringAsync(apiUrl, cancellationToken);
+            string apiResponse = await GetStringAsync(apiUrl, cancellationToken);
             dynamic content = JsonConvert.DeserializeObject(apiResponse) ?? throw new("Api response was invalid");
             return await OpenMediaStream(content.track.audio_url, fileName, cancellationToken);
         }

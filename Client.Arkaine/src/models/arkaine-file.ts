@@ -35,7 +35,8 @@ export default class ArkaineFile {
         // This only applies if this is a directory
         this.thumb = `${baseUrl}/stream/${file.fileName}thumb.jpg`
         // This only applies to images
-        this.preview = file.preview ? `${baseUrl}/preview/${file.preview}` : ''
+        const previewPath = file.preview.split('/').map(part => encodeURIComponent(part)).join('/')
+        this.preview = file.preview ? `${baseUrl}/preview/${previewPath}` : ''
     }
 
     public static Favourite: ArkaineFile = {

@@ -105,11 +105,17 @@ namespace Server.Arkaine.Admin
                     continue;
                 }
 
-                var fn = Path.Combine(_options.THUMBNAIL_DIR, file.FileName);
+                if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, file.FileName, out var fn) ||
+                    !ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, file.FileName + ".bad", out var badFileName))
+                {
+                    _logger.LogWarning("Skipping thumbnail with an unsafe file name: {FileName}", file.FileName);
+                    _report.Failed++;
+                    continue;
+                }
 
                 Directory.CreateDirectory(Path.GetDirectoryName(fn) ?? throw new($"{file.FileName} not a valid filename"));
 
-                if (string.IsNullOrEmpty(file.Thumbnail) && !File.Exists(fn + ".bad"))
+                if (string.IsNullOrEmpty(file.Thumbnail) && !File.Exists(badFileName))
                 {
                     try
                     {
@@ -120,7 +126,7 @@ namespace Server.Arkaine.Admin
                     catch (Exception ex)
                     {
                         // Create a marker which indicates don't try to recreate this file in the future
-                        File.Create(fn + ".bad").Close();
+                        File.Create(badFileName).Close();
                         _logger.LogError(ex.Message);
                         _report.Failed++;
                     }

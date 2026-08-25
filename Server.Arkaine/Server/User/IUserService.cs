@@ -5,6 +5,6 @@ namespace Server.Arkaine.User
     public interface IUserService
     {
         Task<SignInResult> LoginUserAsync(string username, string password, bool remember);
-        Task<IList<string>?> TwoFactorAuthenticateAsync(string code, string username, bool remeber);
+        Task<IdentityUser?> TwoFactorAuthenticateAsync(string code, bool remember);
     }
 }

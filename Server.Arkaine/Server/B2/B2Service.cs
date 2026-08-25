@@ -49,14 +49,14 @@ namespace Server.Arkaine.B2
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var response = await _httpClient.GetAsync(_options.B2AuthUrl, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
-            var responseModel = JsonSerializer.Deserialize<AuthResponse>(responseString) ?? throw new("Response not in the correct form");
-
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation($"Auth API call responded with: {response.StatusCode}");
-                throw new (responseString);
+                throw new HttpRequestException($"Auth API call failed with status code {response.StatusCode}.");
             }
+
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseModel = JsonSerializer.Deserialize<AuthResponse>(responseString) ?? throw new("Response not in the correct form");
 
             _logger.LogInformation("Get token succeeded");
 
@@ -117,7 +117,13 @@ namespace Server.Arkaine.B2
 
         public IResult Preview(string path)
         {
-            return Results.Stream(File.OpenRead(path));
+            if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, path, out var thumbnailPath) ||
+                !File.Exists(thumbnailPath))
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Stream(File.OpenRead(thumbnailPath));
         }
 
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
@@ -151,12 +157,11 @@ namespace Server.Arkaine.B2
             streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
 
             var response = await _httpClient.PostAsync(urlResponse.UploadUrl, streamContent, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation($"Upload API call responded with: {response.StatusCode}");
-                throw new(responseString);
+                throw new HttpRequestException($"Upload API call failed with status code {response.StatusCode}.");
             }
 
             await _hubContext.Clients.All.SendAsync("update", $"Upload single part file {fileName} succeeded", cancellationToken);
@@ -234,13 +239,12 @@ namespace Server.Arkaine.B2
             var content = new ByteArrayContent(bytes, 0, count);
 
             var response = await _httpClient.PostAsync(url, content, cancellationToken);
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
-                await _hubContext.Clients.All.SendAsync("update", $"Upload part failed with {responseString}", cancellationToken);
-                throw new(responseString);
+                await _hubContext.Clients.All.SendAsync("update", "Upload part failed", cancellationToken);
+                throw new HttpRequestException($"Upload part failed with status code {response.StatusCode}.");
             }
             
             await _hubContext.Clients.All.SendAsync("update", $"Upload part {partNumber} succeeded", cancellationToken);
@@ -262,16 +266,17 @@ namespace Server.Arkaine.B2
 
         private string GetPreviewUrl(string fileName, string type)
         {
-            var thumb = Path.Combine(_options.THUMBNAIL_DIR, fileName);
+            var relativeThumbnailPath = fileName;
 
             if (type == "folder")
             {
-                thumb = Path.Combine(thumb, "thumb.jpg");
+                relativeThumbnailPath = $"{fileName.TrimEnd('/', '\\')}/thumb.jpg";
             }
 
-            if (File.Exists(thumb))
+            if (ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, relativeThumbnailPath, out var thumbnailPath) &&
+                File.Exists(thumbnailPath))
             {
-                return thumb;
+                return ThumbnailPathResolver.ToUrlPath(relativeThumbnailPath);
             }
 
             return string.Empty;
@@ -299,7 +304,7 @@ namespace Server.Arkaine.B2
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation($"API call to {url} responded with: {response.StatusCode}");
-                throw new(responseString);
+                throw new HttpRequestException($"API call failed with status code {response.StatusCode}.");
             }
 
             var model = JsonSerializer.Deserialize<TResponse>(responseString) ?? throw new($"Response is not a valid format for {nameof(TResponse)}");

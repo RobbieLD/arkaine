@@ -33,15 +33,13 @@ namespace Server.Arkaine.Ingest
             {
                 var request = await _taskQueue.DequeueAsync(cancellationToken);
 
-                using var scope = _serviceProvider.CreateScope();
-
-                var extractor = scope.ServiceProvider.GetRequiredService<IExtractorFactory>().GetExtractor(request.Url);
-                var uploader = scope.ServiceProvider.GetRequiredService<IB2Service>();
-
-                var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
-
                 try
                 {
+                    using var scope = _serviceProvider.CreateScope();
+
+                    var extractor = scope.ServiceProvider.GetRequiredService<IExtractorFactory>().GetExtractor(request.Url);
+                    var uploader = scope.ServiceProvider.GetRequiredService<IB2Service>();
+                    var resp = await extractor.Extract(request.Url, request.Name, cancellationToken);
                     var cleanFileName = resp.FileName.Trim();
 
                     // Decide which method to call based on the length of the response
@@ -56,9 +54,8 @@ namespace Server.Arkaine.Ingest
                 }
                 catch(Exception ex)
                 {
-                    _logger.LogError(ex.Message);
-                    _logger.LogError(ex.StackTrace);
-                    await _hubContext.Clients.All.SendAsync("update", $"Error processing upload: {ex.Message}", cancellationToken);
+                    _logger.LogError(ex, "Error processing upload");
+                    await _hubContext.Clients.All.SendAsync("update", "Error processing upload", cancellationToken);
                 }
                 
             }

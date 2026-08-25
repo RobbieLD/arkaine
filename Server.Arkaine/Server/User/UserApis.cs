@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Identity;
 using Server.Arkaine.B2;
 using Server.Arkaine.Notification;
 using System.Data;
@@ -31,23 +32,27 @@ namespace Server.Arkaine.User
                     CancellationToken cancellationToken,
                     IOptions<ArkaineOptions> config,
                     IUserService userService,
+                    UserManager<IdentityUser> userManager,
                     IB2Service b2Service,
                     IMemoryCache cache,
                     INotifier notifier) =>
             {
-                var roles = await userService.TwoFactorAuthenticateAsync(request.Code, request.Username, request.Remember);
+                var user = await userService.TwoFactorAuthenticateAsync(request.Code, request.Remember);
 
-                if (roles == null)
+                if (user == null)
                 {
-                    await notifier.Send($"{request.Username} failed to login due to incorrect auth code");
+                    await notifier.Send("A user failed to login due to an incorrect auth code");
                     return Results.Unauthorized();
                 }
+
+                var username = user.UserName ?? throw new("User not found");
+                var roles = await userManager.GetRolesAsync(user);
 
                 // Add more claims here
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.NameIdentifier, request.Username),
-                    new Claim(ClaimTypes.Name, request.Username)
+                    new Claim(ClaimTypes.NameIdentifier, username),
+                    new Claim(ClaimTypes.Name, username)
                 };
 
                 foreach (var role in roles)
@@ -67,12 +72,12 @@ namespace Server.Arkaine.User
                 var authResponse = await b2Service.GetToken(config.Value.B2_KEY_READ, cancellationToken);
                 
                 // B2 tokens expire in 24 hours
-                cache.Set(request.Username,
+                cache.Set(username,
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
                     DateTime.UtcNow.AddHours(23));
-                await notifier.Send($"{request.Username} Successfully logged in");
+                await notifier.Send($"{username} Successfully logged in");
 
-                var response = new LoginResponse(request.Username, roles.Contains("Admin"));
+                var response = new LoginResponse(username, roles.Contains("Admin"));
 
                 return Results.Ok(response);
             });
