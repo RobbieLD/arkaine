@@ -1,41 +1,58 @@
 <template>
     <div class="content">
         <article class="item" v-for="(file, index) of files" :key="index">
+            <div class="item__body">
+                <!-- Folder -->
+                <div class="folder item__media" v-if="file.isDirectory">
+                    <router-link :to="$route.path + file.name + '/'" class="media-link">
+                        <img :src="file.preview || file.thumb" @error="imageLoadErrorHandler" />
+                    </router-link>
+                </div>
 
-            <span v-if="file.isImage" class="favourite" :class="file.isFavourite ? 'favourite--confirmed' : ''"
-                @click="fav(file)">♡</span>
+                <!-- Image File -->
+                <a v-else-if="file.isImage" class="image item__media" :href="file.url" target="_blank">
+                    <img :src="file.preview || file.url" />
+                </a>
 
-            <!-- Folder -->
-            <div class="folder" v-if="file.isDirectory">
-                <router-link :to="$route.path + file.name + '/'">
-                    <div class="headings title">
-                        <h2>{{ file.name }}/</h2>
-                    </div>
-                    <img :src="file.preview || file.thumb" @error="imageLoadErrorHandler" />
-                </router-link>
+                <!-- Video File -->
+                <div v-else-if="file.isVideo" class="item__media item__media--player">
+                    <video-player :file="file" ></video-player>
+                </div>
+
+                <!-- Audio File -->
+                <div v-else-if="file.isAudio" class="item__media item__media--player">
+                    <audio-player :file="file" ></audio-player>
+                </div>
+
+                <!-- Other file types -->
+                <div v-else class="item__media item__media--other">
+                    <a :href="file.url" target="_blank" class="file-link">{{ file.name }}</a>
+                </div>
             </div>
 
-            <!-- Image File -->
-            <a v-else-if="file.isImage" class="image" :href="file.url" target="_blank">
-                <img :src="file.preview || file.url" />
-            </a>
-
-            <!-- Video File -->
-            <div v-else-if="file.isVideo">
-                <a :href="file.url" target="_blank">{{ file.name }}</a>
-                <video-player :file="file" class="player" ></video-player>
-            </div>
-
-            <!-- Audio File -->
-            <div v-else-if="file.isAudio" class="audio">
-                <a :href="file.url" target="_blank">{{ file.name }}</a>
-                <audio-player :file="file" class="player" ></audio-player>
-            </div>
-
-            <!-- Other file types -->
-            <div v-else>
-                <a :href="file.url" target="_blank">{{ file.name }}</a>
-            </div>
+            <footer class="item__footer">
+                <div class="item__details">
+                    <strong class="item__name" :title="file.name">
+                        {{ file.name }}{{ file.isDirectory ? '/' : '' }}
+                    </strong>
+                    <small class="item__size">
+                        <template v-if="file.isDirectory">
+                            {{ file.childCount === undefined ? 'Item count unavailable' : `${file.childCount} ${file.childCount === 1 ? 'item' : 'items'}` }}
+                        </template>
+                        <template v-else>{{ file.size || 'Size unavailable' }}</template>
+                    </small>
+                </div>
+                <button
+                    v-if="file.isImage"
+                    type="button"
+                    class="favourite"
+                    :class="file.isFavourite ? 'favourite--confirmed' : ''"
+                    :aria-label="file.isFavourite ? 'Favourite' : 'Add to favourites'"
+                    @click.stop="fav(file)"
+                >
+                    {{ file.isFavourite ? '♥' : '♡' }}
+                </button>
+            </footer>
         </article>
     </div>
 </template>
@@ -111,71 +128,144 @@
 </script>
 <style lang='scss' scoped>
 .item {
-    cursor: pointer;
-    height: fit-content;
-    padding: 0.5em;
-    display: grid;
+    height: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
     margin: 0;
+    padding: 0;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--app-surface);
+    box-shadow: var(--pico-card-box-shadow);
+}
+
+.item__body {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+.item__media {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.item__media--player {
+    display: flex;
+    align-items: stretch;
+}
+
+.item__media--player :deep(.player),
+.item__media--player :deep(.video-player) {
+    width: 100%;
+}
+
+.item__media--other {
+    display: flex;
+    align-items: center;
+    padding-bottom: 1rem;
+}
+
+.item__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0.85rem 1rem 1rem;
+    border-top: 1px solid var(--app-border);
+}
+
+.item__details {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+}
+
+.item__name {
+    overflow: hidden;
+    color: var(--pico-color);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.item__size {
+    overflow: hidden;
+    color: var(--app-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .favourite {
-    position: absolute;
-    font-size: 2em;
-    margin-right: 0.3em;
-    justify-self: end;
-    color: white;
+    display: grid;
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    margin: 0;
+    padding: 0;
+    place-items: center;
+    color: var(--app-muted);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 1.65rem;
+    line-height: 1;
 
     &--confirmed {
-        color: rgb(192, 16, 69);
+        color: #c2185b;
+    }
+
+    &:hover,
+    &:focus-visible {
+        color: #c2185b;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
     }
 }
 
-
-.caption {
-    margin-bottom: 0.5em;
-    font-size: 0.8em;
-}
-
-.title {
-    text-align: center;
-}
-
-.show {
-    display: initial !important;
-}
-
-.player {
-    padding-top: 2em;
-}
-
 .folder {
-    display: grid;
-    justify-content: center;
-}
-
-.audio {
-    width: 90vw;
+    display: flex;
 }
 
 .image {
-    max-width: 300px;
-    display: grid;
+    display: flex;
+    overflow: hidden;
+    align-items: center;
     justify-content: center;
+    background: var(--app-surface-raised);
 }
 
-.folder {
-    max-width: 300px;
-
-    &:hover {
-        background-color: var(--primary-focus);
-    }
+.media-link {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
-/* Mobile */
-@media only screen and (max-width: 400px) {
+.media-link:hover,
+.media-link:focus-visible {
+    background: var(--pico-primary-focus);
+}
 
-    .item {
-        margin: 0;
-    }
+.image img,
+.folder img {
+    display: block;
+    width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+}
+
+.file-link {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 </style>

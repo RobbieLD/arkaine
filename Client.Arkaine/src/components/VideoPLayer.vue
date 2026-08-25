@@ -1,10 +1,10 @@
 <template>
-    <div>
-        <video controls class="video" ref="video">
+    <div class="video-player">
+        <video controls class="video" ref="video" preload="metadata" playsinline>
             <source :src="file.url" :type="file.contentType">
         </video>
+        <TagCloud :file="file" @click="setTime"></TagCloud>
     </div>
-    <TagCloud :file="file" @click="setTime"></TagCloud>
 </template>
 <script lang="ts">
     import ArkaineFile from '@/models/arkaine-file'
@@ -23,7 +23,7 @@
             },
         },
         setup() {
-            const video = ref<HTMLAudioElement>()
+            const video = ref<HTMLVideoElement>()
             const setTime = (time: number) => {
                 if (video.value) video.value.currentTime = time
             }
@@ -36,7 +36,25 @@
     })
 </script>
 <style lang="scss" scoped>
+    .video-player {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        flex-direction: column;
+        padding: 1rem;
+        border: 1px solid var(--app-border);
+        border-radius: 0.75rem;
+        background: var(--app-surface-raised);
+    }
+
     .video {
-        max-width: min(90vw, 30em);
+        display: block;
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+        max-height: 70vh;
+        object-fit: contain;
+        border-radius: 0.5rem;
+        background: #05070b;
     }
 </style>

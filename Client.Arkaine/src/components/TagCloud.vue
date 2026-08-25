@@ -4,8 +4,8 @@
             <span v-for="(tag, index) of file.tags" :key="index" class="tags__tag" @click="handleTagClick(tag.timestamp)"
                 :class="tag.timestamp ? 'tags__tag--time' : ''">{{ tag.name }} {{ tag.timestamp ? secondsToTime(tag.timestamp) : '' }}</span>
         </div>
-        <div class="tags__action" @click="openRemoveTagDialog">-</div>
-        <div class="tags__action" @click="openAddTagDialog">+</div>
+        <button type="button" class="tags__action" @click="openRemoveTagDialog" aria-label="Remove a tag">-</button>
+        <button type="button" class="tags__action" @click="openAddTagDialog" aria-label="Add a tag">+</button>
     </div>
     <!-- Add Tag -->
     <dialog id="tag-add" :open="openAddTag">
@@ -148,23 +148,40 @@
         }
 
         &__tag {
-            border-radius: var(--border-radius);
-            background-color: var(--primary);
-            color: var(--primary-inverse);
+            border-radius: var(--pico-border-radius);
+            background-color: var(--pico-primary-background);
+            color: var(--pico-primary-inverse);
             text-align: center;
             padding-right: 0.5em;
             padding-left: 0.5em;
 
             &--time {
-                background-color: var(--ins-color);
+                background-color: var(--pico-secondary-background);
+                color: var(--pico-secondary-inverse);
             }
         }
 
         &__action {
-            font-size: 2.5em;
+            min-width: 2rem;
+            min-height: 2rem;
+            margin: 0 0 0 0.35rem;
+            padding: 0;
+            color: var(--pico-color);
+            border: 1px solid var(--app-border);
+            border-radius: 50%;
+            background: var(--app-surface);
+            box-shadow: none;
+            font-size: 1.4em;
             font-weight: bold;
-            justify-self: end;
-            margin-right: 0.5em;
+            line-height: 1;
+
+            &:hover,
+            &:focus-visible {
+                color: var(--pico-primary-hover);
+                border-color: var(--pico-primary);
+                background: var(--pico-primary-focus);
+                box-shadow: none;
+            }
         }
     }
 

@@ -1,58 +1,100 @@
 <template>
-    <article class="login">
-        <form class="login-form">
-            <div class="grid">
-                <input
-                    v-if="!isTotp"
-                    type="text"
-                    id="username"
-                    name="username"
-                    placeholder="Username"
-                    v-model="username"
-                    required
-                />
+    <div class="login-page">
+        <article class="login-card">
+            <header class="login-card__header">
+                <img class="login-card__mark" src="/icon.png" alt="Arkaine logo">
+                <p class="eyebrow">Private media library</p>
+                <h1>{{ isTotp ? 'Verify your sign-in' : 'Welcome back' }}</h1>
+                <p>
+                    {{ isTotp
+                        ? 'Enter the code from your authenticator app to continue.'
+                        : 'Sign in to continue to your library.' }}
+                </p>
+            </header>
 
-                <input
-                    v-if="!isTotp"
-                    type="password"
-                    id="password"
-                    name="password"
-                    placeholder="Password"
-                    v-model="password"
-                    required
-                />
+            <div v-if="error" class="message error" role="alert">{{ error }}</div>
 
-                <input
-                    v-if="isTotp"
-                    type="text"
-                    id="totp"
-                    name="totp"
-                    placeholder="TOTP"
-                    v-model="totp"
-                    required
-                />
+            <form class="login-form" @submit.prevent="action">
+                <label v-if="!isTotp" for="username">
+                    Username
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        placeholder="Enter your username"
+                        autocomplete="username"
+                        v-model="username"
+                        required
+                    />
+                </label>
 
+                <label v-if="!isTotp" for="password">
+                    Password
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        v-model="password"
+                        required
+                    />
+                </label>
+
+                <label v-if="isTotp" for="totp">
+                    Authenticator code
+                    <input
+                        type="text"
+                        id="totp"
+                        name="totp"
+                        placeholder="6-digit code"
+                        autocomplete="one-time-code"
+                        inputmode="numeric"
+                        maxlength="6"
+                        v-model="totp"
+                        required
+                    />
+                </label>
+
+                <label class="remember" for="switch">
+                    <input type="checkbox" id="switch" v-model="remember">
+                    <span>Remember this device</span>
+                </label>
+
+                <button class="login-submit" type="submit" :disabled="loggingIn">
+                    {{ loggingIn ? 'Signing in...' : (isTotp ? 'Verify code' : 'Sign in') }}
+                </button>
+            </form>
+
+            <div v-if="!isTotp && passkeysSupported" class="alternative">
+                <span class="alternative__line"></span>
+                <span class="alternative__label">or</span>
+                <span class="alternative__line"></span>
             </div>
 
-            <button type="submit" @click="action" v-bind:disabled="loggingIn">
-                Submit
-            </button>
             <button
                 v-if="!isTotp && passkeysSupported"
                 type="button"
+                class="passkey-button secondary outline"
                 @click="passkeyLogin"
-                v-bind:disabled="loggingIn"
+                :disabled="loggingIn"
             >
                 Sign in with passkey
             </button>
-            <label for="switch">
-                <input type="checkbox" id="switch" v-model="remember">
-                Remember Me
-            </label>
-            <div class="version">{{ version }}</div>
-            <div>{{ error }}</div>
-        </form>
-    </article>
+
+            <button
+                v-if="isTotp"
+                type="button"
+                class="back-button"
+                @click="returnToPasswordLogin"
+                :disabled="loggingIn"
+            >
+                Use a different sign-in method
+            </button>
+
+            <footer class="login-card__footer">Version {{ version }}</footer>
+        </article>
+    </div>
 </template>
 
 <script lang="ts">
@@ -172,6 +214,12 @@
                 }
             }
 
+            const returnToPasswordLogin = () => {
+                isTotp.value = false
+                totp.value = undefined
+                error.value = undefined
+            }
+
             return {
                 action,
                 username,
@@ -184,24 +232,158 @@
                 version,
                 passkeyLogin,
                 passkeysSupported,
+                returnToPasswordLogin,
             }
         },
     })
 </script>
 
 <style lang="scss" scoped>
-    .login {
-        max-width: 35em;
+    .login-page {
+        display: grid;
+        min-height: min(42rem, calc(100vh - 8rem));
+        place-items: center;
+    }
+
+    .login-card {
+        width: min(100%, 28rem);
         margin: 0 auto;
-        margin-top: 20vh;
+        padding: clamp(1.5rem, 5vw, 2.5rem);
+        border: 1px solid var(--app-border);
+        border-radius: 1rem;
+        background: var(--app-surface);
+        box-shadow: var(--pico-card-box-shadow);
+    }
+
+    .login-card__header {
+        margin-bottom: 1.75rem;
+        text-align: center;
+    }
+
+    .login-card__mark {
+        display: block;
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto;
+        border-radius: 0.9rem;
+        object-fit: cover;
+        box-shadow: 0 0.5rem 1.25rem var(--pico-primary-focus);
+    }
+
+    .eyebrow {
+        margin: 1.25rem 0 0.4rem;
+        color: var(--pico-primary-hover);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0;
+        color: var(--pico-h1-color);
+        font-size: clamp(1.75rem, 5vw, 2.25rem);
+    }
+
+    .login-card__header p:last-child {
+        max-width: 22rem;
+        margin: 0.65rem auto 0;
+        color: var(--app-muted);
     }
 
     .login-form {
-        margin-bottom: 0em;
+        margin: 0;
     }
 
-    .version {
-        font-size: 0.8em;
-        text-align: right;
+    .login-form > label:not(.remember) {
+        display: block;
+        margin-bottom: 0.9rem;
+        color: var(--pico-color);
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .login-form > label:not(.remember) input {
+        margin-top: 0.4rem;
+        margin-bottom: 0;
+    }
+
+    .remember {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0.25rem 0 1.25rem;
+        color: var(--app-muted);
+        font-size: 0.9rem;
+    }
+
+    .remember input {
+        margin: 0;
+    }
+
+    .login-submit,
+    .passkey-button {
+        width: 100%;
+        margin: 0;
+    }
+
+    .login-submit {
+        font-weight: 700;
+    }
+
+    .message {
+        margin: 0 0 1.25rem;
+        padding: 0.75rem;
+        border-radius: var(--pico-border-radius);
+        font-size: 0.9rem;
+    }
+
+    .alternative {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 1.4rem 0 1rem;
+        color: var(--app-muted);
+        font-size: 0.8rem;
+    }
+
+    .alternative__line {
+        height: 1px;
+        flex: 1;
+        background: var(--app-border);
+    }
+
+    .alternative__label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .passkey-button {
+        color: var(--pico-primary-hover);
+    }
+
+    .back-button {
+        display: block;
+        width: 100%;
+        margin: 1rem 0 0;
+        padding: 0.25rem;
+        color: var(--app-muted);
+        background: transparent;
+        box-shadow: none;
+        font-size: 0.9rem;
+    }
+
+    .back-button:hover,
+    .back-button:focus-visible {
+        color: var(--pico-primary-hover);
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .login-card__footer {
+        margin-top: 1.75rem;
+        color: var(--app-muted);
+        font-size: 0.75rem;
+        text-align: center;
     }
 </style>

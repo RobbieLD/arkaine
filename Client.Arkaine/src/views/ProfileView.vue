@@ -387,9 +387,9 @@
     }
 
     .success {
-        color: darkgreen;
-        border: green solid 2px;
-        background: #edfff0;
+        color: var(--app-success);
+        border: 1px solid color-mix(in srgb, var(--app-success) 45%, transparent);
+        background: var(--app-success-background);
     }
 
     .passkeys {

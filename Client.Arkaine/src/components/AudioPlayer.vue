@@ -1,18 +1,39 @@
 <template>
     <div class="player">
         <audio ref="audio" preload="none"></audio>
-        <input type="range" @input="seek" v-bind:value="playerTime" :disabled="!enableSeek" class="player__seek" min="0" :max="audio?.duration" />
+        <div class="player__meta">
+            <span class="player__label">Audio</span>
+            <span aria-live="polite">{{ current }} / {{ total }}</span>
+        </div>
+        <input
+            type="range"
+            @input="seek"
+            :value="playerTime"
+            :disabled="!enableSeek"
+            class="player__seek"
+            aria-label="Seek through audio"
+            min="0"
+            :max="audio?.duration || 0"
+        />
         <div class="player__controls">
-            <div class="player__current-time">{{ current }}</div>
             <div class="player__button-container">
-                <img src="/replay-10.png" class="player__button" @click="jump(-10)" />
-                <div @click="toggle">
-                    <img src="/play.svg" v-show="!playing" class="player__button" />
-                    <img src="/pause.svg" v-show="playing" class="player__button" />
-                </div>
-                <img src="/forward-10.png" class="player__button" @click="jump(10)" />
+                <button type="button" class="player__skip" @click="jump(-10)" aria-label="Rewind 10 seconds">-10</button>
+                <button
+                    type="button"
+                    class="player__button player__button--primary"
+                    @click="toggle"
+                    :aria-label="playing ? 'Pause' : 'Play'"
+                >
+                    <svg v-if="!playing" viewBox="0 0 24 24" aria-hidden="true">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                </button>
+                <button type="button" class="player__skip" @click="jump(10)" aria-label="Forward 10 seconds">+10</button>
             </div>
-            <div class="player__total-time">{{ total }}</div>
         </div>
         <TagCloud :file="file" @click="setTime"></TagCloud>
     </div>
@@ -119,43 +140,124 @@
     .player {
         display: flex;
         flex-direction: column;
+        width: 100%;
+        min-height: 100%;
+        padding: 1rem;
+        border: 1px solid var(--app-border);
+        border-radius: 0.75rem;
+        background: var(--app-surface-raised);
+
+        &__meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.6rem;
+            color: var(--app-muted);
+            font-size: 0.8rem;
+        }
+
+        &__label {
+            color: var(--pico-color);
+            font-weight: 700;
+        }
 
         &__controls {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
+            display: flex;
+            justify-content: center;
+            margin-top: 0.5rem;
         }
 
         &__seek {
             width: 100%;
+            margin: 0;
+            accent-color: var(--pico-primary);
+
             &::-webkit-slider-runnable-track {
-                background: linear-gradient(to right, var(--primary-hover) v-bind(seekPosition), var(--primary) v-bind(seekPosition), var(--primary) v-bind(bufferPosition), var(--primary-focus) v-bind(bufferPosition));
+                height: 0.4rem;
+                border-radius: 1rem;
+                background: linear-gradient(to right, var(--pico-primary) v-bind(seekPosition), var(--pico-secondary-background) v-bind(seekPosition), var(--pico-secondary-background) v-bind(bufferPosition), var(--pico-range-border-color) v-bind(bufferPosition));
             }
 
-            &::-moz-range-track{
-                background: linear-gradient(to right, var(--primary-hover) v-bind(seekPosition), var(--primary) v-bind(seekPosition), var(--primary) v-bind(bufferPosition), var(--primary-focus) v-bind(bufferPosition));
+            &::-moz-range-track {
+                height: 0.4rem;
+                border-radius: 1rem;
+                background: linear-gradient(to right, var(--pico-primary) v-bind(seekPosition), var(--pico-secondary-background) v-bind(seekPosition), var(--pico-secondary-background) v-bind(bufferPosition), var(--pico-range-border-color) v-bind(bufferPosition));
             }
         }
 
         &__button {
-            width: 2.5em;
-            margin-left: 0.5em;
-            margin-right: 0.5em;
+            display: grid;
+            width: 2.75rem;
+            height: 2.75rem;
+            margin: 0 0.3rem;
+            padding: 0.65rem;
+            place-items: center;
+            color: var(--pico-color);
+            border: 1px solid var(--app-border);
+            border-radius: 50%;
+            background: var(--app-surface);
+            box-shadow: none;
+
+            svg {
+                width: 100%;
+                height: 100%;
+                fill: none;
+                stroke: currentColor;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                stroke-width: 2;
+            }
+
+            polygon {
+                fill: currentColor;
+                stroke: none;
+            }
+
+            &:hover,
+            &:focus-visible {
+                color: var(--pico-primary-hover);
+                border-color: var(--pico-primary);
+                background: var(--pico-primary-focus);
+                box-shadow: none;
+            }
+
+            &--primary {
+                color: var(--pico-primary-inverse);
+                border-color: var(--pico-primary-background);
+                background: var(--pico-primary-background);
+
+                &:hover,
+                &:focus-visible {
+                    color: var(--pico-primary-inverse);
+                    border-color: var(--pico-primary-hover-background);
+                    background: var(--pico-primary-hover-background);
+                }
+            }
         }
 
         &__button-container {
-
-            grid-column: 2;
-            justify-self: center;
             display: grid;
             grid-auto-flow: column;
+            align-items: center;
         }
 
-        &__current-time {
-            grid-column: 1;
-        }
+        &__skip {
+            min-width: 2.75rem;
+            margin: 0;
+            padding: 0.35rem;
+            color: var(--app-muted);
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            font-size: 0.85rem;
+            font-weight: 700;
 
-        &__total-time {
-            grid-column: 3;
+            &:hover,
+            &:focus-visible {
+                color: var(--pico-primary-hover);
+                background: transparent;
+                box-shadow: none;
+            }
         }
     }
 </style>
