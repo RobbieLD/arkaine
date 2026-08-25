@@ -46,7 +46,7 @@ services:
       BUCKET_ID: "fe54d5c7189cbf978350051d"
       DB_CONNECTION_STRING: "Server=localhost;Port=5432;Database=arkaine;User Id=admin;Password=password;"
       MAX_COOKIE_LIFETIME: "2"
-      SITE_KEYS: "soundgasm.net:SgExtractor,whyp.it:WhExtractor,incestflix.com:IfExtractor"
+      SITE_KEYS: ""
       ASPNETCORE_URLS: "http://+:80"
       PAGE_SIZE: "100"
 
