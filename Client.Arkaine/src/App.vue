@@ -26,8 +26,14 @@
                 try {
                     const loggedIn = await store.dispatch('checkLogin')
 
-                    if (loggedIn) {
-                        await router.push('/')
+                    if (loggedIn && router.currentRoute.value.name === 'Login') {
+                        const redirect = router.currentRoute.value.query.redirect
+                        const destination = typeof redirect === 'string' &&
+                            redirect.startsWith('/') &&
+                            !redirect.startsWith('//')
+                            ? redirect
+                            : '/'
+                        await router.push(destination)
                     }
                 }
                 catch

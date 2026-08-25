@@ -5,6 +5,15 @@ import ArkaineFile from '@/models/arkaine-file'
 import Login from '@/models/login'
 import Settings from '@/models/settings'
 import Tag from '@/models/tag'
+import Profile, {
+    Passkey,
+    PasskeyAssertionPayload,
+    PasskeyCreationOptions,
+    PasskeyCredentialPayload,
+    PasskeyRequestOptions,
+    TwoFactorEnableResponse,
+    TwoFactorSetup
+} from '@/models/profile'
 import { serverUrl } from '@/config'
 
 export default class ArkaineService extends BaseService {
@@ -25,6 +34,23 @@ export default class ArkaineService extends BaseService {
         return results.data
     }
 
+    public async GetPasskeyRequestOptions(username?: string): Promise<PasskeyRequestOptions> {
+        const result = await this.http.post<PasskeyRequestOptions>('/passkeys/options', {
+            username
+        })
+        return result.data
+    }
+
+    public async PasskeyLogin(
+        credential: PasskeyAssertionPayload,
+        remember: boolean
+    ): Promise<void> {
+        await this.http.post('/passkeys/login', {
+            credential,
+            remember
+        })
+    }
+
     public async Logout(): Promise<void> {
         await this.http.get<void>('/logout')
     }
@@ -34,6 +60,45 @@ export default class ArkaineService extends BaseService {
             code,
             remember
         })
+    }
+
+    public async GetProfile(): Promise<Profile> {
+        const result = await this.http.get<Profile>('/profile')
+        return result.data
+    }
+
+    public async GetTwoFactorSetup(): Promise<TwoFactorSetup> {
+        const result = await this.http.get<TwoFactorSetup>('/profile/2fa/setup')
+        return result.data
+    }
+
+    public async EnableTwoFactor(code: string): Promise<TwoFactorEnableResponse> {
+        const result = await this.http.post<TwoFactorEnableResponse>('/profile/2fa/enable', { code })
+        return result.data
+    }
+
+    public async DisableTwoFactor(code: string): Promise<void> {
+        await this.http.post('/profile/2fa/disable', { code })
+    }
+
+    public async GetPasskeyCreationOptions(): Promise<PasskeyCreationOptions> {
+        const result = await this.http.post<PasskeyCreationOptions>('/profile/passkeys/options')
+        return result.data
+    }
+
+    public async RegisterPasskey(
+        credential: PasskeyCredentialPayload,
+        name?: string
+    ): Promise<Passkey> {
+        const result = await this.http.post<Passkey>('/profile/passkeys', {
+            credential,
+            name
+        })
+        return result.data
+    }
+
+    public async RemovePasskey(id: string): Promise<void> {
+        await this.http.delete(`/profile/passkeys/${encodeURIComponent(id)}`)
     }
 
     public async DeleteTag(id: number) : Promise<Tag[]> {

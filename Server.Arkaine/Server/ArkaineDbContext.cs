@@ -6,7 +6,16 @@ using Server.Arkaine.Tags;
 
 namespace Server.Arkaine
 {
-    public partial class ArkaineDbContext : IdentityDbContext<IdentityUser>
+    public partial class ArkaineDbContext : IdentityDbContext<
+        IdentityUser,
+        IdentityRole,
+        string,
+        IdentityUserClaim<string>,
+        IdentityUserRole<string>,
+        IdentityUserLogin<string>,
+        IdentityRoleClaim<string>,
+        IdentityUserToken<string>,
+        IdentityUserPasskey<string>>
     {
         public ArkaineDbContext(DbContextOptions<ArkaineDbContext> options)
             : base(options)

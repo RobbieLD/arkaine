@@ -37,6 +37,14 @@
             <button type="submit" @click="action" v-bind:disabled="loggingIn">
                 Submit
             </button>
+            <button
+                v-if="!isTotp && passkeysSupported"
+                type="button"
+                @click="passkeyLogin"
+                v-bind:disabled="loggingIn"
+            >
+                Sign in with passkey
+            </button>
             <label for="switch">
                 <input type="checkbox" id="switch" v-model="remember">
                 Remember Me
@@ -52,8 +60,9 @@
     import { defineComponent, ref } from 'vue'
     import { useStore } from 'vuex'
     import DOMPurify from 'dompurify'
-    import { useRouter } from 'vue-router'
+    import { useRoute, useRouter } from 'vue-router'
     import { version } from '@/config'
+    import { getPasskey, serializePasskeyAssertion } from '@/services/passkey'
 
     export default defineComponent({
         name: 'LoginView',
@@ -66,8 +75,22 @@
             const error = ref<string>()
             const isTotp = ref(false)
             const loggingIn = ref(false)
+            const passkeysSupported = typeof window !== 'undefined' &&
+                typeof window.PublicKeyCredential !== 'undefined' &&
+                typeof navigator.credentials !== 'undefined'
             const store = useStore(storeKey)
             const router = useRouter()
+            const route = useRoute()
+
+            const goAfterLogin = async () => {
+                const redirect = route.query.redirect
+                const destination = typeof redirect === 'string' &&
+                    redirect.startsWith('/') &&
+                    !redirect.startsWith('//')
+                    ? redirect
+                    : '/'
+                await router.push(destination)
+            }
 
             const action = async (e: Event) => {
                 e.preventDefault()
@@ -96,7 +119,7 @@
                     }
                     else {
                         await store.dispatch('checkLogin')
-                        await router.push('/')
+                        await goAfterLogin()
                     }
 
                 } catch (e) {
@@ -115,9 +138,35 @@
                     })
 
                     await store.dispatch('checkLogin')
-                    await router.push('/')
+                    await goAfterLogin()
 
                 } catch (e) {
+                    error.value = (e as Error).message
+                    loggingIn.value = false
+                }
+            }
+
+            const passkeyLogin = async () => {
+                if (!passkeysSupported) {
+                    return
+                }
+
+                loggingIn.value = true
+                error.value = undefined
+
+                try {
+                    const options = await store.dispatch(
+                        'passkeyRequestOptions',
+                        username.value.trim() || undefined)
+                    const credential = await getPasskey(options)
+                    await store.dispatch('passkeyLogin', {
+                        credential: serializePasskeyAssertion(credential),
+                        remember: remember.value
+                    })
+                    await store.dispatch('checkLogin')
+                    await goAfterLogin()
+                }
+                catch (e) {
                     error.value = (e as Error).message
                     loggingIn.value = false
                 }
@@ -133,6 +182,8 @@
                 error,
                 remember,
                 version,
+                passkeyLogin,
+                passkeysSupported,
             }
         },
     })

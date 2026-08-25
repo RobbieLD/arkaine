@@ -8,6 +8,7 @@ import Settings from '@/models/settings'
 import Progress from '@/models/progress'
 import { HubConnectionBuilder } from '@microsoft/signalr'
 import Tag from '@/models/tag'
+import { PasskeyAssertionPayload, PasskeyRequestOptions } from '@/models/profile'
 import { serverUrl } from '@/config'
 
 export const storeKey: InjectionKey<Store<State>> = Symbol('store')
@@ -150,6 +151,16 @@ export const store = createStore<State>({
     login: async (_, payload: { username: string, password: string, remember: boolean }): Promise<boolean> => {
         const service = new ArkaineService()
         return await service.Login(payload.username, payload.password, payload.remember)
+    },
+
+    passkeyRequestOptions: async (_, username?: string): Promise<PasskeyRequestOptions> => {
+        const service = new ArkaineService()
+        return await service.GetPasskeyRequestOptions(username)
+    },
+
+    passkeyLogin: async (_, payload: { credential: PasskeyAssertionPayload, remember: boolean }): Promise<void> => {
+        const service = new ArkaineService()
+        await service.PasskeyLogin(payload.credential, payload.remember)
     },
 
     twoFactorAuth: async (_, payload: { code: string, remember: boolean}): Promise<void> => {

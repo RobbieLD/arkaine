@@ -18,6 +18,21 @@ namespace Server.Arkaine.User
             return await _signInManager.PasswordSignInAsync(username, password, remember, true);           
         }
 
+        public async Task<SignInResult> PasskeyLoginAsync(string credentialJson, bool remember)
+        {
+            var result = await _signInManager.PasskeySignInAsync(credentialJson);
+            if (!result.Succeeded || !remember)
+            {
+                return result;
+            }
+
+            var user = await _signInManager.UserManager.GetUserAsync(_signInManager.Context.User)
+                ?? throw new InvalidOperationException("Passkey sign-in did not produce an authenticated user.");
+
+            await _signInManager.SignInAsync(user, isPersistent: true, authenticationMethod: "passkey");
+            return result;
+        }
+
         public async Task<IdentityUser?> TwoFactorAuthenticateAsync(string code, bool remember)
         {
             var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();

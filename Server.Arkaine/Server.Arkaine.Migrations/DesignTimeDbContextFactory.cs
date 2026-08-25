@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server.Arkaine.Migrations
 {
@@ -28,6 +30,12 @@ namespace Server.Arkaine.Migrations
             }
 
             var dbContextOptionsBuilder = new DbContextOptionsBuilder<ArkaineDbContext>();
+            var identityServiceCollection = new ServiceCollection();
+            identityServiceCollection
+                .AddOptions<IdentityOptions>()
+                .Configure(options => options.Stores.SchemaVersion = IdentitySchemaVersions.Version3);
+            var identityServices = identityServiceCollection.BuildServiceProvider();
+            dbContextOptionsBuilder.UseApplicationServiceProvider(identityServices);
 
             ArkaineDbContext.AddBaseOptions(dbContextOptionsBuilder, connectionString);
 

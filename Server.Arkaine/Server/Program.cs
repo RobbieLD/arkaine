@@ -28,6 +28,10 @@ var trustedProxyAddresses = ParseIpAddresses(config["TRUSTED_PROXY_IPS"], "TRUST
 var allowedIpAddresses = dev
     ? Array.Empty<IPAddress>()
     : ParseIpAddresses(config["ACCEPT_IP_RANGE"], "ACCEPT_IP_RANGE");
+var configuredPasskeyOrigins = ParseOrigins(
+    string.IsNullOrWhiteSpace(config["CORS_ORIGIN"]) && dev
+        ? "http://localhost:8081"
+        : config["CORS_ORIGIN"]);
 Action<CookieAuthenticationOptions> configureAuthenticationCookie = options =>
 {
     options.Cookie.SameSite = dev
@@ -118,6 +122,29 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ArkaineDbContext>();
+builder.Services.Configure<IdentityOptions>(options =>
+{
+    options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
+});
+builder.Services.Configure<IdentityPasskeyOptions>(options =>
+{
+    options.ValidateOrigin = context =>
+    {
+        var credentialOrigin = NormalizeOrigin(context.Origin);
+        var requestOrigin = NormalizeOrigin(context.HttpContext.Request.Headers.Origin.ToString());
+        var serverOrigin = NormalizeOrigin(
+            $"{context.HttpContext.Request.Scheme}://{context.HttpContext.Request.Host}");
+
+        var validOrigin = !context.CrossOrigin &&
+            credentialOrigin is not null &&
+            string.Equals(credentialOrigin, requestOrigin, StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(credentialOrigin, serverOrigin, StringComparison.OrdinalIgnoreCase) ||
+             configuredPasskeyOrigins.Any(origin =>
+                 string.Equals(origin, credentialOrigin, StringComparison.OrdinalIgnoreCase)));
+
+        return ValueTask.FromResult(validOrigin);
+    };
+});
 builder.Services.ConfigureApplicationCookie(configureAuthenticationCookie);
 builder.Services.Configure<CookieAuthenticationOptions>(
     IdentityConstants.TwoFactorUserIdScheme,
@@ -194,6 +221,7 @@ app.MapGet("/error", () => "There was a server error");
 app.MapGet("/forbidden", () => "You do not have access to this page");
 
 app.RegisterUserApis();
+app.RegisterProfileApis();
 app.RegisterB2Apis();
 app.RegisterIngestApis();
 app.RegisterAdminApis();
@@ -238,4 +266,39 @@ static IReadOnlyList<IPAddress> ParseIpAddresses(string? value, string settingNa
     }
 
     return addresses;
+}
+
+static IReadOnlyList<string> ParseOrigins(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return Array.Empty<string>();
+    }
+
+    var origins = new List<string>();
+    foreach (var item in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var origin = NormalizeOrigin(item)
+            ?? throw new InvalidOperationException("CORS_ORIGIN contains an invalid origin.");
+        origins.Add(origin);
+    }
+
+    return origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+}
+
+static string? NormalizeOrigin(string? value)
+{
+    if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+        (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+        string.IsNullOrEmpty(uri.Host) ||
+        !string.IsNullOrEmpty(uri.UserInfo) ||
+        (uri.AbsolutePath is not "" and not "/") ||
+        !string.IsNullOrEmpty(uri.Query) ||
+        !string.IsNullOrEmpty(uri.Fragment))
+    {
+        return null;
+    }
+
+    var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
+    return $"{uri.Scheme.ToLowerInvariant()}://{uri.Host.ToLowerInvariant()}{port}";
 }

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using Server.Arkaine;
 using Server.Arkaine.Migrations;
 
@@ -9,6 +11,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 var optionsBuilder = new DbContextOptionsBuilder<ArkaineDbContext>();
+var identityServiceCollection = new ServiceCollection();
+identityServiceCollection
+    .AddOptions<IdentityOptions>()
+    .Configure(options => options.Stores.SchemaVersion = IdentitySchemaVersions.Version3);
+var identityServices = identityServiceCollection.BuildServiceProvider();
+optionsBuilder.UseApplicationServiceProvider(identityServices);
 ArkaineDbContext.AddBaseOptions(optionsBuilder, connectionString);
 optionsBuilder.UseNpgsql(options => options.MigrationsAssembly(typeof(DesignTimeDbContextFactory).Assembly.GetName().Name));
 

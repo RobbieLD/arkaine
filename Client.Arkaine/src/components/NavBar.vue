@@ -9,6 +9,7 @@
         </ul>
         <ul>
             <li><router-link to="/">Home</router-link></li>
+            <li><router-link to="/profile">Profile</router-link></li>
             <li><router-link v-if="admin" to="/settings">Settings</router-link></li>
             <li><a @click="logout" title="Logout" href="#">Logout</a></li>
         </ul>

@@ -8,6 +8,7 @@ using Server.Arkaine.B2;
 using Server.Arkaine.Notification;
 using System.Data;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading;
 
 namespace Server.Arkaine.User
@@ -49,9 +50,10 @@ namespace Server.Arkaine.User
                 var roles = await userManager.GetRolesAsync(user);
 
                 // Add more claims here
+                var userId = await userManager.GetUserIdAsync(user);
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.NameIdentifier, username),
+                    new Claim(ClaimTypes.NameIdentifier, userId),
                     new Claim(ClaimTypes.Name, username)
                 };
 
@@ -80,6 +82,68 @@ namespace Server.Arkaine.User
                 var response = new LoginResponse(username, roles.Contains("Admin"));
 
                 return Results.Ok(response);
+            });
+
+            app.MapPost("/passkeys/options",
+                [AllowAnonymous]
+            async (
+                    PasskeyRequestOptionsRequest request,
+                    UserManager<IdentityUser> userManager,
+                    SignInManager<IdentityUser> signInManager) =>
+            {
+                IdentityUser? user = null;
+                if (!string.IsNullOrWhiteSpace(request.Username))
+                {
+                    user = await userManager.FindByNameAsync(request.Username.Trim());
+                    if (user is null)
+                    {
+                        return Results.Unauthorized();
+                    }
+                }
+
+                var optionsJson = await signInManager.MakePasskeyRequestOptionsAsync(user);
+                return Results.Content(optionsJson, "application/json");
+            });
+
+            app.MapPost("/passkeys/login",
+                [AllowAnonymous]
+            async (
+                    PasskeyLoginRequest request,
+                    IUserService userService,
+                    INotifier notifier,
+                    ILoggerFactory loggerFactory) =>
+            {
+                if (request.Credential.ValueKind != JsonValueKind.Object)
+                {
+                    return Results.BadRequest(new { message = "A passkey credential is required." });
+                }
+
+                var credentialJson = request.Credential.GetRawText();
+                if (credentialJson.Length > PasskeyLimits.MaxCredentialJsonLength)
+                {
+                    return Results.BadRequest(new { message = "The passkey credential is too large." });
+                }
+
+                SignInResult signInResult;
+                try
+                {
+                    signInResult = await userService.PasskeyLoginAsync(credentialJson, request.Remember);
+                }
+                catch (InvalidOperationException exception)
+                {
+                    loggerFactory
+                        .CreateLogger("Server.Arkaine.User.UserApis")
+                        .LogWarning(exception, "Rejected passkey login with invalid ceremony state.");
+                    return Results.BadRequest(new { message = "Passkey login failed." });
+                }
+
+                if (!signInResult.Succeeded)
+                {
+                    await notifier.Send("A user failed to login with a passkey");
+                    return Results.Unauthorized();
+                }
+
+                return Results.Ok(false);
             });
 
             app.MapPost("/login",
