@@ -24,10 +24,9 @@ IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.local.json", true)
     .AddEnvironmentVariables()
     .Build();
-var trustedProxyAddresses = ParseIpAddresses(config["TRUSTED_PROXY_IPS"], "TRUSTED_PROXY_IPS");
-var allowedIpAddresses = dev
-    ? Array.Empty<IPAddress>()
-    : ParseIpAddresses(config["ACCEPT_IP_RANGE"], "ACCEPT_IP_RANGE");
+
+var proxyIpAddresses = Dns.GetHostAddresses(config["TRUSTED_PROXY"] ?? throw new("Trusted Proxy Must Be Set"));
+
 var configuredPasskeyOrigins = ParseOrigins(
     string.IsNullOrWhiteSpace(config["CORS_ORIGIN"]) && dev
         ? "http://localhost:8081"
@@ -113,8 +112,8 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
     options.ForwardLimit = 1;
 
-    foreach (var address in trustedProxyAddresses)
-    {
+    foreach (var address in proxyIpAddresses)
+    { 
         options.KnownProxies.Add(address);
     }
 });
@@ -175,7 +174,7 @@ if (dev)
 #endif
 
 var app = builder.Build();
-if (trustedProxyAddresses.Count > 0)
+if (proxyIpAddresses?.Length > 0)
 {
     app.UseForwardedHeaders();
 }

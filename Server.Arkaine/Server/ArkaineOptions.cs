@@ -8,7 +8,7 @@
         public string B2AuthUrl { get; set; } = string.Empty;
         public string CORS_ORIGIN { get; set; } = string.Empty;
         public string ACCEPT_IP_RANGE { get; set; } = string.Empty;
-        public string TRUSTED_PROXY_IPS { get; set; } = string.Empty;
+        public string TRUSTED_PROXY { get; set; } = string.Empty;
         public string MAX_COOKIE_LIFETIME { get; set; } = string.Empty;
         public string BUCKET_ID { get; set; } = string.Empty;
         public string BUCKET_NAME { get; set; } = string.Empty;
