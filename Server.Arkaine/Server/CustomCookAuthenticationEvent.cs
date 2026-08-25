@@ -6,14 +6,11 @@ namespace Server.Arkaine
     public class CustomCookieAuthenticationEvent : CookieAuthenticationEvents
     {
         private const string TicketIssuedTicks = nameof(TicketIssuedTicks);
-        private const string LifeTimeKey = nameof(LifeTimeKey);
         private readonly int _days;
-        private readonly Guid _lifetimeKey;
 
-        public CustomCookieAuthenticationEvent(string days, Guid lifetimeKey)
+        public CustomCookieAuthenticationEvent(string days)
         {
             _days = int.Parse(days);
-            _lifetimeKey = lifetimeKey;
         }
 
         public override async Task SigningIn(CookieSigningInContext context)
@@ -22,10 +19,6 @@ namespace Server.Arkaine
             context.Properties.SetString(
                 TicketIssuedTicks,
                 DateTimeOffset.UtcNow.Ticks.ToString());
-
-            // Add the lifetime key
-            context.Properties.SetString(
-                LifeTimeKey, _lifetimeKey.ToString());
 
             await base.SigningIn(context);
         }
@@ -51,14 +44,6 @@ namespace Server.Arkaine
             {
                 await RejectPrincipalAsync(context);
                 return;
-            }
-
-            // Validate lifetime key
-            var key = context.Properties.GetString(LifeTimeKey);
-
-            if (key != _lifetimeKey.ToString())
-            {
-                await RejectPrincipalAsync(context);
             }
 
             await base.ValidatePrincipal(context);

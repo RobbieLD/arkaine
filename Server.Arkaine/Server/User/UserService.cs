@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 
 namespace Server.Arkaine.User
 {
@@ -9,6 +10,7 @@ namespace Server.Arkaine.User
         public UserService(SignInManager<IdentityUser> signInManager)
         {
             _signInManager = signInManager;
+            _signInManager.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         }
 
         public async Task<SignInResult> LoginUserAsync(string username, string password, bool remember)

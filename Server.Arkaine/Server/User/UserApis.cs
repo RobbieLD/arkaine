@@ -86,8 +86,6 @@ namespace Server.Arkaine.User
                 [AllowAnonymous]
             async (
                     LoginRequest request,
-                    HttpContext context,
-                    CancellationToken cancellationToken,
                     IUserService userService,
                     INotifier notifier) =>
             {
@@ -100,13 +98,10 @@ namespace Server.Arkaine.User
                 var signInResult = await userService.LoginUserAsync(request.Username, request.Password, request.Remember);
                 if (signInResult.Succeeded)
                 {
-                    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-                    context.Response.Cookies.Delete(".AspNetCore.Identity.Application");
-                    context.Response.Cookies.Delete("Identity.TwoFactorRememberMe");
-
                     return Results.Ok(false);
                 }
-                else if (signInResult.RequiresTwoFactor)
+
+                if (signInResult.RequiresTwoFactor)
                 {
                     return Results.Ok(true);
                 }

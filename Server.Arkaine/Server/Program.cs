@@ -17,7 +17,7 @@ using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 var cors = "arkaineCors";
-var dev = builder.Configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+var dev = builder.Environment.IsDevelopment();
 
 IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.json")
@@ -28,6 +28,13 @@ var trustedProxyAddresses = ParseIpAddresses(config["TRUSTED_PROXY_IPS"], "TRUST
 var allowedIpAddresses = dev
     ? Array.Empty<IPAddress>()
     : ParseIpAddresses(config["ACCEPT_IP_RANGE"], "ACCEPT_IP_RANGE");
+Action<CookieAuthenticationOptions> configureAuthenticationCookie = options =>
+{
+    options.Cookie.SameSite = dev
+        ? Microsoft.AspNetCore.Http.SameSiteMode.None
+        : Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+};
 
 builder.Services.AddAuthentication(options =>
 {
@@ -40,16 +47,15 @@ builder.Services.AddAuthentication(options =>
     options.LoginPath = new PathString("/login");
     options.EventsType = typeof(CustomCookieAuthenticationEvent);
     options.ExpireTimeSpan = TimeSpan.FromDays(int.Parse(config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set")));
+    configureAuthenticationCookie(options);
 });
 
-var lifetimeKey = Guid.NewGuid();
 builder.Services.Configure<ArkaineOptions>(config);
 builder.Services.AddSingleton<IBackgroundTaskQueue, UploadQueue>();
 builder.Services.AddScoped<GlobalExceptionHandler>();
 builder.Services.AddScoped(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(
     s,
-    config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set"),
-    lifetimeKey));
+    config["MAX_COOKIE_LIFETIME"] ?? throw new("Cookie Lifetime Must Be Set")));
 builder.Services.AddHttpClient();
 builder.Services.Configure<HttpClientFactoryOptions>(Options.DefaultName, options =>
 {
@@ -112,16 +118,27 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddDefaultIdentity<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ArkaineDbContext>();
+builder.Services.ConfigureApplicationCookie(configureAuthenticationCookie);
+builder.Services.Configure<CookieAuthenticationOptions>(
+    IdentityConstants.TwoFactorUserIdScheme,
+    configureAuthenticationCookie);
+builder.Services.Configure<CookieAuthenticationOptions>(
+    IdentityConstants.TwoFactorRememberMeScheme,
+    configureAuthenticationCookie);
 
 // We only need CORS for development
 #if DEBUG
 if (dev)
 {
+    var corsOrigins = string.IsNullOrWhiteSpace(config["CORS_ORIGIN"])
+        ? new[] { "http://localhost:8081" }
+        : config["CORS_ORIGIN"]!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     builder.Services.AddCors(options =>
     {
         options.AddPolicy(name: cors, policy =>
         {
-            policy.WithOrigins("http://localhost:8081")
+            policy.WithOrigins(corsOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();

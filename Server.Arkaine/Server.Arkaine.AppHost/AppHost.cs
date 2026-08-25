@@ -24,8 +24,16 @@ builder.AddContainer("adminer", "michalhosna/adminer")
     .WithEndpointProxySupport(false)
     .WaitFor(database);
 
-builder.AddProject<Projects.Server_Arkaine>("arkaine")
+var arkaine = builder.AddProject<Projects.Server_Arkaine>("arkaine")
     .WithEnvironment("DB_CONNECTION_STRING", database)
     .WaitForCompletion(migrations);
+
+var client = builder.AddViteApp("client", "../../Client.Arkaine")
+    .WithYarn(installArgs: new[] { "--frozen-lockfile" })
+    .WithEnvironment("VITE_ARKAINE_SERVER", arkaine.GetEndpoint("https"))
+    .WithExternalHttpEndpoints()
+    .WaitFor(arkaine);
+
+arkaine.WithEnvironment("CORS_ORIGIN", client.GetEndpoint("http"));
 
 builder.Build().Run();

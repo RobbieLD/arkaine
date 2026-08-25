@@ -95,7 +95,8 @@
                         isTotp.value = true
                     }
                     else {
-                        error.value = 'Old Cookie Need To Be Cleared, Please Try Again'
+                        await store.dispatch('checkLogin')
+                        await router.push('/')
                     }
 
                 } catch (e) {
