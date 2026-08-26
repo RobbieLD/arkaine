@@ -18,6 +18,7 @@ using System.Net;
 var builder = WebApplication.CreateBuilder(args);
 var cors = "arkaineCors";
 var dev = builder.Environment.IsDevelopment();
+var localUrl = "http://localhost:8081";
 
 IConfiguration config = builder.Configuration
     .AddJsonFile("appsettings.json")
@@ -25,17 +26,19 @@ IConfiguration config = builder.Configuration
     .AddEnvironmentVariables()
     .Build();
 
-var proxyIpAddresses = Dns.GetHostAddresses(config["TRUSTED_PROXY"] ?? throw new("Trusted Proxy Must Be Set"));
+var proxyHostName = config["TRUSTED_PROXY"];
+
+var proxyIpAddresses = string.IsNullOrEmpty(proxyHostName) ? [] : Dns.GetHostAddresses(proxyHostName!);
 
 var configuredPasskeyOrigins = ParseOrigins(
     string.IsNullOrWhiteSpace(config["CORS_ORIGIN"]) && dev
-        ? "http://localhost:8081"
+        ? localUrl
         : config["CORS_ORIGIN"]);
 Action<CookieAuthenticationOptions> configureAuthenticationCookie = options =>
 {
     options.Cookie.SameSite = dev
-        ? Microsoft.AspNetCore.Http.SameSiteMode.None
-        : Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+        ? SameSiteMode.None
+        : SameSiteMode.Strict;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 };
 
@@ -157,7 +160,7 @@ builder.Services.Configure<CookieAuthenticationOptions>(
 if (dev)
 {
     var corsOrigins = string.IsNullOrWhiteSpace(config["CORS_ORIGIN"])
-        ? new[] { "http://localhost:8081" }
+        ? [localUrl]
         : config["CORS_ORIGIN"]!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     builder.Services.AddCors(options =>
@@ -183,8 +186,8 @@ var cookiePolicy = new CookiePolicyOptions
 {
     HttpOnly = HttpOnlyPolicy.Always,
     MinimumSameSitePolicy = app.Environment.IsDevelopment() ?
-        Microsoft.AspNetCore.Http.SameSiteMode.None :
-        Microsoft.AspNetCore.Http.SameSiteMode.Strict,
+        SameSiteMode.None :
+        SameSiteMode.Strict,
     Secure = app.Environment.IsDevelopment() ?
         CookieSecurePolicy.SameAsRequest :
         CookieSecurePolicy.Always
@@ -192,8 +195,6 @@ var cookiePolicy = new CookiePolicyOptions
 
  if (!app.Environment.IsDevelopment())
 {
-    // Don't need this right now as reverse proxy handle this for us. 
-    //app.UseIPFilter(allowedIpAddresses);
     app.UserSecurityHeaders();
 }
 
@@ -223,7 +224,7 @@ app.MapGet("/forbidden", () => "You do not have access to this page");
 app.RegisterUserApis();
 app.RegisterProfileApis();
 app.RegisterB2Apis();
-// Removing these as they are not used.
+// Removing these as they are not currently used.
 //app.RegisterIngestApis();
 app.RegisterAdminApis();
 app.RegisterFavouritesApis();
@@ -247,27 +248,6 @@ if (seedDb)
 }
     
 app.Run();
-
-static IReadOnlyList<IPAddress> ParseIpAddresses(string? value, string settingName)
-{
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        return Array.Empty<IPAddress>();
-    }
-
-    var addresses = new List<IPAddress>();
-    foreach (var item in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-    {
-        if (!IPAddress.TryParse(item, out var address))
-        {
-            throw new InvalidOperationException($"{settingName} contains an invalid IP address.");
-        }
-
-        addresses.Add(address);
-    }
-
-    return addresses;
-}
 
 static IReadOnlyList<string> ParseOrigins(string? value)
 {
