@@ -1,6 +1,6 @@
 <template>
     <header class="site-header">
-        <nav class="navigation" aria-label="Primary navigation">
+        <nav class="navigation" aria-label="Primary navigation" @keydown.esc="closeMenu">
             <div class="navigation__identity">
                 <router-link to="/" class="brand" aria-label="Arkaine home">
                     <img class="brand__mark" src="/icon.png" alt="" aria-hidden="true">
@@ -20,12 +20,47 @@
                         <span v-else class="breadcrumbs__current" aria-current="page">{{ crumb.title }}</span>
                     </template>
                 </div>
+
+                <button
+                    type="button"
+                    class="navigation__toggle"
+                    :aria-expanded="menuOpen"
+                    aria-controls="primary-navigation"
+                    :aria-label="menuOpen ? 'Close navigation menu' : 'Open navigation menu'"
+                    @click="toggleMenu"
+                >
+                    <span class="navigation__toggle-icon" aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                </button>
             </div>
 
-            <div class="navigation__links">
-                <router-link to="/" class="nav-link" exact-active-class="nav-link--active">Home</router-link>
-                <router-link to="/profile" class="nav-link" active-class="nav-link--active">Profile</router-link>
-                <router-link v-if="admin" to="/settings" class="nav-link" active-class="nav-link--active">
+            <div id="primary-navigation" class="navigation__links" :class="{ 'navigation__links--open': menuOpen }">
+                <router-link
+                    to="/"
+                    class="nav-link"
+                    exact-active-class="nav-link--active"
+                    @click="closeMenu"
+                >
+                    Home
+                </router-link>
+                <router-link
+                    to="/profile"
+                    class="nav-link"
+                    active-class="nav-link--active"
+                    @click="closeMenu"
+                >
+                    Profile
+                </router-link>
+                <router-link
+                    v-if="admin"
+                    to="/settings"
+                    class="nav-link"
+                    active-class="nav-link--active"
+                    @click="closeMenu"
+                >
                     Settings
                 </router-link>
                 <span v-if="username" class="navigation__user">{{ username }}</span>
@@ -50,6 +85,7 @@
             const admin = computed(() => store.state.isAdmin)
             const username = computed(() => store.state.username)
             const crumbs = ref<{ url: string, title: string }[]>([])
+            const menuOpen = ref(false)
 
             const router = useRouter()
 
@@ -74,17 +110,32 @@
             }
 
             updateCrumbs(router.currentRoute.value)
-            router.afterEach(updateCrumbs)
+            router.afterEach((to) => {
+                updateCrumbs(to)
+                menuOpen.value = false
+            })
+
+            const toggleMenu = () => {
+                menuOpen.value = !menuOpen.value
+            }
+
+            const closeMenu = () => {
+                menuOpen.value = false
+            }
             
             const logout = async () => {
+                closeMenu()
                 await store.dispatch('logout')
                 router.push('/login')
             }
 
             return {
                 admin,
+                closeMenu,
                 crumbs,
                 logout,
+                menuOpen,
+                toggleMenu,
                 username
             }
         },
@@ -146,6 +197,7 @@
 
     .breadcrumbs {
         min-width: 0;
+        flex: 1 1 auto;
         gap: 0.55rem;
         color: var(--app-muted);
         font-size: 0.9rem;
@@ -176,6 +228,10 @@
 
     .breadcrumbs__separator {
         color: var(--app-border);
+    }
+
+    .navigation__toggle {
+        display: none;
     }
 
     .navigation__links {
@@ -237,36 +293,96 @@
 
     @media only screen and (max-width: 760px) {
         .navigation {
-            align-items: flex-start;
-            flex-direction: column;
+            position: relative;
+            align-items: center;
             gap: 0.6rem;
             padding: 0.85rem 0;
         }
 
-        .navigation__identity,
-        .navigation__links {
+        .navigation__identity {
             width: 100%;
+            gap: 0.75rem;
+        }
+
+        .navigation__toggle {
+            display: grid;
+            flex: 0 0 auto;
+            width: 2.5rem;
+            height: 2.5rem;
+            margin: 0 0 0 auto;
+            padding: 0.55rem;
+            place-items: center;
+            color: var(--pico-color);
+            border: 1px solid var(--app-border);
+            border-radius: var(--pico-border-radius);
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .navigation__toggle:hover,
+        .navigation__toggle:focus-visible {
+            color: var(--pico-primary-hover);
+            border-color: var(--pico-primary);
+            background: var(--pico-primary-focus);
+            box-shadow: none;
+        }
+
+        .navigation__toggle-icon {
+            display: grid;
+            width: 1.15rem;
+            gap: 0.2rem;
+        }
+
+        .navigation__toggle-icon span {
+            display: block;
+            height: 2px;
+            border-radius: 2px;
+            background: currentColor;
         }
 
         .navigation__links {
+            position: absolute;
+            top: calc(100% - 0.1rem);
+            right: 0;
+            z-index: 10;
+            display: none;
+            width: min(16rem, 100%);
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            border: 1px solid var(--app-border);
+            border-radius: var(--pico-border-radius);
+            background: var(--app-surface);
+            box-shadow: var(--pico-card-box-shadow);
+        }
+
+        .navigation__links--open {
+            display: flex;
+        }
+
+        .navigation__links .nav-link,
+        .navigation__links .logout-button {
+            width: 100%;
             justify-content: flex-start;
-            overflow-x: auto;
         }
 
         .navigation__user {
-            margin-left: auto;
+            max-width: none;
+            margin: 0.25rem 0 0;
+            padding: 0.55rem 0.7rem 0.3rem;
+            border-top: 1px solid var(--app-border);
+            border-left: 0;
         }
     }
 
     @media only screen and (max-width: 460px) {
         .navigation__identity {
-            align-items: flex-start;
-            flex-direction: column;
-            gap: 0.45rem;
+            gap: 0.5rem;
         }
 
         .breadcrumbs {
-            width: 100%;
+            gap: 0.4rem;
         }
 
         .navigation__user {
