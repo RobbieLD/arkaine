@@ -34,6 +34,21 @@ namespace Server.Arkaine.Admin
                 return Results.Ok(manager.GetSettings());
             });
 
+            app.MapGet("/settings/thumbnail-cache",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            (IThumbnailInfoProvider cache) =>
+            {
+                return Results.Ok(cache.GetStats());
+            });
+
+            app.MapPost("/settings/thumbnail-cache/clear",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            (IThumbnailInfoProvider cache) =>
+            {
+                cache.Clear();
+                return Results.Ok(cache.GetStats());
+            });
+
             app.MapHub<AdminHub>("/updates");
         }
     }

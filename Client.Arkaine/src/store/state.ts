@@ -1,15 +1,20 @@
 import Alert from '@/models/alert'
-import ArkaineFile from '@/models/arkaine-file'
 import Progress from '@/models/progress'
 import Settings from '@/models/settings'
+import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
+import FolderCacheEntry, { FolderStatus } from './folder-cache'
 
 export default interface State {
     isAuthenticated: boolean,
     isAdmin: boolean,
     username: string,
-    files: ArkaineFile[],
+    /** Listings keyed by normalised folder path. `folderOrder` tracks LRU order. */
+    folders: Record<string, FolderCacheEntry>,
+    folderOrder: string[],
+    currentPath: string,
+    folderStatus: FolderStatus,
     alert?: Alert,
-    nextFile: string,
     settings: Settings,
-    progress: Progress
+    progress: Progress,
+    thumbnailCache: ThumbnailCacheStats
 }

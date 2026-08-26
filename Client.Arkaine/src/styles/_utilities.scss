@@ -1,0 +1,58 @@
+/* Small composable utilities. */
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.stack {
+    display: grid;
+    gap: var(--stack-gap, var(--space-4));
+}
+
+.cluster {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--cluster-gap, var(--space-2));
+}
+
+.truncate {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.muted {
+    color: var(--text-muted);
+}
+
+.shimmer {
+    background:
+        linear-gradient(
+            90deg,
+            var(--surface-raised) 25%,
+            var(--surface-hover) 37%,
+            var(--surface-raised) 63%
+        )
+        0 0 / 400% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 100% 0;
+    }
+
+    to {
+        background-position: -100% 0;
+    }
+}

@@ -3,7 +3,7 @@ import App from './App.vue'
 import router from './router'
 import { store, storeKey } from './store'
 
-import '@picocss/pico/css/pico.css'
+import './styles/main.scss'
 
 createApp(App)
     .use(store, storeKey)

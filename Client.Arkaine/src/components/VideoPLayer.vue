@@ -1,9 +1,9 @@
 <template>
     <div class="video-player">
-        <video controls class="video" ref="video" preload="metadata" playsinline>
+        <video ref="video" class="video" controls preload="metadata" playsinline>
             <source :src="file.url" :type="file.contentType">
         </video>
-        <TagCloud :file="file" @click="setTime"></TagCloud>
+        <tag-cloud :file="file" @click="setTime"></tag-cloud>
     </div>
 </template>
 <script lang="ts">
@@ -32,29 +32,21 @@
                 setTime,
                 video
             }
-        }    
+        }
     })
 </script>
 <style lang="scss" scoped>
     .video-player {
         display: flex;
         width: 100%;
-        height: 100%;
         flex-direction: column;
-        padding: 1rem;
-        border: 1px solid var(--app-border);
-        border-radius: 0.75rem;
-        background: var(--app-surface-raised);
     }
 
+    /* Native controls are kept: free fullscreen, PiP, captions and keyboard support. */
     .video {
         display: block;
         width: 100%;
-        flex: 1;
-        min-height: 0;
         max-height: 70vh;
-        object-fit: contain;
-        border-radius: 0.5rem;
-        background: #05070b;
+        background: var(--surface-sunken);
     }
 </style>

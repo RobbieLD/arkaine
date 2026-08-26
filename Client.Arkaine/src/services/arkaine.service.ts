@@ -5,6 +5,7 @@ import ArkaineFile from '@/models/arkaine-file'
 import Login from '@/models/login'
 import Settings from '@/models/settings'
 import Tag from '@/models/tag'
+import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
 import Profile, {
     Passkey,
     PasskeyAssertionPayload,
@@ -137,6 +138,16 @@ export default class ArkaineService extends BaseService {
 
     public async GetSettings(): Promise<Settings> {
         const result = await this.http.get('/settings')
+        return result.data
+    }
+
+    public async GetThumbnailCacheStats(): Promise<ThumbnailCacheStats> {
+        const result = await this.http.get<ThumbnailCacheStats>('/settings/thumbnail-cache')
+        return result.data
+    }
+
+    public async ClearThumbnailCache(): Promise<ThumbnailCacheStats> {
+        const result = await this.http.post<ThumbnailCacheStats>('/settings/thumbnail-cache/clear')
         return result.data
     }
     

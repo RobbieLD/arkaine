@@ -1,10 +1,15 @@
 <template>
     <div class="app-shell">
         <nav-bar v-if="authenticated"></nav-bar>
-        <div v-if="alert" class="alert" :class="{ error: alert.isError, info: !alert.isError }" role="alert">
-            {{ alert.message }}
-        </div>
         <main class="app-content">
+            <div
+                v-if="alert"
+                class="alert app-alert"
+                :class="alert.isError ? 'alert--error' : 'alert--info'"
+                role="alert"
+            >
+                {{ alert.message }}
+            </div>
             <router-view />
         </main>
         <footer v-if="authenticated" class="app-footer">
@@ -62,95 +67,31 @@
 </script>
 
 <style lang="scss">
-    :root,
-    :host {
-        --app-surface: var(--pico-card-background-color);
-        --app-surface-raised: var(--pico-card-sectioning-background-color);
-        --app-border: var(--pico-muted-border-color);
-        --app-muted: var(--pico-muted-color);
-        --app-header-background: #eef4f8;
-        --app-danger: #9f1d35;
-        --app-danger-background: #fff1f3;
-        --app-success: #176b4d;
-        --app-success-background: #edfff5;
-    }
-
-    [data-theme='dark'] {
-        --app-header-background: #192635;
-        --app-danger: #ffb4ab;
-        --app-danger-background: #3b1d20;
-        --app-success: #7de2b5;
-        --app-success-background: #14352a;
-    }
-
-    @media only screen and (prefers-color-scheme: dark) {
-        :root:not([data-theme]) {
-            --app-header-background: #192635;
-            --app-danger: #ffb4ab;
-            --app-danger-background: #3b1d20;
-            --app-success: #7de2b5;
-            --app-success-background: #14352a;
-        }
-    }
-
-    html {
-        background: var(--pico-background-color);
-    }
-
-    body {
-        min-width: 320px;
-        margin: 0;
-        padding: 0;
-    }
-
-    #app,
     .app-shell {
+        display: flex;
         min-height: 100vh;
+        flex-direction: column;
     }
 
     .app-content {
-        width: calc(100% - 2rem);
-        max-width: 80rem;
+        width: 100%;
+        max-width: var(--page-width);
+        flex: 1 0 auto;
         margin: 0 auto;
-        padding: clamp(1.25rem, 3vw, 2.5rem) 0 3rem;
+        padding: var(--space-5) var(--page-gutter) var(--space-7);
+    }
+
+    .app-alert {
+        margin-bottom: var(--space-5);
     }
 
     .app-footer {
-        width: 100%;
-        max-width: none;
-        margin: 0;
-        padding: 1rem;
-        color: var(--app-muted);
-        border-top: 1px solid var(--app-border);
-        background: var(--app-header-background);
-        font-size: 0.75rem;
+        flex: 0 0 auto;
+        padding: var(--space-4);
+        color: var(--text-subtle);
+        border-top: 1px solid var(--border);
+        background: var(--surface-sunken);
+        font-size: var(--text-xs);
         text-align: center;
-    }
-
-    .error {
-        color: var(--app-danger);
-        border: 1px solid color-mix(in srgb, var(--app-danger) 45%, transparent);
-        background: var(--app-danger-background);
-    }
-
-    .info {
-        color: var(--pico-primary-hover);
-        border: 1px solid var(--pico-primary);
-        background: var(--pico-primary-focus);
-    }
-
-    .alert {
-        width: calc(100% - 2rem);
-        max-width: 80rem;
-        margin: 1rem auto 0;
-        padding: 0.85rem 1rem;
-        border-radius: var(--pico-border-radius);
-    }
-
-    .content {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-        gap: 1rem;
-        align-items: stretch;
     }
 </style>

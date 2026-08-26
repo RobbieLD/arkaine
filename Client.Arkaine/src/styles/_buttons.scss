@@ -1,0 +1,115 @@
+/*
+ * Button primitives. `.btn--icon` is the primitive that guarantees an icon sits
+ * dead centre: fixed square box, inline-grid + place-items, zero padding, and an
+ * SVG sized independently of the button box so the centring actually applies.
+ */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--control-height);
+    padding: 0 var(--space-4);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color var(--duration-fast) var(--ease),
+        border-color var(--duration-fast) var(--ease),
+        background-color var(--duration-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn--primary {
+    color: #fff;
+    border-color: var(--accent-strong);
+    background: var(--accent-strong);
+}
+
+.btn--primary:hover:not(:disabled) {
+    color: #fff;
+    border-color: var(--accent-strong-hover);
+    background: var(--accent-strong-hover);
+}
+
+.btn--ghost {
+    color: var(--text-muted);
+    border-color: transparent;
+    background: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--surface-hover);
+}
+
+.btn--danger {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+    background: var(--danger-soft);
+}
+
+.btn--danger:hover:not(:disabled) {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger-soft) 70%, var(--danger) 12%);
+}
+
+.btn--block {
+    width: 100%;
+}
+
+.btn--sm {
+    min-height: var(--control-height-sm);
+    padding: 0 var(--space-3);
+    font-size: var(--text-xs);
+}
+
+/*
+ * Icon buttons. The square is fixed and padding is zero so `place-items: center`
+ * has something to centre; the icon is then sized via `--icon-size` rather than
+ * stretching to fill the content box.
+ */
+.btn--icon {
+    display: inline-grid;
+    width: var(--control-height);
+    height: var(--control-height);
+    min-height: 0;
+    padding: 0;
+    gap: 0;
+    place-items: center;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.btn--icon.btn--sm {
+    width: var(--control-height-sm);
+    height: var(--control-height-sm);
+    padding: 0;
+    --icon-size: 1rem;
+}
+
+.btn--round {
+    border-radius: var(--radius-pill);
+}

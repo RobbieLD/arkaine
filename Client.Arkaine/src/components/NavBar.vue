@@ -23,17 +23,13 @@
 
                 <button
                     type="button"
-                    class="navigation__toggle"
+                    class="btn btn--ghost btn--icon navigation__toggle"
                     :aria-expanded="menuOpen"
                     aria-controls="primary-navigation"
                     :aria-label="menuOpen ? 'Close navigation menu' : 'Open navigation menu'"
                     @click="toggleMenu"
                 >
-                    <span class="navigation__toggle-icon" aria-hidden="true">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </span>
+                    <app-icon :name="menuOpen ? 'close' : 'menu'" />
                 </button>
             </div>
 
@@ -63,22 +59,28 @@
                 >
                     Settings
                 </router-link>
-                <span v-if="username" class="navigation__user">{{ username }}</span>
-                <button type="button" class="logout-button" @click="logout">Log out</button>
+                <span v-if="username" class="navigation__user truncate">{{ username }}</span>
+                <button type="button" class="btn btn--sm navigation__logout" @click="logout">
+                    <app-icon name="logout" />
+                    Log out
+                </button>
             </div>
         </nav>
     </header>
 </template>
-<script lang='ts'>
+<script lang="ts">
     import { storeKey } from '@/store'
     import { computed, defineComponent, ref } from 'vue'
     import { useRouter } from 'vue-router'
     import type { RouteLocationNormalizedLoaded } from 'vue-router'
     import { useStore } from 'vuex'
+    import AppIcon from './AppIcon.vue'
 
     export default defineComponent({
         name: 'NavBar',
-        components: {},
+        components: {
+            AppIcon
+        },
         props: {},
         setup() {
             const store = useStore(storeKey)
@@ -122,7 +124,7 @@
             const closeMenu = () => {
                 menuOpen.value = false
             }
-            
+
             const logout = async () => {
                 closeMenu()
                 await store.dispatch('logout')
@@ -141,22 +143,26 @@
         },
     })
 </script>
-<style lang='scss' scoped>
-    .navigation {
-        width: calc(100% - 2rem);
-        max-width: 80rem;
-        min-height: 4.5rem;
-        margin: 0 auto;
-        padding: 0.75rem 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1.25rem;
+<style lang="scss" scoped>
+    .site-header {
+        position: sticky;
+        top: 0;
+        z-index: var(--z-header);
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in srgb, var(--canvas) 85%, transparent);
+        backdrop-filter: blur(12px);
     }
 
-    .site-header {
-        border-bottom: 1px solid var(--app-border);
-        background: var(--app-header-background);
+    .navigation {
+        display: flex;
+        width: 100%;
+        max-width: var(--page-width);
+        min-height: 3.75rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-5);
+        margin: 0 auto;
+        padding: var(--space-2) var(--page-gutter);
     }
 
     .navigation__identity,
@@ -168,39 +174,35 @@
 
     .navigation__identity {
         min-width: 0;
-        gap: 1rem;
+        gap: var(--space-4);
     }
 
     .brand {
         display: inline-flex;
-        align-items: center;
         flex: 0 0 auto;
-        gap: 0.55rem;
-        color: var(--pico-color);
+        align-items: center;
+        gap: var(--space-2);
+        color: var(--text);
         font-weight: 700;
+        letter-spacing: -0.02em;
         text-decoration: none;
     }
 
     .brand__mark {
         display: block;
-        width: 2rem;
-        height: 2rem;
+        width: 1.75rem;
+        height: 1.75rem;
         flex: 0 0 auto;
-        border-radius: 0.65rem;
+        border-radius: var(--radius-sm);
         object-fit: cover;
-        box-shadow: 0 0.25rem 0.75rem var(--pico-primary-focus);
-    }
-
-    .brand__name {
-        letter-spacing: -0.02em;
     }
 
     .breadcrumbs {
         min-width: 0;
         flex: 1 1 auto;
-        gap: 0.55rem;
-        color: var(--app-muted);
-        font-size: 0.9rem;
+        gap: var(--space-2);
+        color: var(--text-muted);
+        font-size: var(--text-sm);
         white-space: nowrap;
         overflow: hidden;
     }
@@ -212,22 +214,22 @@
     }
 
     .breadcrumbs__link {
-        color: var(--app-muted);
+        color: var(--text-muted);
         text-decoration: none;
     }
 
     .breadcrumbs__link:hover,
     .breadcrumbs__link:focus-visible {
-        color: var(--pico-primary-hover);
+        color: var(--accent);
     }
 
     .breadcrumbs__current {
-        color: var(--pico-color);
+        color: var(--text);
         font-weight: 600;
     }
 
     .breadcrumbs__separator {
-        color: var(--app-border);
+        color: var(--text-subtle);
     }
 
     .navigation__toggle {
@@ -236,125 +238,79 @@
 
     .navigation__links {
         flex: 0 0 auto;
-        gap: 0.25rem;
-    }
-
-    .nav-link,
-    .logout-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 2.25rem;
-        margin: 0;
-        padding: 0.45rem 0.7rem;
-        border-radius: var(--pico-border-radius);
-        font-size: 0.9rem;
-        font-weight: 600;
-        line-height: 1;
-        text-decoration: none;
+        gap: var(--space-1);
     }
 
     .nav-link {
-        color: var(--app-muted);
+        display: inline-flex;
+        min-height: var(--control-height-sm);
+        align-items: center;
+        padding: 0 var(--space-3);
+        color: var(--text-muted);
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        font-weight: 600;
+        text-decoration: none;
+        transition:
+            color var(--duration-fast) var(--ease),
+            background-color var(--duration-fast) var(--ease);
     }
 
     .nav-link:hover,
-    .nav-link:focus-visible,
+    .nav-link:focus-visible {
+        color: var(--text);
+        background: var(--surface-hover);
+    }
+
     .nav-link--active {
-        color: var(--pico-primary-hover);
-        background: var(--pico-primary-focus);
+        color: var(--accent);
+        background: var(--accent-soft);
     }
 
     .navigation__user {
         max-width: 10rem;
-        margin-left: 0.5rem;
-        padding-left: 0.75rem;
-        overflow: hidden;
-        color: var(--app-muted);
-        border-left: 1px solid var(--app-border);
-        font-size: 0.85rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        margin-left: var(--space-2);
+        padding-left: var(--space-3);
+        color: var(--text-subtle);
+        border-left: 1px solid var(--border);
+        font-size: var(--text-xs);
     }
 
-    .logout-button {
-        color: var(--pico-primary-hover);
-        border: 1px solid var(--app-border);
-        background: transparent;
-        box-shadow: none;
-    }
-
-    .logout-button:hover,
-    .logout-button:focus-visible {
-        border-color: var(--pico-primary);
-        background: var(--pico-primary-focus);
-        box-shadow: none;
+    .navigation__logout {
+        margin-left: var(--space-2);
+        --icon-size: 1rem;
     }
 
     @media only screen and (max-width: 760px) {
         .navigation {
             position: relative;
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.85rem 0;
+            gap: var(--space-2);
         }
 
         .navigation__identity {
             width: 100%;
-            gap: 0.75rem;
+            gap: var(--space-3);
         }
 
         .navigation__toggle {
-            display: grid;
-            flex: 0 0 auto;
-            width: 2.5rem;
-            height: 2.5rem;
-            margin: 0 0 0 auto;
-            padding: 0.55rem;
-            place-items: center;
-            color: var(--pico-color);
-            border: 1px solid var(--app-border);
-            border-radius: var(--pico-border-radius);
-            background: transparent;
-            box-shadow: none;
-        }
-
-        .navigation__toggle:hover,
-        .navigation__toggle:focus-visible {
-            color: var(--pico-primary-hover);
-            border-color: var(--pico-primary);
-            background: var(--pico-primary-focus);
-            box-shadow: none;
-        }
-
-        .navigation__toggle-icon {
-            display: grid;
-            width: 1.15rem;
-            gap: 0.2rem;
-        }
-
-        .navigation__toggle-icon span {
-            display: block;
-            height: 2px;
-            border-radius: 2px;
-            background: currentColor;
+            display: inline-grid;
+            margin-left: auto;
         }
 
         .navigation__links {
             position: absolute;
-            top: calc(100% - 0.1rem);
-            right: 0;
-            z-index: 10;
+            top: calc(100% + var(--space-1));
+            right: var(--page-gutter);
             display: none;
-            width: min(16rem, 100%);
+            width: min(15rem, calc(100vw - 2rem));
             flex-direction: column;
             align-items: stretch;
-            gap: 0.25rem;
-            padding: 0.5rem;
-            border: 1px solid var(--app-border);
-            border-radius: var(--pico-border-radius);
-            background: var(--app-surface);
-            box-shadow: var(--pico-card-box-shadow);
+            gap: var(--space-1);
+            padding: var(--space-2);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-lg);
         }
 
         .navigation__links--open {
@@ -362,29 +318,22 @@
         }
 
         .navigation__links .nav-link,
-        .navigation__links .logout-button {
+        .navigation__links .navigation__logout {
             width: 100%;
             justify-content: flex-start;
+            margin-left: 0;
         }
 
         .navigation__user {
             max-width: none;
-            margin: 0.25rem 0 0;
-            padding: 0.55rem 0.7rem 0.3rem;
-            border-top: 1px solid var(--app-border);
+            margin: var(--space-1) 0 0;
+            padding: var(--space-2) var(--space-3) var(--space-1);
+            border-top: 1px solid var(--border);
             border-left: 0;
         }
     }
 
     @media only screen and (max-width: 460px) {
-        .navigation__identity {
-            gap: 0.5rem;
-        }
-
-        .breadcrumbs {
-            gap: 0.4rem;
-        }
-
         .navigation__user {
             display: none;
         }

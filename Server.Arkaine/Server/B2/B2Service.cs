@@ -24,6 +24,7 @@ namespace Server.Arkaine.B2
         private readonly IHubContext<IngestHub> _hubContext;
         private readonly ArkaineOptions _options;
         private readonly ITagService _tagService;
+        private readonly IThumbnailInfoProvider _thumbnails;
 
         public B2Service(
             HttpClient httpClient,
@@ -31,6 +32,7 @@ namespace Server.Arkaine.B2
             IOptions<ArkaineOptions> config,
             IHubContext<IngestHub> hubContext,
             ITagService tagService,
+            IThumbnailInfoProvider thumbnails,
             ILogger<B2Service> logger)
         {
             _httpClient = httpClient;
@@ -39,6 +41,7 @@ namespace Server.Arkaine.B2
             _options = config.Value;
             _hubContext = hubContext;
             _tagService = tagService;
+            _thumbnails = thumbnails;
         }
 
         public async Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken)
@@ -78,7 +81,7 @@ namespace Server.Arkaine.B2
 
                 foreach (var file in favouriteResponse.Files)
                 {
-                    file.Thumbnail = GetPreviewUrl(file.FileName, file.Type);
+                    PopulatePreview(file);
                 }
 
                 return favouriteResponse;
@@ -96,7 +99,7 @@ namespace Server.Arkaine.B2
             // populate thumbnails
             foreach (var file in response.Files)
             {
-                file.Thumbnail = GetPreviewUrl(file.FileName, file.Type);
+                PopulatePreview(file);
 
                 file.IsFavoureite = favourites.Contains(file.FileName);
             }
@@ -117,13 +120,28 @@ namespace Server.Arkaine.B2
 
         public IResult Preview(string path)
         {
-            if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, path, out var thumbnailPath) ||
-                !File.Exists(thumbnailPath))
+            if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, path, out var thumbnailPath))
             {
                 return Results.NotFound();
             }
 
-            return Results.Stream(File.OpenRead(thumbnailPath));
+            var info = _thumbnails.Get(thumbnailPath);
+
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            // Serving the file from disk lets ASP.NET Core answer If-None-Match and
+            // If-Modified-Since with a 304 instead of resending the bytes. The resolved
+            // path is always rooted, so this produces a PhysicalFileHttpResult.
+            return Results.File(
+                thumbnailPath,
+                contentType: "image/jpeg",
+                lastModified: info.LastModified,
+                entityTag: new Microsoft.Net.Http.Headers.EntityTagHeaderValue(
+                    $"\"{info.LastModified.ToUnixTimeSeconds():x}-{info.Length:x}\""),
+                enableRangeProcessing: true);
         }
 
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
@@ -264,22 +282,13 @@ namespace Server.Arkaine.B2
             return response;
         }
 
-        private string GetPreviewUrl(string fileName, string type)
+        /// <summary>
+        /// Resolves the thumbnail URL plus its intrinsic dimensions so the client can
+        /// reserve exact space in the gallery before the image has loaded.
+        /// </summary>
+        private void PopulatePreview(B2File file)
         {
-            var relativeThumbnailPath = fileName;
-
-            if (type == "folder")
-            {
-                relativeThumbnailPath = $"{fileName.TrimEnd('/', '\\')}/thumb.jpg";
-            }
-
-            if (ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, relativeThumbnailPath, out var thumbnailPath) &&
-                File.Exists(thumbnailPath))
-            {
-                return ThumbnailPathResolver.ToUrlPath(relativeThumbnailPath);
-            }
-
-            return string.Empty;
+            ThumbnailPreview.Populate(file, _options.THUMBNAIL_DIR, _thumbnails);
         }
 
         private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken)

@@ -93,6 +93,7 @@ builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(bui
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddHostedService<UploadService>();
+builder.Services.AddSingleton<IThumbnailInfoProvider, ThumbnailInfoCache>();
 
 if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
 {
@@ -215,7 +216,33 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var headers = context.Context.Response.GetTypedHeaders();
+
+        // Vite fingerprints everything under /assets, so those files can never change
+        // content without changing name. index.html must always be revalidated or the
+        // client would keep booting a stale bundle.
+        if (context.Context.Request.Path.StartsWithSegments("/assets"))
+        {
+            headers.CacheControl = new Microsoft.Net.Http.Headers.CacheControlHeaderValue
+            {
+                Public = true,
+                MaxAge = TimeSpan.FromDays(365),
+                Extensions = { new Microsoft.Net.Http.Headers.NameValueHeaderValue("immutable") }
+            };
+        }
+        else
+        {
+            headers.CacheControl = new Microsoft.Net.Http.Headers.CacheControlHeaderValue
+            {
+                NoCache = true
+            };
+        }
+    }
+});
 app.UseMiddleware<GlobalExceptionHandler>();
 app.MapGet("/status", () => "Server is running");
 app.MapGet("/error", () => "There was a server error");

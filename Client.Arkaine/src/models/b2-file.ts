@@ -7,6 +7,8 @@ export default interface B2File {
     action: string,
     fileId: string,
     preview: string,
+    previewWidth?: number,
+    previewHeight?: number,
     favourite: boolean,
     childCount?: number,
     tags: Tag[]

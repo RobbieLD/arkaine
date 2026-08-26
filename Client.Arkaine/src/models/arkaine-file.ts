@@ -16,6 +16,8 @@ export default class ArkaineFile {
     id: string
     isFavourite: boolean
     preview: string
+    previewWidth?: number
+    previewHeight?: number
     childCount?: number
     tags: Tag[]
 
@@ -39,6 +41,8 @@ export default class ArkaineFile {
         // This only applies to images
         const previewPath = file.preview.split('/').map(part => encodeURIComponent(part)).join('/')
         this.preview = file.preview ? `${baseUrl}/preview/${previewPath}` : ''
+        this.previewWidth = file.previewWidth
+        this.previewHeight = file.previewHeight
     }
 
     public static Favourite: ArkaineFile = {

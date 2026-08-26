@@ -1,54 +1,55 @@
 <template>
-    <article class="profile">
-        <header>
-            <h2>User profile</h2>
-            <p>Manage your account security settings.</p>
+    <div class="page profile">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">Account</p>
+                <h1 class="page-header__title">User profile</h1>
+                <p class="page-header__lead">Manage your account security settings.</p>
+            </div>
         </header>
 
-        <p v-if="error" class="message error">{{ error }}</p>
-        <p v-if="success" class="message success">{{ success }}</p>
+        <p v-if="error" class="alert alert--error" role="alert">{{ error }}</p>
+        <p v-if="success" class="alert alert--success" role="status">{{ success }}</p>
 
-        <p v-if="loading">Loading profile...</p>
-        <p v-if="!profile && !loading">Unable to load your profile.</p>
+        <p v-if="loading" class="muted">Loading profile...</p>
+        <p v-if="!profile && !loading" class="muted">Unable to load your profile.</p>
 
         <template v-if="profile">
-            <section>
-                <h3>Account</h3>
+            <section class="panel stack">
+                <h2>Account</h2>
                 <div class="values">
-                    <label>
-                        Username
-                        <input :value="profile.userName" type="text" readonly>
+                    <label class="field">
+                        <span class="label">Username</span>
+                        <input class="input" :value="profile.userName" type="text" readonly>
                     </label>
-                    <label>
-                        Email
-                        <input :value="profile.email || 'Not set'" type="text" readonly>
+                    <label class="field">
+                        <span class="label">Email</span>
+                        <input class="input" :value="profile.email || 'Not set'" type="text" readonly>
                     </label>
                 </div>
             </section>
 
-            <section>
-                <h3>Two-factor authentication</h3>
-                <p v-if="profile.twoFactorEnabled">
+            <section class="panel stack">
+                <h2>Two-factor authentication</h2>
+                <p v-if="profile.twoFactorEnabled" class="muted">
                     Two-factor authentication is enabled. You have {{ profile.recoveryCodesLeft }} recovery
                     code{{ profile.recoveryCodesLeft === 1 ? '' : 's' }} remaining.
                 </p>
 
                 <template v-else>
-                    <p>Protect your account with an authenticator app.</p>
+                    <p class="muted">Protect your account with an authenticator app.</p>
                     <form v-if="!twoFactorSetup" @submit.prevent="loadTwoFactorSetup">
-                        <button type="submit" :disabled="twoFactorLoading">
+                        <button type="submit" class="btn btn--primary" :disabled="twoFactorLoading">
+                            <app-icon name="key" />
                             {{ twoFactorLoading ? 'Preparing...' : 'Set up authenticator' }}
                         </button>
                     </form>
 
-                    <div v-if="twoFactorSetup && !twoFactorSetup.isEnabled" class="setup">
-                        <p>Enter this key in your authenticator app:</p>
+                    <div v-if="twoFactorSetup && !twoFactorSetup.isEnabled" class="stack">
+                        <p class="muted">Enter this key in your authenticator app:</p>
                         <p><code>{{ twoFactorSetup.sharedKey }}</code></p>
-                        <p>
-                            <small>
-                                Authenticator URI:
-                                <code>{{ twoFactorSetup.authenticatorUri }}</code>
-                            </small>
+                        <p class="muted">
+                            Authenticator URI: <code>{{ twoFactorSetup.authenticatorUri }}</code>
                         </p>
                         <p>
                             <a
@@ -58,87 +59,104 @@
                                 Open authenticator URI
                             </a>
                         </p>
-                        <form @submit.prevent="enableTwoFactor">
-                            <label for="enable-code">Authenticator code</label>
-                            <input
-                                id="enable-code"
-                                v-model="twoFactorCode"
-                                type="text"
-                                inputmode="numeric"
-                                autocomplete="one-time-code"
-                                maxlength="6"
-                                required
-                            >
-                            <button type="submit" :disabled="twoFactorLoading">
-                                {{ twoFactorLoading ? 'Enabling...' : 'Enable two-factor authentication' }}
-                            </button>
+                        <form class="stack" @submit.prevent="enableTwoFactor">
+                            <label class="field">
+                                <span class="label">Authenticator code</span>
+                                <input
+                                    id="enable-code"
+                                    v-model="twoFactorCode"
+                                    class="input"
+                                    type="text"
+                                    inputmode="numeric"
+                                    autocomplete="one-time-code"
+                                    maxlength="6"
+                                    required
+                                >
+                            </label>
+                            <div>
+                                <button type="submit" class="btn btn--primary" :disabled="twoFactorLoading">
+                                    {{ twoFactorLoading ? 'Enabling...' : 'Enable two-factor authentication' }}
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </template>
 
-                <div v-if="recoveryCodes.length > 0" class="recovery-codes">
-                    <h4>Save your recovery codes</h4>
-                    <p>Each code can be used once if you lose access to your authenticator app.</p>
-                    <textarea :value="recoveryCodes.join('\n')" rows="5" readonly></textarea>
+                <div v-if="recoveryCodes.length > 0" class="stack">
+                    <h3>Save your recovery codes</h3>
+                    <p class="muted">Each code can be used once if you lose access to your authenticator app.</p>
+                    <textarea class="textarea" :value="recoveryCodes.join('\n')" rows="5" readonly></textarea>
                 </div>
 
-                <form v-if="profile.twoFactorEnabled" @submit.prevent="disableTwoFactor">
-                    <label for="disable-code">Authenticator or recovery code</label>
-                    <input
-                        id="disable-code"
-                        v-model="twoFactorCode"
-                        type="text"
-                        autocomplete="one-time-code"
-                        required
-                    >
-                    <button type="submit" class="secondary" :disabled="twoFactorLoading">
-                        {{ twoFactorLoading ? 'Disabling...' : 'Disable two-factor authentication' }}
-                    </button>
+                <form v-if="profile.twoFactorEnabled" class="stack" @submit.prevent="disableTwoFactor">
+                    <label class="field">
+                        <span class="label">Authenticator or recovery code</span>
+                        <input
+                            id="disable-code"
+                            v-model="twoFactorCode"
+                            class="input"
+                            type="text"
+                            autocomplete="one-time-code"
+                            required
+                        >
+                    </label>
+                    <div>
+                        <button type="submit" class="btn btn--danger" :disabled="twoFactorLoading">
+                            {{ twoFactorLoading ? 'Disabling...' : 'Disable two-factor authentication' }}
+                        </button>
+                    </div>
                 </form>
             </section>
 
-            <section>
-                <h3>Passkeys</h3>
-                <p v-if="!passkeysSupported" class="message">
+            <section class="panel stack">
+                <h2>Passkeys</h2>
+                <p v-if="!passkeysSupported" class="alert alert--info">
                     Passkeys are not supported by this browser.
                 </p>
-                <form v-else @submit.prevent="registerPasskey">
-                    <label for="passkey-name">Passkey name</label>
-                    <input
-                        id="passkey-name"
-                        v-model="passkeyName"
-                        type="text"
-                        maxlength="100"
-                        placeholder="This device"
-                    >
-                    <button type="submit" :disabled="passkeyLoading">
-                        {{ passkeyLoading ? 'Registering...' : 'Add passkey' }}
-                    </button>
+                <form v-else class="stack" @submit.prevent="registerPasskey">
+                    <label class="field">
+                        <span class="label">Passkey name</span>
+                        <input
+                            id="passkey-name"
+                            v-model="passkeyName"
+                            class="input"
+                            type="text"
+                            maxlength="100"
+                            placeholder="This device"
+                        >
+                    </label>
+                    <div>
+                        <button type="submit" class="btn btn--primary" :disabled="passkeyLoading">
+                            <app-icon name="plus" />
+                            {{ passkeyLoading ? 'Registering...' : 'Add passkey' }}
+                        </button>
+                    </div>
                 </form>
 
-                <p v-if="profile.passkeys.length === 0">No passkeys have been registered.</p>
+                <p v-if="profile.passkeys.length === 0" class="muted">No passkeys have been registered.</p>
                 <ul v-else class="passkeys">
                     <li v-for="passkey in profile.passkeys" :key="passkey.id">
-                        <div>
+                        <div class="truncate">
                             <strong>{{ passkey.name || 'Unnamed passkey' }}</strong>
-                            <small>
+                            <small class="muted">
                                 Added {{ formatDate(passkey.createdAt) }}
                                 <span v-if="passkey.isBackedUp"> - Backed up</span>
                             </small>
                         </div>
                         <button
                             type="button"
-                            class="secondary"
+                            class="btn btn--sm btn--danger"
                             :disabled="passkeyLoading"
                             @click="removePasskey(passkey.id)"
                         >
+                            <app-icon name="trash" />
                             Remove
                         </button>
                     </li>
                 </ul>
             </section>
         </template>
-    </article>
+    </div>
 </template>
 
 <script lang="ts">
@@ -148,11 +166,15 @@
         TwoFactorSetup
     } from '@/models/profile'
     import { createPasskey, serializePasskeyRegistration } from '@/services/passkey'
+    import AppIcon from '@/components/AppIcon.vue'
 
     const maxPasskeyNameLength = 100
 
     export default defineComponent({
         name: 'ProfileView',
+        components: {
+            AppIcon
+        },
         setup() {
             const service = new ArkaineService()
             const profile = ref<Profile>()
@@ -363,37 +385,21 @@
 
 <style lang="scss" scoped>
     .profile {
-        max-width: 60em;
+        max-width: 60rem;
         margin: 0 auto;
-    }
-
-    section {
-        margin-top: 2em;
     }
 
     .values {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(15em, 1fr));
-        gap: 1em;
-    }
-
-    .setup,
-    .recovery-codes {
-        margin-top: 1em;
-    }
-
-    .message {
-        padding: 0.75em;
-    }
-
-    .success {
-        color: var(--app-success);
-        border: 1px solid color-mix(in srgb, var(--app-success) 45%, transparent);
-        background: var(--app-success-background);
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        gap: var(--space-4);
     }
 
     .passkeys {
-        padding-left: 0;
+        display: grid;
+        gap: var(--space-2);
+        margin: 0;
+        padding: 0;
         list-style: none;
     }
 
@@ -401,12 +407,19 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 1em;
-        margin-bottom: 1em;
+        gap: var(--space-4);
+        padding: var(--space-3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface-raised);
     }
 
     .passkeys small {
         display: block;
-        opacity: 0.75;
+        font-size: var(--text-xs);
+    }
+
+    .btn {
+        --icon-size: 1rem;
     }
 </style>

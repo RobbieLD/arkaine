@@ -24,6 +24,12 @@ namespace Server.Arkaine.B2
         [JsonPropertyName("preview")]
         public string Thumbnail { get; set; } = string.Empty;
 
+        [JsonPropertyName("previewWidth")]
+        public int? PreviewWidth { get; set; }
+
+        [JsonPropertyName("previewHeight")]
+        public int? PreviewHeight { get; set; }
+
         [JsonPropertyName("favourite")]
         public bool IsFavoureite { get; set; }
 
