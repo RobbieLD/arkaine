@@ -41,6 +41,10 @@
     /* Favourite */
     --favourite: #ff5c8a;
 
+    /* Drawn folder tab, used when a folder has no thumbnail */
+    --folder: #ffcf66;
+    --folder-tab: #ffbc2b;
+
     /* Spacing scale */
     --space-1: 0.25rem;
     --space-2: 0.5rem;
@@ -85,7 +89,7 @@
     --focus-ring: 0 0 0 3px rgb(88 166 255 / 40%);
 
     /* Layout */
-    --page-width: 90rem;
+    --page-width: none;
     --page-gutter: clamp(var(--space-4), 3vw, var(--space-6));
 
     /* Layers */

@@ -30,7 +30,9 @@ var arkaine = builder.AddProject<Projects.Server_Arkaine>("arkaine")
 
 var client = builder.AddViteApp("client", "../../Client.Arkaine")
     .WithYarn(installArgs: new[] { "--frozen-lockfile" })
-    .WithEnvironment("VITE_ARKAINE_SERVER", arkaine.GetEndpoint("https"))
+    // Not VITE_ prefixed on purpose: this only configures the dev server's proxy, it must
+    // never reach client code. The client always calls the API on its own origin.
+    .WithEnvironment("ARKAINE_SERVER_URL", arkaine.GetEndpoint("http"))
     .WithExternalHttpEndpoints()
     .WaitFor(arkaine);
 

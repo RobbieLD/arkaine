@@ -4,24 +4,28 @@
         <router-link
             v-if="file.isDirectory"
             :to="to"
-            class="media-card__media media-card__media--frame"
-            :class="{ 'media-card__media--auto': !ratioStyle }"
+            class="media-card__media"
+            :class="showFolderPlaceholder
+                ? 'media-card__media--placeholder'
+                : ['media-card__media--frame', { 'media-card__media--auto': !ratioStyle }]"
             :style="ratioStyle"
             @mouseenter="$emit('prefetch')"
             @focus="$emit('prefetch')"
             @touchstart.passive="$emit('prefetch')"
         >
-            <img
-                class="media-card__image"
-                :src="file.preview || file.thumb"
-                :alt="''"
-                loading="lazy"
-                decoding="async"
-                @error="onImageError"
-            />
-            <span class="media-card__badge">
-                <app-icon name="folder" />
-            </span>
+            <template v-if="!showFolderPlaceholder">
+                <img
+                    class="media-card__image"
+                    :src="file.preview || file.thumb"
+                    :alt="''"
+                    loading="lazy"
+                    decoding="async"
+                    @error="onImageError"
+                />
+                <span class="media-card__badge">
+                    <app-icon name="folder" />
+                </span>
+            </template>
         </router-link>
 
         <!-- Image -->
@@ -72,7 +76,19 @@
 
         <footer class="media-card__footer">
             <div class="media-card__meta">
-                <span class="media-card__name truncate" :title="file.name">{{ file.name }}</span>
+                <router-link
+                    v-if="file.isDirectory"
+                    :to="to"
+                    class="media-card__name truncate"
+                    :title="file.name"
+                >{{ file.name }}</router-link>
+                <a
+                    v-else
+                    :href="file.url"
+                    :download="file.name"
+                    class="media-card__name truncate"
+                    :title="`Download ${file.name}`"
+                >{{ file.name }}</a>
                 <span class="media-card__sub truncate">{{ subtitle }}</span>
             </div>
             <button
@@ -146,6 +162,13 @@
             })
 
             const onImageError = (event: Event) => {
+                failed.value = true
+
+                // Folders fall back to a drawn placeholder rather than another image.
+                if (props.file.isDirectory) {
+                    return
+                }
+
                 const image = event.target as HTMLImageElement
 
                 if (image.dataset.fallbackApplied) {
@@ -153,13 +176,15 @@
                 }
 
                 image.dataset.fallbackApplied = 'true'
-                failed.value = true
-                image.src = props.file.isDirectory ? '/folder.png' : '/icon.png'
+                image.src = '/icon.png'
             }
+
+            const showFolderPlaceholder = computed(() => props.file.isDirectory && failed.value)
 
             return {
                 onImageError,
                 ratioStyle,
+                showFolderPlaceholder,
                 subtitle
             }
         }
@@ -208,6 +233,14 @@
     /* No server dimensions: let the image dictate the height instead of cropping. */
     .media-card__media--auto .media-card__image {
         height: auto;
+    }
+
+    /* Folders with no generated thumbnail get a drawn folder tab, not a stock image. */
+    .media-card__media--placeholder {
+        height: 3em;
+        border-top: var(--folder-tab) 22px solid;
+        border-right: var(--folder-tab) 22px solid;
+        background: var(--folder);
     }
 
     .media-card__badge {
@@ -278,6 +311,13 @@
         color: var(--text);
         font-size: var(--text-sm);
         font-weight: 600;
+        text-decoration: none;
+    }
+
+    .media-card__name:hover,
+    .media-card__name:focus-visible {
+        color: var(--accent);
+        text-decoration: underline;
     }
 
     .media-card__sub {

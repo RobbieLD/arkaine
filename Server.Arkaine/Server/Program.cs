@@ -36,10 +36,15 @@ var configuredPasskeyOrigins = ParseOrigins(
         : config["CORS_ORIGIN"]);
 Action<CookieAuthenticationOptions> configureAuthenticationCookie = options =>
 {
+    // Development serves the client through the Vite dev-server proxy, so the browser is
+    // already on the same origin as the API over plain http on localhost. Demanding
+    // SameSite=None there would also demand Secure, and the browser would drop the cookie.
     options.Cookie.SameSite = dev
-        ? SameSiteMode.None
+        ? SameSiteMode.Lax
         : SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = dev
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
 };
 
 builder.Services.AddAuthentication(options =>
