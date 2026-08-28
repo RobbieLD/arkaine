@@ -1,19 +1,19 @@
 import Alert from '@/models/alert'
-import ArkaineService from '@/services/arkaine.service'
-import { InjectionKey } from 'vue'
-import { createStore, Store } from 'vuex'
-import State from './state'
 import ArkaineFile from '@/models/arkaine-file'
-import Settings from '@/models/settings'
-import Progress from '@/models/progress'
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr'
+import AdminStatusResponse, { emptyAdminStatus, hasEmbeddedThumbnailCache, normalizeAdminStatus } from '@/models/admin-status'
+import ConversionProgress, { emptyConversionProgress, normalizeConversionProgress } from '@/models/conversion-progress'
 import Tag from '@/models/tag'
 import ThumbnailCacheStats, { emptyThumbnailCacheStats } from '@/models/thumbnail-cache-stats'
+import ThumbnailProgress, { emptyThumbnailProgress, normalizeThumbnailProgress } from '@/models/thumbnail-progress'
 import { PasskeyAssertionPayload, PasskeyRequestOptions } from '@/models/profile'
+import ArkaineService from '@/services/arkaine.service'
 import { serverUrl } from '@/config'
+import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr'
+import { createPinia, defineStore } from 'pinia'
+import type State from './state'
 import { FolderStatus, folderCacheLimit, folderCacheTtl, folderKey } from './folder-cache'
 
-export const storeKey: InjectionKey<Store<State>> = Symbol('store')
+export const pinia = createPinia()
 
 interface FolderPayload {
     path: string
@@ -29,6 +29,22 @@ const inFlightFolders = new Map<string, Promise<{ files: ArkaineFile[], nextFile
 const inFlightPages = new Set<string>()
 
 let updatesConnection: HubConnection | null = null
+let updatesConnectionTransition: Promise<void> = Promise.resolve()
+
+const createInitialState = (): State => ({
+    isAuthenticated: false,
+    isAdmin: false,
+    username: '',
+    folders: {},
+    folderOrder: [],
+    currentPath: '',
+    folderStatus: 'idle',
+    alert: undefined,
+    adminStatus: emptyAdminStatus(),
+    thumbnailProgress: emptyThumbnailProgress(),
+    conversionProgress: emptyConversionProgress(),
+    thumbnailCache: emptyThumbnailCacheStats()
+})
 
 const errorMessage = (error: unknown): string => {
     if (typeof error === 'string') {
@@ -105,32 +121,8 @@ const evict = (state: State): void => {
     state.folderOrder = kept
 }
 
-export const store = createStore<State>({
-    state: {
-        isAuthenticated: false,
-        isAdmin: false,
-        username: '',
-        folders: {},
-        folderOrder: [],
-        currentPath: '',
-        folderStatus: 'idle',
-        settings: {
-            totalThumbnails: 0,
-            thumbnailDir: '',
-            thumbnailExtensions: '',
-            thumbnailPageSize: 0,
-            thumbnailWidth: 0,
-            isRunning: false,
-            badThumbnails: 0
-        },
-        progress: {
-            failed: 0,
-            generated: 0,
-            scanned: 0,
-            finished: false
-        },
-        thumbnailCache: emptyThumbnailCacheStats()
-    },
+export const useAppStore = defineStore('app', {
+    state: createInitialState,
     getters: {
         hasMoreFiles: (state): boolean => {
             return !!state.folders[state.currentPath]?.nextFile
@@ -155,14 +147,14 @@ export const store = createStore<State>({
             return state.folderStatus === 'error'
         }
     },
-    mutations: {
-        setAuthenticated: (state: State, authed: boolean): void => {
-            state.isAuthenticated = authed
+    actions: {
+        setAuthenticated(authed: boolean): void {
+            this.isAuthenticated = authed
         },
 
-        setTags: (state: State, request: { file: string, tags: Tag[] }): void => {
+        setTags(request: { file: string, tags: Tag[] }): void {
             // Tags belong to a file, not a folder, so every cached copy is kept in step.
-            for (const entry of Object.values(state.folders)) {
+            for (const entry of Object.values(this.folders)) {
                 for (const file of entry.files) {
                     if (file.rawFileName === request.file) {
                         file.tags = request.tags
@@ -171,8 +163,8 @@ export const store = createStore<State>({
             }
         },
 
-        setFavourite: (state: State, rawFileName: string): void => {
-            for (const entry of Object.values(state.folders)) {
+        setFavourite(rawFileName: string): void {
+            for (const entry of Object.values(this.folders)) {
                 for (const file of entry.files) {
                     if (file.rawFileName === rawFileName) {
                         file.isFavourite = true
@@ -181,43 +173,47 @@ export const store = createStore<State>({
             }
         },
 
-        setSettings: (state: State, settings: Settings): void => {
-            state.settings = settings
+        setAdminStatus(status: AdminStatusResponse): void {
+            this.adminStatus = status
         },
 
-        setThumbnailCache: (state: State, stats: ThumbnailCacheStats): void => {
-            state.thumbnailCache = stats
+        setThumbnailCache(stats: ThumbnailCacheStats): void {
+            this.thumbnailCache = stats
         },
 
-        setRunning: (state: State, running: boolean): void => {
-            state.settings.isRunning = running
+        setThumbnailRunning(running: boolean): void {
+            this.adminStatus.thumbnails.isRunning = running
         },
 
-        setIsAdmin: (state: State, isAdmin: boolean): void => {
-            state.isAdmin = isAdmin
+        setConversionRunning(running: boolean): void {
+            this.adminStatus.conversion.isRunning = running
         },
 
-        setCurrentPath: (state: State, path: string): void => {
-            state.currentPath = path
+        setIsAdmin(isAdmin: boolean): void {
+            this.isAdmin = isAdmin
         },
 
-        setFolderStatus: (state: State, status: FolderStatus): void => {
-            state.folderStatus = status
+        setCurrentPath(path: string): void {
+            this.currentPath = path
         },
 
-        setFolder: (state: State, payload: FolderPayload): void => {
-            state.folders[payload.path] = {
+        setFolderStatus(status: FolderStatus): void {
+            this.folderStatus = status
+        },
+
+        setFolder(payload: FolderPayload): void {
+            this.folders[payload.path] = {
                 files: payload.files,
                 nextFile: payload.nextFile,
                 fetchedAt: Date.now()
             }
 
-            touch(state, payload.path)
-            evict(state)
+            touch(this, payload.path)
+            evict(this)
         },
 
-        appendToFolder: (state: State, payload: FolderPayload): void => {
-            const entry = state.folders[payload.path]
+        appendToFolder(payload: FolderPayload): void {
+            const entry = this.folders[payload.path]
 
             if (!entry) {
                 return
@@ -227,158 +223,294 @@ export const store = createStore<State>({
             entry.nextFile = payload.nextFile
         },
 
-        touchFolder: (state: State, path: string): void => {
-            if (state.folders[path]) {
-                touch(state, path)
+        touchFolder(path: string): void {
+            if (this.folders[path]) {
+                touch(this, path)
             }
         },
 
-        invalidateFolders: (state: State, prefix: string): void => {
-            for (const path of Object.keys(state.folders)) {
+        invalidateFolders(prefix: string): void {
+            for (const path of Object.keys(this.folders)) {
                 if (!path.startsWith(prefix)) {
                     continue
                 }
 
-                delete state.folders[path]
-                const index = state.folderOrder.indexOf(path)
+                delete this.folders[path]
+                const index = this.folderOrder.indexOf(path)
 
                 if (index >= 0) {
-                    state.folderOrder.splice(index, 1)
+                    this.folderOrder.splice(index, 1)
                 }
             }
         },
 
-        clearFolders: (state: State): void => {
-            state.folders = {}
-            state.folderOrder = []
-            state.folderStatus = 'idle'
+        clearFolders(): void {
+            this.folders = {}
+            this.folderOrder = []
+            this.folderStatus = 'idle'
         },
 
-        setAlert: (state: State, alert?: Alert): void => {
-            state.alert = alert
+        setAlert(alert?: Alert): void {
+            this.alert = alert
         },
 
-        setUsername: (state: State, username: string): void => {
-            state.username = username
+        setUsername(username: string): void {
+            this.username = username
         },
 
-        setProgress: (state: State, progress: Progress): void => {
-            state.progress = progress
+        setThumbnailProgress(progress: ThumbnailProgress): void {
+            this.thumbnailProgress = progress
         },
-    },
-    actions: {
-        checkLogin: async ({ commit }): Promise<boolean> => {
+
+        setConversionProgress(progress: ConversionProgress): void {
+            this.conversionProgress = progress
+        },
+
+        resetAdminState(): void {
+            this.adminStatus = emptyAdminStatus()
+            this.thumbnailProgress = emptyThumbnailProgress()
+            this.conversionProgress = emptyConversionProgress()
+            this.thumbnailCache = emptyThumbnailCacheStats()
+        },
+
+        applyAdminStatus(
+            status: AdminStatusResponse,
+            hydrateCache = false,
+            hydrateProgress = true
+        ): void {
+            this.setAdminStatus(status)
+
+            if (hydrateCache) {
+                this.setThumbnailCache(status.thumbnailCache)
+            }
+
+            if (hydrateProgress) {
+                const thumbnailReport = status.thumbnails.report
+                if (thumbnailReport.finished || thumbnailReport.scanned > 0 || status.thumbnails.isRunning) {
+                    this.setThumbnailProgress(thumbnailReport)
+                }
+
+                const conversionReport = status.conversion.report
+                if (conversionReport.finished || conversionReport.scanned > 0 || status.conversion.isRunning) {
+                    this.setConversionProgress(conversionReport)
+                }
+            }
+        },
+
+        async checkLogin(): Promise<boolean> {
             const service = new ArkaineService()
             const response = await service.LoggedIn()
-            commit('setAuthenticated', true)
-            commit('setUsername', response.username)
-            commit('setIsAdmin', response.isAdmin)
+            this.setAuthenticated(true)
+            this.setUsername(response.username)
+            this.setIsAdmin(response.isAdmin)
             return true
         },
 
-        deleteTag: async ({ commit }, request: { id: number, fileName: string }): Promise<void> => {
+        async deleteTag(request: { id: number, fileName: string }): Promise<void> {
             const service = new ArkaineService()
             const tags = await service.DeleteTag(request.id)
-            commit('setTags', { file: request.fileName, tags })
+            this.setTags({ file: request.fileName, tags })
         },
 
-        subscribeToUpdates: async ({ commit }): Promise<void> => {
-            if (updatesConnection) {
-                return
-            }
-
-            const connection = new HubConnectionBuilder()
-                .withUrl(serverUrl + '/updates')
-                .withAutomaticReconnect()
-                .build()
-
-            connection.on('update', (data: Progress | string) => {
-                // The same event also carries plain status strings from the ingest pipeline.
-                if (typeof data !== 'object' || data === null) {
+        async subscribeToUpdates(): Promise<void> {
+            const transition = updatesConnectionTransition.then(async () => {
+                if (updatesConnection) {
                     return
                 }
 
-                commit('setProgress', data)
-                commit('setRunning', !data.finished)
+                const connection = new HubConnectionBuilder()
+                    .withUrl(serverUrl + '/updates')
+                    .withAutomaticReconnect()
+                    .build()
+
+                connection.on('update', (data: ThumbnailProgress | string) => {
+                    // The same event also carries plain status strings from the ingest pipeline.
+                    if (typeof data === 'string') {
+                        return
+                    }
+
+                    const progress = normalizeThumbnailProgress(data)
+                    this.setThumbnailProgress(progress)
+                    this.setThumbnailRunning(!progress.finished)
+                })
+
+                connection.on('convert', (data: ConversionProgress | string) => {
+                    if (typeof data === 'string') {
+                        return
+                    }
+
+                    const progress = normalizeConversionProgress(data)
+                    this.setConversionProgress(progress)
+                    this.setConversionRunning(!progress.finished)
+                })
+
+                connection.onreconnected(async () => {
+                    try {
+                        await Promise.all([
+                            this.loadAdminStatus(),
+                            this.loadThumbnailCacheStats()
+                        ])
+                    }
+                    catch (e) {
+                        this.setAlert({
+                            isError: true,
+                            message: errorMessage(e)
+                        })
+                    }
+                })
+
+                connection.onclose(() => {
+                    if (updatesConnection === connection) {
+                        updatesConnection = null
+                    }
+                })
+
+                updatesConnection = connection
+
+                try {
+                    await connection.start()
+                }
+                catch (e) {
+                    if (updatesConnection === connection) {
+                        updatesConnection = null
+                    }
+                    throw e
+                }
             })
 
-            connection.onclose(() => {
-                updatesConnection = null
+            updatesConnectionTransition = transition.catch(() => undefined)
+            await transition
+        },
+
+        async unsubscribeFromUpdates(): Promise<void> {
+            const transition = updatesConnectionTransition.then(async () => {
+                const connection = updatesConnection
+                if (!connection) {
+                    return
+                }
+
+                await connection.stop()
+                if (updatesConnection === connection) {
+                    updatesConnection = null
+                }
             })
 
-            updatesConnection = connection
+            updatesConnectionTransition = transition.catch(() => undefined)
+            await transition
+        },
 
-            try {
-                await connection.start()
+        async startThumbnails(): Promise<void> {
+            const service = new ArkaineService()
+            const response = await service.StartThumbnails()
+            this.setThumbnailProgress(emptyThumbnailProgress())
+            this.setThumbnailRunning(true)
+            if (response) {
+                this.applyAdminStatus(normalizeAdminStatus(response), hasEmbeddedThumbnailCache(response))
             }
-            catch (e) {
-                updatesConnection = null
-                throw e
+            else {
+                await this.loadAdminStatus()
             }
         },
 
-        unsubscribeFromUpdates: async (): Promise<void> => {
-            const connection = updatesConnection
-            updatesConnection = null
-            await connection?.stop()
-        },
-
-        startGeneration: async ({ commit }): Promise<void> => {
+        async stopThumbnails(): Promise<void> {
             const service = new ArkaineService()
-            await service.Start()
-            commit('setRunning', true)
+            const response = await service.StopThumbnails()
+            this.setThumbnailProgress({
+                ...this.thumbnailProgress,
+                finished: true,
+                cancelled: true,
+                currentFile: ''
+            })
+            this.setThumbnailRunning(false)
+            if (response) {
+                this.applyAdminStatus(normalizeAdminStatus(response), hasEmbeddedThumbnailCache(response), false)
+            }
+            else {
+                await this.loadAdminStatus()
+            }
         },
 
-        cancelGeneration: async ({ commit }): Promise<void> => {
+        async startConversion(): Promise<void> {
             const service = new ArkaineService()
-            await service.Stop()
-            commit('setRunning', false)
+            const response = await service.StartConversion()
+            this.setConversionProgress(emptyConversionProgress())
+            this.setConversionRunning(true)
+            if (response) {
+                this.applyAdminStatus(normalizeAdminStatus(response), hasEmbeddedThumbnailCache(response))
+            }
+            else {
+                await this.loadAdminStatus()
+            }
         },
 
-        loadSettings: async ({ commit }): Promise<void> => {
+        async stopConversion(): Promise<void> {
             const service = new ArkaineService()
-            const response = await service.GetSettings()
-            commit('setSettings', response)
+            const response = await service.StopConversion()
+            this.setConversionProgress({
+                ...this.conversionProgress,
+                finished: true,
+                cancelled: true,
+                currentFile: ''
+            })
+            this.setConversionRunning(false)
+            if (response) {
+                this.applyAdminStatus(normalizeAdminStatus(response), hasEmbeddedThumbnailCache(response), false)
+            }
+            else {
+                await this.loadAdminStatus()
+            }
         },
 
-        loadThumbnailCacheStats: async ({ commit }): Promise<void> => {
+        async loadAdminStatus(): Promise<void> {
+            const service = new ArkaineService()
+            const response = await service.GetAdminStatus()
+            this.applyAdminStatus(normalizeAdminStatus(response), hasEmbeddedThumbnailCache(response))
+        },
+
+        async loadThumbnailCacheStats(): Promise<void> {
             const service = new ArkaineService()
             const response = await service.GetThumbnailCacheStats()
-            commit('setThumbnailCache', response)
+            this.setThumbnailCache(response)
         },
 
-        clearThumbnailCache: async ({ commit }): Promise<void> => {
+        async clearThumbnailCache(): Promise<void> {
             const service = new ArkaineService()
             const response = await service.ClearThumbnailCache()
-            commit('setThumbnailCache', response)
+            this.setThumbnailCache(response)
         },
 
-        logout: async ({ commit, dispatch }): Promise<void> => {
+        async logout(): Promise<void> {
             const service = new ArkaineService()
-            await service.Logout()
-            await dispatch('unsubscribeFromUpdates')
-            commit('setUsername', '')
-            commit('setAuthenticated', false)
-            commit('clearFolders')
-            commit('setCurrentPath', '')
+            try {
+                await service.Logout()
+            }
+            finally {
+                await this.unsubscribeFromUpdates()
+                this.setUsername('')
+                this.setAuthenticated(false)
+                this.setIsAdmin(false)
+                this.clearFolders()
+                this.setCurrentPath('')
+                this.resetAdminState()
+            }
         },
 
-        login: async (_, payload: { username: string, password: string, remember: boolean }): Promise<boolean> => {
+        async login(payload: { username: string, password: string, remember: boolean }): Promise<boolean> {
             const service = new ArkaineService()
             return await service.Login(payload.username, payload.password, payload.remember)
         },
 
-        passkeyRequestOptions: async (_, username?: string): Promise<PasskeyRequestOptions> => {
+        async passkeyRequestOptions(username?: string): Promise<PasskeyRequestOptions> {
             const service = new ArkaineService()
             return await service.GetPasskeyRequestOptions(username)
         },
 
-        passkeyLogin: async (_, payload: { credential: PasskeyAssertionPayload, remember: boolean }): Promise<void> => {
+        async passkeyLogin(payload: { credential: PasskeyAssertionPayload, remember: boolean }): Promise<void> {
             const service = new ArkaineService()
             await service.PasskeyLogin(payload.credential, payload.remember)
         },
 
-        twoFactorAuth: async (_, payload: { code: string, remember: boolean }): Promise<void> => {
+        async twoFactorAuth(payload: { code: string, remember: boolean }): Promise<void> {
             const service = new ArkaineService()
             await service.TwoFactorAuth(payload.code, payload.remember)
         },
@@ -388,53 +520,53 @@ export const store = createStore<State>({
          * gallery swaps to the target folder - cached content or skeletons - before any
          * network work begins. Navigation must never wait on a round trip.
          */
-        loadFiles: async ({ commit, state }, rawPath: unknown): Promise<void> => {
+        async loadFiles(rawPath: unknown): Promise<void> {
             const path = folderKey(rawPath)
 
-            commit('setCurrentPath', path)
-            commit('setAlert', undefined)
+            this.setCurrentPath(path)
+            this.setAlert(undefined)
 
-            if (state.folders[path]) {
-                commit('touchFolder', path)
+            if (this.folders[path]) {
+                this.touchFolder(path)
 
-                if (isFresh(state, path)) {
-                    commit('setFolderStatus', 'idle')
+                if (isFresh(this, path)) {
+                    this.setFolderStatus('idle')
                     return
                 }
 
-                commit('setFolderStatus', 'revalidating')
+                this.setFolderStatus('revalidating')
 
                 try {
                     const response = await fetchFolder(path)
-                    commit('setFolder', { path, files: response.files, nextFile: response.nextFile })
+                    this.setFolder({ path, files: response.files, nextFile: response.nextFile })
                 }
                 catch {
                     // A background refresh failing is not worth blanking a folder the
                     // user is already looking at, so the cached listing stays on screen.
                 }
                 finally {
-                    if (state.currentPath === path) {
-                        commit('setFolderStatus', 'idle')
+                    if (this.currentPath === path) {
+                        this.setFolderStatus('idle')
                     }
                 }
 
                 return
             }
 
-            commit('setFolderStatus', 'loading')
+            this.setFolderStatus('loading')
 
             try {
                 const response = await fetchFolder(path)
-                commit('setFolder', { path, files: response.files, nextFile: response.nextFile })
+                this.setFolder({ path, files: response.files, nextFile: response.nextFile })
 
-                if (state.currentPath === path) {
-                    commit('setFolderStatus', 'idle')
+                if (this.currentPath === path) {
+                    this.setFolderStatus('idle')
                 }
             }
             catch (e) {
-                if (state.currentPath === path) {
-                    commit('setFolderStatus', 'error')
-                    commit('setAlert', { isError: true, message: errorMessage(e) })
+                if (this.currentPath === path) {
+                    this.setFolderStatus('error')
+                    this.setAlert({ isError: true, message: errorMessage(e) })
                 }
 
                 throw e
@@ -442,23 +574,23 @@ export const store = createStore<State>({
         },
 
         /** Warms the cache for a folder the user is about to open. Never touches the view. */
-        prefetchFolder: async ({ commit, state }, rawPath: unknown): Promise<void> => {
+        async prefetchFolder(rawPath: unknown): Promise<void> {
             const path = folderKey(rawPath)
 
-            if (isFresh(state, path) || inFlightFolders.has(path)) {
+            if (isFresh(this, path) || inFlightFolders.has(path)) {
                 return
             }
 
             try {
                 const response = await fetchFolder(path)
-                commit('setFolder', { path, files: response.files, nextFile: response.nextFile })
+                this.setFolder({ path, files: response.files, nextFile: response.nextFile })
             }
             catch {
                 // Prefetching is best effort - a failure just means no warm cache.
             }
         },
 
-        addTag: async ({ commit }, request: { name: string, file: string, time: string }): Promise<void> => {
+        async addTag(request: { name: string, file: string, time: string }): Promise<void> {
             try {
                 const service = new ArkaineService()
                 let seconds = 0
@@ -474,10 +606,10 @@ export const store = createStore<State>({
 
                 const tags = await service.AddTag(request.name, request.file, seconds)
 
-                commit('setTags', { file: request.file, tags })
+                this.setTags({ file: request.file, tags })
             }
             catch (e) {
-                commit('setAlert', {
+                this.setAlert({
                     isError: true,
                     message: errorMessage(e)
                 })
@@ -486,16 +618,16 @@ export const store = createStore<State>({
             }
         },
 
-        addToFavourite: async ({ commit }, file: ArkaineFile): Promise<void> => {
+        async addToFavourite(file: ArkaineFile): Promise<void> {
             try {
                 const service = new ArkaineService()
                 await service.AddToFavourites(file)
-                commit('setFavourite', file.rawFileName)
+                this.setFavourite(file.rawFileName)
                 // The favourites collection has changed, so drop its cached listing.
-                commit('invalidateFolders', 'Favourites')
+                this.invalidateFolders('Favourites')
             }
             catch (e) {
-                commit('setAlert', {
+                this.setAlert({
                     isError: true,
                     message: errorMessage(e)
                 })
@@ -504,9 +636,9 @@ export const store = createStore<State>({
             }
         },
 
-        loadMoreFiles: async ({ commit, state }, rawPath: unknown): Promise<void> => {
+        async loadMoreFiles(rawPath: unknown): Promise<void> {
             const path = folderKey(rawPath)
-            const entry = state.folders[path]
+            const entry = this.folders[path]
 
             if (!entry?.nextFile) {
                 return
@@ -523,11 +655,11 @@ export const store = createStore<State>({
             try {
                 const service = new ArkaineService()
                 const response = await service.Files(path, entry.nextFile)
-                commit('appendToFolder', { path, files: response.files, nextFile: response.nextFile })
-                commit('setAlert', undefined)
+                this.appendToFolder({ path, files: response.files, nextFile: response.nextFile })
+                this.setAlert(undefined)
             }
             catch (e) {
-                commit('setAlert', {
+                this.setAlert({
                     isError: true,
                     message: errorMessage(e)
                 })
@@ -538,7 +670,7 @@ export const store = createStore<State>({
                 inFlightPages.delete(pageKey)
             }
         }
-    },
-    modules: {
     }
 })
+
+export const store = useAppStore(pinia)

@@ -1,7 +1,8 @@
 import Alert from '@/models/alert'
-import Progress from '@/models/progress'
-import Settings from '@/models/settings'
+import type AdminStatusResponse from '@/models/admin-status'
+import type ConversionProgress from '@/models/conversion-progress'
 import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
+import type ThumbnailProgress from '@/models/thumbnail-progress'
 import FolderCacheEntry, { FolderStatus } from './folder-cache'
 
 export default interface State {
@@ -14,7 +15,8 @@ export default interface State {
     currentPath: string,
     folderStatus: FolderStatus,
     alert?: Alert,
-    settings: Settings,
-    progress: Progress,
+    adminStatus: AdminStatusResponse,
+    thumbnailProgress: ThumbnailProgress,
+    conversionProgress: ConversionProgress,
     thumbnailCache: ThumbnailCacheStats
 }

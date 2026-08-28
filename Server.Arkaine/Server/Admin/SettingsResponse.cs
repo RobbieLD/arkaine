@@ -2,6 +2,10 @@
 {
     public class SettingsResponse
     {
+        public SettingsResponse()
+        {
+        }
+
         public SettingsResponse(long totalThumbnails, long badThumbnails, int thumbnailPageSize, int thumbnailWidth, string thumbnailDir, string thumbnailExt, bool isRunning)
         {
             BadThumbnails = badThumbnails;
@@ -13,12 +17,12 @@
             IsRunning = isRunning;
         }
 
-        public long BadThumbnails { get; }
-        public long TotalThumbnails { get; }
-        public string ThumbnailDir { get; }
-        public string ThumbnailExtensions { get; }
-        public int ThumbnailPageSize { get; }
-        public int ThumbnailWidth { get; }
-        public bool IsRunning { get;  }
+        public long BadThumbnails { get; set; }
+        public long TotalThumbnails { get; set; }
+        public string ThumbnailDir { get; set; } = string.Empty;
+        public string ThumbnailExtensions { get; set; } = string.Empty;
+        public int ThumbnailPageSize { get; set; }
+        public int ThumbnailWidth { get; set; }
+        public bool IsRunning { get;  set; }
     }
 }

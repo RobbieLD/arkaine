@@ -52,12 +52,12 @@
                 </router-link>
                 <router-link
                     v-if="admin"
-                    to="/settings"
+                    to="/admin"
                     class="nav-link"
                     active-class="nav-link--active"
                     @click="closeMenu"
                 >
-                    Settings
+                    Admin
                 </router-link>
                 <span v-if="username" class="navigation__user truncate">{{ username }}</span>
                 <button type="button" class="btn btn--sm navigation__logout" @click="logout">
@@ -69,11 +69,10 @@
     </header>
 </template>
 <script lang="ts">
-    import { storeKey } from '@/store'
+    import { useAppStore } from '@/store'
     import { computed, defineComponent, ref } from 'vue'
     import { useRouter } from 'vue-router'
     import type { RouteLocationNormalizedLoaded } from 'vue-router'
-    import { useStore } from 'vuex'
     import AppIcon from './AppIcon.vue'
 
     export default defineComponent({
@@ -83,9 +82,9 @@
         },
         props: {},
         setup() {
-            const store = useStore(storeKey)
-            const admin = computed(() => store.state.isAdmin)
-            const username = computed(() => store.state.username)
+            const store = useAppStore()
+            const admin = computed(() => store.isAdmin)
+            const username = computed(() => store.username)
             const crumbs = ref<{ url: string, title: string }[]>([])
             const menuOpen = ref(false)
 
@@ -127,7 +126,7 @@
 
             const logout = async () => {
                 closeMenu()
-                await store.dispatch('logout')
+                await store.logout()
                 router.push('/login')
             }
 

@@ -73,9 +73,8 @@
 <script lang="ts">
     import ArkaineFile from '@/models/arkaine-file'
     import { secondsToTime } from '@/utils/formatters'
-    import { storeKey } from '@/store'
+    import { useAppStore } from '@/store'
     import { PropType, defineComponent, ref } from 'vue'
-    import { useStore } from 'vuex'
     import AppDialog from './AppDialog.vue'
     import AppIcon from './AppIcon.vue'
 
@@ -98,10 +97,10 @@
             const newTagTimeStamp = ref('')
             const openAddTag = ref(false)
             const openRemoveTag = ref(false)
-            const store = useStore(storeKey)
+            const store = useAppStore()
 
             const deleteTag = async (id: number) => {
-                await store.dispatch('deleteTag', {
+                await store.deleteTag({
                     id,
                     fileName: props.file.rawFileName
                 })
@@ -123,10 +122,10 @@
                 const value = newTagTimeStamp.value.toString()
                 const position = value.length > 1 ? value.length - 2 : 1
 
-                await store.dispatch('addTag', {
+                await store.addTag({
                     name: newTagName.value,
                     file: props.file.rawFileName,
-                    time: value ? (value.length > 1 ? `${value.slice(0, position) || 0}:${value.slice(position)}` : `0:${value}`) : 0
+                    time: value ? (value.length > 1 ? `${value.slice(0, position) || 0}:${value.slice(position)}` : `0:${value}`) : ''
                 })
 
                 newTagName.value = ''

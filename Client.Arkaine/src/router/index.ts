@@ -2,7 +2,7 @@ import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 import { store } from '@/store'
 import LoginView from '@/views/LoginView.vue'
 import FilesView from '@/views/FilesView.vue'
-import SettingsView from '@/views/SettingsView.vue'
+import AdminView from '@/views/AdminView.vue'
 import ProfileView from '@/views/ProfileView.vue'
 
 const routes: Array<RouteRecordRaw> = [
@@ -12,6 +12,15 @@ const routes: Array<RouteRecordRaw> = [
         component: ProfileView,
         meta: {
             requiresAuth: true
+        }
+    },
+    {
+        path: '/admin',
+        name: 'Admin',
+        component: AdminView,
+        meta: {
+            requiresAuth: true,
+            requiresAdmin: true
         }
     },
     {
@@ -26,11 +35,6 @@ const routes: Array<RouteRecordRaw> = [
         path: '/login',
         name: 'Login',
         component: LoginView
-    },
-    {
-        path: '/settings',
-        name: 'Settings',
-        component: SettingsView
     }
 ]
 
@@ -39,18 +43,30 @@ const router = createRouter({
     routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
     const requiresAuth = to.matched.some(r => r.meta?.requiresAuth)
-    if (requiresAuth && !store.state.isAuthenticated) {
+
+    if (requiresAuth && !store.isAuthenticated) {
         next({
             name: 'Login',
             query: {
                 redirect: to.fullPath
             }
         })
-    } else {
-        next()
+        return
     }
+
+    const requiresAdmin = to.matched.some(r => r.meta?.requiresAdmin)
+    if (requiresAdmin && !store.isAdmin) {
+        store.setAlert({
+            isError: true,
+            message: 'You do not have access to the admin area.'
+        })
+        next({ name: 'Files' })
+        return
+    }
+
+    next()
 })
 
 export default router

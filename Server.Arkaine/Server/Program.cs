@@ -10,6 +10,7 @@ using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
 using Server.Arkaine.Favourites;
 using Server.Arkaine.Ingest;
+using Server.Arkaine.Media;
 using Server.Arkaine.Notification;
 using Server.Arkaine.Tags;
 using Server.Arkaine.User;
@@ -62,6 +63,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.Configure<ArkaineOptions>(config);
+builder.Services.PostConfigure<ArkaineOptions>(options => options.Normalize());
 builder.Services.AddSingleton<IBackgroundTaskQueue, UploadQueue>();
 builder.Services.AddScoped<GlobalExceptionHandler>();
 builder.Services.AddScoped(s => ActivatorUtilities.CreateInstance<CustomCookieAuthenticationEvent>(
@@ -83,12 +85,15 @@ builder.Services.Configure<HttpClientFactoryOptions>(Options.DefaultName, option
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
 builder.Services.AddScoped<SgExtractor>();
+builder.Services.AddSingleton<AdminJobCoordinator>();
 builder.Services.AddSingleton<ThumbnailManager>();
+builder.Services.AddSingleton<ConversionManager>();
 builder.Services.AddScoped<WhExtractor>();
 builder.Services.AddScoped<IfExtractor>();
 builder.Services.AddScoped<EchoExtractor>();
 builder.Services.AddScoped<LrExtractor>();
 builder.Services.AddScoped<IFavouriteRepository, FavouriteRepository>();
+builder.Services.AddScoped<IMediaLibraryReferenceService, MediaLibraryReferenceService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IFavouritesService, FavouritesService>();
@@ -99,9 +104,13 @@ builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddHostedService<UploadService>();
 builder.Services.AddSingleton<IThumbnailInfoProvider, ThumbnailInfoCache>();
+builder.Services.AddSingleton<IConversionStateStore, FileSystemConversionStateStore>();
+builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
+builder.Services.AddSingleton<IMediaConverter, FfmpegMediaConverter>();
 
 if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
 {
+    builder.Services.AddSingleton<MockB2.Store>();
     builder.Services.AddScoped<IB2Service, MockB2>();
 }
 else
@@ -183,6 +192,7 @@ if (dev)
 #endif
 
 var app = builder.Build();
+app.Services.GetRequiredService<IOptions<ArkaineOptions>>().Value.Validate();
 if (proxyIpAddresses?.Length > 0)
 {
     app.UseForwardedHeaders();

@@ -3,9 +3,9 @@ import B2File from '@/models/b2-file'
 import BaseService from './base.service'
 import ArkaineFile from '@/models/arkaine-file'
 import Login from '@/models/login'
-import Settings from '@/models/settings'
 import Tag from '@/models/tag'
 import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
+import type AdminStatusResponse from '@/models/admin-status'
 import Profile, {
     Passkey,
     PasskeyAssertionPayload,
@@ -16,6 +16,8 @@ import Profile, {
     TwoFactorSetup
 } from '@/models/profile'
 import { serverUrl } from '@/config'
+
+type AdminStatusPayload = AdminStatusResponse | Record<string, unknown> | null
 
 export default class ArkaineService extends BaseService {
     private baseUrl: string
@@ -128,26 +130,38 @@ export default class ArkaineService extends BaseService {
         return result.data
     }
 
-    public async Start(): Promise<void> {
-        await this.http.get('/settings/start')
+    public async StartThumbnails(): Promise<AdminStatusPayload> {
+        const result = await this.http.post<AdminStatusPayload>('/admin/thumbnails/start')
+        return result.data
     }
 
-    public async Stop(): Promise<void> {
-        await this.http.get('/settings/stop')
+    public async StopThumbnails(): Promise<AdminStatusPayload> {
+        const result = await this.http.post<AdminStatusPayload>('/admin/thumbnails/stop')
+        return result.data
     }
 
-    public async GetSettings(): Promise<Settings> {
-        const result = await this.http.get('/settings')
+    public async StartConversion(): Promise<AdminStatusPayload> {
+        const result = await this.http.post<AdminStatusPayload>('/admin/convert/start')
+        return result.data
+    }
+
+    public async StopConversion(): Promise<AdminStatusPayload> {
+        const result = await this.http.post<AdminStatusPayload>('/admin/convert/stop')
+        return result.data
+    }
+
+    public async GetAdminStatus(): Promise<AdminStatusPayload> {
+        const result = await this.http.get<AdminStatusPayload>('/admin')
         return result.data
     }
 
     public async GetThumbnailCacheStats(): Promise<ThumbnailCacheStats> {
-        const result = await this.http.get<ThumbnailCacheStats>('/settings/thumbnail-cache')
+        const result = await this.http.get<ThumbnailCacheStats>('/admin/thumbnail-cache')
         return result.data
     }
 
     public async ClearThumbnailCache(): Promise<ThumbnailCacheStats> {
-        const result = await this.http.post<ThumbnailCacheStats>('/settings/thumbnail-cache/clear')
+        const result = await this.http.post<ThumbnailCacheStats>('/admin/thumbnail-cache/clear')
         return result.data
     }
     

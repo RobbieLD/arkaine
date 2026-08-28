@@ -102,9 +102,8 @@
 </template>
 
 <script lang="ts">
-    import { storeKey } from '@/store'
+    import { useAppStore } from '@/store'
     import { defineComponent, ref } from 'vue'
-    import { useStore } from 'vuex'
     import DOMPurify from 'dompurify'
     import { useRoute, useRouter } from 'vue-router'
     import { version } from '@/config'
@@ -127,7 +126,7 @@
             const passkeysSupported = typeof window !== 'undefined' &&
                 typeof window.PublicKeyCredential !== 'undefined' &&
                 typeof navigator.credentials !== 'undefined'
-            const store = useStore(storeKey)
+            const store = useAppStore()
             const router = useRouter()
             const route = useRoute()
 
@@ -154,7 +153,7 @@
             const login = async () => {
                 loggingIn.value = true
                 try {
-                    const requires2Fa = await store.dispatch('login', {
+                    const requires2Fa = await store.login({
                         username: DOMPurify.sanitize(username.value || ''),
                         password: DOMPurify.sanitize(password.value || ''),
                         remember: remember.value
@@ -166,7 +165,7 @@
                         isTotp.value = true
                     }
                     else {
-                        await store.dispatch('checkLogin')
+                        await store.checkLogin()
                         await goAfterLogin()
                     }
 
@@ -180,12 +179,12 @@
                 loggingIn.value = true
 
                 try {
-                    await store.dispatch('twoFactorAuth', {
+                    await store.twoFactorAuth({
                         code: DOMPurify.sanitize(totp.value || ''),
                         remember: remember.value
                     })
 
-                    await store.dispatch('checkLogin')
+                    await store.checkLogin()
                     await goAfterLogin()
 
                 } catch (e) {
@@ -203,15 +202,13 @@
                 error.value = undefined
 
                 try {
-                    const options = await store.dispatch(
-                        'passkeyRequestOptions',
-                        username.value.trim() || undefined)
+                    const options = await store.passkeyRequestOptions(username.value.trim() || undefined)
                     const credential = await getPasskey(options)
-                    await store.dispatch('passkeyLogin', {
+                    await store.passkeyLogin({
                         credential: serializePasskeyAssertion(credential),
                         remember: remember.value
                     })
-                    await store.dispatch('checkLogin')
+                    await store.checkLogin()
                     await goAfterLogin()
                 }
                 catch (e) {

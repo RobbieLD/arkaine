@@ -21,7 +21,7 @@ const apiPaths = [
     'preview',
     'profile',
     'progress',
-    'settings',
+    'admin',
     'status',
     'stream',
     'tags',

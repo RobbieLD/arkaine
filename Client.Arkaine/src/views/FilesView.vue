@@ -31,10 +31,9 @@
     </section>
 </template>
 <script lang="ts">
-    import { storeKey } from '@/store'
+    import { useAppStore } from '@/store'
     import { computed, defineComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
     import { useRoute } from 'vue-router'
-    import { useStore } from 'vuex'
     import ArkaineFile from '@/models/arkaine-file'
     import AppIcon from '@/components/AppIcon.vue'
     import MediaCard from '@/components/MediaCard.vue'
@@ -51,16 +50,16 @@
             SkeletonCard
         },
         setup() {
-            const store = useStore(storeKey)
+            const store = useAppStore()
             const route = useRoute()
 
             const grid = ref<HTMLElement>()
             const sentinel = ref<HTMLElement>()
             const loadingMore = ref(false)
 
-            const files = computed<ArkaineFile[]>(() => store.getters['files'])
-            const hasMoreFiles = computed<boolean>(() => store.getters['hasMoreFiles'])
-            const showSkeletons = computed<boolean>(() => store.getters['isLoadingFolder'])
+            const files = computed<ArkaineFile[]>(() => store.files)
+            const hasMoreFiles = computed<boolean>(() => store.hasMoreFiles)
+            const showSkeletons = computed<boolean>(() => store.isLoadingFolder)
             const isEmpty = computed(() => !showSkeletons.value && files.value.length === 0)
 
             const { refresh } = useMasonry(grid)
@@ -76,13 +75,13 @@
 
             const prefetch = (file: ArkaineFile) => {
                 if (file.isDirectory) {
-                    store.dispatch('prefetchFolder', file.rawFileName || `${file.name}/`)
+                    store.prefetchFolder(file.rawFileName || `${file.name}/`)
                 }
             }
 
             const fav = async (file: ArkaineFile) => {
                 if (!file.isFavourite) {
-                    await store.dispatch('addToFavourite', file).catch(() => undefined)
+                    await store.addToFavourite(file).catch(() => undefined)
                 }
             }
 
@@ -94,7 +93,7 @@
                 loadingMore.value = true
 
                 try {
-                    await store.dispatch('loadMoreFiles', route.params.path)
+                    await store.loadMoreFiles(route.params.path)
                 }
                 catch {
                     // The store has already surfaced the failure as an alert.
@@ -107,7 +106,7 @@
             watch(() => route.params.path, path => {
                 // Navigation is never awaited here: the store swaps the current path
                 // synchronously so cached content or skeletons appear immediately.
-                store.dispatch('loadFiles', path).catch(() => undefined)
+                store.loadFiles(path).catch(() => undefined)
                 window.scrollTo({ top: 0 })
             }, { immediate: true })
 

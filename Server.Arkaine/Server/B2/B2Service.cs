@@ -18,6 +18,8 @@ namespace Server.Arkaine.B2
 {
     public class B2Service : IB2Service
     {
+        private const string WriteCacheKey = "__b2_write__";
+
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly IMemoryCache _cache;
@@ -39,6 +41,7 @@ namespace Server.Arkaine.B2
             _logger = logger;
             _cache = cache;
             _options = config.Value;
+            _options.Normalize();
             _hubContext = hubContext;
             _tagService = tagService;
             _thumbnails = thumbnails;
@@ -72,7 +75,13 @@ namespace Server.Arkaine.B2
         {
             // Fill in config options in the request
             request.BucketId = _options.BUCKET_ID;
-            request.PageSize = request.PageSize > 0 ? request.PageSize : int.Parse(_options.PAGE_SIZE);
+            request.PageSize = request.PageSize > 0 ? request.PageSize : _options.GetPageSize();
+
+            if (!string.IsNullOrWhiteSpace(request.ExactFileName))
+            {
+                request.Prefix = request.ExactFileName;
+                request.StartFile = null;
+            }
 
             // This is a special case of a pseudo collection
             if (favouritesService != null && (request.Prefix?.StartsWith("Favourites") ?? false))
@@ -84,7 +93,7 @@ namespace Server.Arkaine.B2
                     PopulatePreview(file);
                 }
 
-                return favouriteResponse;
+                return ApplyExactFileFilter(favouriteResponse, request.ExactFileName);
             }
 
             var response = await MakeAuthenticatedRequest<FilesRequest, FilesResponse>(request, userName, "/b2api/v2/b2_list_file_names", cancellationToken);
@@ -115,7 +124,7 @@ namespace Server.Arkaine.B2
                 }
             }
 
-            return response;
+            return ApplyExactFileFilter(response, request.ExactFileName);
         }
 
         public IResult Preview(string path)
@@ -146,7 +155,7 @@ namespace Server.Arkaine.B2
 
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
         {
-            var cacheModel = await GetCache(userName, cancellationToken);
+            var cacheModel = await GetReadCache(userName, cancellationToken);
             _httpClient.DefaultRequestHeaders.Clear();
             var stream = await _httpClient.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
@@ -154,7 +163,7 @@ namespace Server.Arkaine.B2
 
         public async Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
         {
-            var cacheModel = await GetCache(userName, cancellationToken);
+            var cacheModel = await GetReadCache(userName, cancellationToken);
             _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
@@ -185,8 +194,22 @@ namespace Server.Arkaine.B2
             await _hubContext.Clients.All.SendAsync("update", $"Upload single part file {fileName} succeeded", cancellationToken);
         }
 
+        public async Task Delete(DeleteModel request, CancellationToken cancellationToken)
+        {
+            _ = await MakeAuthenticatedRequest<DeleteModel, DeleteModel>(
+                request,
+                WriteCacheKey,
+                "/b2api/v2/b2_delete_file_version",
+                cancellationToken,
+                useWriteCredentials: true);
+
+            await _hubContext.Clients.All.SendAsync("update", $"Delete file {request.FileName} succeeded", cancellationToken);
+        }
+
         public async Task UploadMultiPartFile(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken)
         {
+            ValidateMultipartUpload(content, chunkSize);
+
             // Check if this file is already partially uploaded.
             var unfinishedFilesResponse = await CheckForUnfinishedFile(fileName, cancellationToken);
             string fileId;
@@ -225,6 +248,12 @@ namespace Server.Arkaine.B2
                 else
                 {
                     _logger.LogInformation($"Bytes Read: {read}");
+                }
+
+                if (partNumber > B2MultipartLimits.MaximumPartCount)
+                {
+                    throw new InvalidOperationException(
+                        $"Multipart uploads cannot exceed {B2MultipartLimits.MaximumPartCount} parts.");
                 }
 
                 await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
@@ -276,7 +305,7 @@ namespace Server.Arkaine.B2
             {
                 FileId = fileId,
                 Hashes = hashes,
-            }, "api", "/b2api/v2/b2_finish_large_file", cancellationToken);
+            }, WriteCacheKey, "/b2api/v2/b2_finish_large_file", cancellationToken, useWriteCredentials: true);
 
             await _hubContext.Clients.All.SendAsync("update", $"Finish multi part file returned code: {response.Action}", cancellationToken);
             return response;
@@ -291,9 +320,11 @@ namespace Server.Arkaine.B2
             ThumbnailPreview.Populate(file, _options.THUMBNAIL_DIR, _thumbnails);
         }
 
-        private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken)
+        private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken, bool useWriteCredentials = false)
         {
-            var cacheModel = await GetCache(userName, cancellationToken);
+            var cacheModel = useWriteCredentials
+                ? await GetWriteCache(cancellationToken)
+                : await GetReadCache(userName, cancellationToken);
             _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -327,7 +358,7 @@ namespace Server.Arkaine.B2
             var response = await MakeAuthenticatedRequest<GetUploadPartsRequest, GetUploadPartsResponse>(new GetUploadPartsRequest
             {
                 FileId = fileId,
-            }, "api", "/b2api/v2/b2_get_upload_part_url", cancellationToken);
+            }, WriteCacheKey, "/b2api/v2/b2_get_upload_part_url", cancellationToken, useWriteCredentials: true);
             await _hubContext.Clients.All.SendAsync("update", $"Get upload url for file succeeded", cancellationToken);
             return response;
         }
@@ -338,10 +369,47 @@ namespace Server.Arkaine.B2
             {
                 BucketId = _options.BUCKET_ID,
                 NamePrefix = fileName
-            }, "api", "/b2api/v2/b2_list_unfinished_large_files", cancellationToken);
+            }, WriteCacheKey, "/b2api/v2/b2_list_unfinished_large_files", cancellationToken, useWriteCredentials: true);
 
+            response.Files = response.Files
+                .Where(file => string.Equals(file.FileName, fileName, StringComparison.Ordinal))
+                .ToList();
             await _hubContext.Clients.All.SendAsync("update", $"Check for unfinished files finished and found {response.Files.Count} files", cancellationToken);
             return response;
+        }
+
+        private static void ValidateMultipartUpload(Stream content, int chunkSize)
+        {
+            if (chunkSize < B2MultipartLimits.MinimumPartSizeBytes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(chunkSize),
+                    $"Multipart part size must be at least {B2MultipartLimits.MinimumPartSizeBytes} bytes.");
+            }
+
+            if (!content.CanSeek)
+            {
+                return;
+            }
+
+            var remainingLength = content.Length - content.Position;
+            if (remainingLength > B2MultipartLimits.MaximumFileSizeBytes)
+            {
+                throw new InvalidOperationException(
+                    $"Multipart upload size cannot exceed {B2MultipartLimits.MaximumFileSizeBytes} bytes.");
+            }
+
+            var requiredParts = (remainingLength + chunkSize - 1L) / chunkSize;
+            if (requiredParts < 2)
+            {
+                throw new InvalidOperationException("Multipart uploads must contain at least two parts.");
+            }
+
+            if (requiredParts > B2MultipartLimits.MaximumPartCount)
+            {
+                throw new InvalidOperationException(
+                    $"Multipart upload requires {requiredParts} parts; the maximum is {B2MultipartLimits.MaximumPartCount}.");
+            }
         }
 
         private async Task<StartPartUploadResponse> StartPartUpload(string fileName, string contentType, CancellationToken cancellationToken)
@@ -351,7 +419,7 @@ namespace Server.Arkaine.B2
                 BucketId = _options.BUCKET_ID,
                 ContentType = contentType,
                 FileName = fileName
-            }, "api", "/b2api/v2/b2_start_large_file", cancellationToken);
+            }, WriteCacheKey, "/b2api/v2/b2_start_large_file", cancellationToken, useWriteCredentials: true);
 
             _logger.LogInformation("Start multi part file succeeded");
             await _hubContext.Clients.All.SendAsync("update", $"Start multi part file succeeded", cancellationToken);
@@ -363,20 +431,44 @@ namespace Server.Arkaine.B2
             var response = await MakeAuthenticatedRequest<UploadUrlRequest, UploadUrlResponse>(new UploadUrlRequest
             {
                 BucketId = _options.BUCKET_ID
-            }, "api", "/b2api/v2/b2_get_upload_url", cancellationToken);
+            }, WriteCacheKey, "/b2api/v2/b2_get_upload_url", cancellationToken, useWriteCredentials: true);
 
             await _hubContext.Clients.All.SendAsync("update", $"Get upload url succeeded", cancellationToken);
             return response;
         }
 
-        private async Task<CacheModel> GetCache(string key, CancellationToken cancellationToken)
+        private static FilesResponse ApplyExactFileFilter(FilesResponse response, string? exactFileName)
+        {
+            if (string.IsNullOrWhiteSpace(exactFileName))
+            {
+                return response;
+            }
+
+            response.Files = response.Files
+                .Where(file => string.Equals(file.FileName, exactFileName, StringComparison.Ordinal))
+                .ToList();
+            response.NextFileName = string.Empty;
+            return response;
+        }
+
+        private Task<CacheModel> GetReadCache(string key, CancellationToken cancellationToken)
+        {
+            return GetCache(key, _options.B2_KEY_READ, cancellationToken);
+        }
+
+        private Task<CacheModel> GetWriteCache(CancellationToken cancellationToken)
+        {
+            return GetCache(WriteCacheKey, _options.B2_KEY_WRITE, cancellationToken);
+        }
+
+        private async Task<CacheModel> GetCache(string key, string credential, CancellationToken cancellationToken)
         {
             var cacheModel = _cache.Get(key) as CacheModel;
 
             if (cacheModel == null)
             {
                 _logger.LogWarning($"Cache model not found for {key}");
-                var response = await GetToken(_options.B2_KEY_READ, cancellationToken);
+                var response = await GetToken(credential, cancellationToken);
                 cacheModel = new CacheModel(response.Token, response.DownloadBaseUrl, response.ApiBaseUrl, response.AccountId);
                 _cache.Set(key, cacheModel, DateTime.UtcNow.AddHours(23));
             }

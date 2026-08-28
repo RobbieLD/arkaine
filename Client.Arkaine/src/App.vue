@@ -21,8 +21,7 @@
 <script lang="ts">
     import { computed, defineComponent, onMounted } from 'vue'
     import { useRouter } from 'vue-router'
-    import { useStore } from 'vuex'
-    import { storeKey } from './store'
+    import { useAppStore } from './store'
     import NavBar from './components/NavBar.vue'
     import { version } from './config'
 
@@ -32,14 +31,14 @@
             NavBar
         },
         setup() {
-            const store = useStore(storeKey)
+            const store = useAppStore()
             const router = useRouter()
-            const alert = computed(() => store.state.alert)
-            const authenticated = computed(() => store.state.isAuthenticated)
+            const alert = computed(() => store.alert)
+            const authenticated = computed(() => store.isAuthenticated)
 
             onMounted(async () => {
                 try {
-                    const loggedIn = await store.dispatch('checkLogin')
+                    const loggedIn = await store.checkLogin()
 
                     if (loggedIn && router.currentRoute.value.name === 'Login') {
                         const redirect = router.currentRoute.value.query.redirect

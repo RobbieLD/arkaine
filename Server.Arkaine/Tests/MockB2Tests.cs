@@ -8,10 +8,19 @@ namespace Server.Arkaine.Tests
 {
     public class MockB2Tests
     {
+        private MockB2.Store _store = null!;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _store = new MockB2.Store();
+            _store.Reset();
+        }
+
         [Test]
         public async Task ListFiles_ReturnsFoldersAndVideosAtRoot()
         {
-            var service = new MockB2(new ThumbnailInfoCache());
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
             var response = await service.ListFiles(
                 new FilesRequest
                 {
@@ -32,25 +41,13 @@ namespace Server.Arkaine.Tests
         [Test]
         public async Task ListFiles_ReturnsImagesInsideFolder()
         {
-            var service = new MockB2(new ThumbnailInfoCache());
-            var root = await service.ListFiles(
-                new FilesRequest
-                {
-                    Delimiter = "/",
-                    PageSize = 100
-                },
-                "test-user",
-                null,
-                CancellationToken.None);
-            var folder = root.Files.First(file => file.Type == "folder");
-            Assert.That(folder.ChildCount, Is.GreaterThan(0));
-
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
             var response = await service.ListFiles(
                 new FilesRequest
                 {
                     Delimiter = "/",
                     PageSize = 100,
-                    Prefix = folder.FileName
+                    Prefix = "gallery-gamma/"
                 },
                 "test-user",
                 null,
@@ -63,7 +60,7 @@ namespace Server.Arkaine.Tests
         [Test]
         public async Task ListFiles_HonorsPaging()
         {
-            var service = new MockB2(new ThumbnailInfoCache());
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
             var firstPage = await service.ListFiles(
                 new FilesRequest
                 {
@@ -95,7 +92,7 @@ namespace Server.Arkaine.Tests
         public async Task ListFiles_PopulatesPreviewsThroughTheDimensionCache()
         {
             var cache = new ThumbnailInfoCache();
-            var service = new MockB2(cache);
+            var service = new MockB2(cache, _store);
 
             var root = await service.ListFiles(
                 new FilesRequest { Delimiter = "/", PageSize = 100 },
@@ -131,7 +128,7 @@ namespace Server.Arkaine.Tests
         [Test]
         public async Task Preview_ServesTheGeneratedThumbnailFromDisk()
         {
-            var service = new MockB2(new ThumbnailInfoCache());
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
             var root = await service.ListFiles(
                 new FilesRequest { Delimiter = "/", PageSize = 100 },
                 "test-user",
@@ -150,7 +147,7 @@ namespace Server.Arkaine.Tests
         [Test]
         public async Task ListFiles_GivesImagesVariedAspectRatios()
         {
-            var service = new MockB2(new ThumbnailInfoCache());
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
             var root = await service.ListFiles(
                 new FilesRequest { Delimiter = "/", PageSize = 100 },
                 "test-user",
@@ -171,6 +168,63 @@ namespace Server.Arkaine.Tests
                 .ToList();
 
             Assert.That(ratios.Count, Is.GreaterThan(1), "the gallery needs varied ratios to show masonry");
+        }
+
+        [Test]
+        public async Task ListFiles_HonorsExactFileNameFiltering()
+        {
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
+
+            var response = await service.ListFiles(
+                new FilesRequest
+                {
+                    ExactFileName = "gallery-alpha/animated.webp",
+                    PageSize = 100
+                },
+                "test-user",
+                null,
+                CancellationToken.None);
+
+            Assert.That(response.Files.Select(file => file.FileName), Is.EqualTo(new[] { "gallery-alpha/animated.webp" }));
+            Assert.That(response.NextFileName, Is.Empty);
+        }
+
+        [Test]
+        public async Task UploadSingleFile_ThenDownloadAndDelete_MutatesTheSharedStore()
+        {
+            var service = new MockB2(new ThumbnailInfoCache(), _store);
+            var payload = new byte[] { 1, 2, 3, 4 };
+
+            await using (var upload = new MemoryStream(payload))
+            {
+                await service.UploadSingleFile("uploads/new-image.jpg", "image/jpeg", payload.Length, upload, CancellationToken.None);
+            }
+
+            await using (var stream = await service.Download("test-user", "uploads/new-image.jpg", CancellationToken.None))
+            await using (var buffer = new MemoryStream())
+            {
+                await stream.CopyToAsync(buffer);
+                Assert.That(buffer.ToArray(), Is.EqualTo(payload));
+            }
+
+            var uploaded = _store.SnapshotFiles().Single(file => file.FileName == "uploads/new-image.jpg");
+            await service.Delete(new DeleteModel { FileName = uploaded.FileName, Id = uploaded.Id }, CancellationToken.None);
+
+            Assert.That(_store.SnapshotFiles().Any(file => file.FileName == "uploads/new-image.jpg"), Is.False);
+        }
+
+        [Test]
+        public void Stores_ResetIndependently()
+        {
+            var first = new MockB2.Store();
+            var second = new MockB2.Store();
+            first.Reset([new MockB2.MockB2Object("first.jpg", "image/jpeg", [1])]);
+            second.Reset([new MockB2.MockB2Object("second.jpg", "image/jpeg", [2])]);
+
+            first.Reset([new MockB2.MockB2Object("updated.jpg", "image/jpeg", [3])]);
+
+            Assert.That(first.SnapshotFiles().Select(file => file.FileName), Is.EqualTo(new[] { "updated.jpg" }));
+            Assert.That(second.SnapshotFiles().Select(file => file.FileName), Is.EqualTo(new[] { "second.jpg" }));
         }
     }
 }

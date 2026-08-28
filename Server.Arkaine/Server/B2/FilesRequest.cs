@@ -27,5 +27,10 @@ namespace Server.Arkaine.B2
         [JsonPropertyName("startFileName")]
         public string? StartFile { get; set; }
 
+        [DefaultValue(null)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public string? ExactFileName { get; set; }
     }
 }
