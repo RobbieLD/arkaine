@@ -12,6 +12,7 @@ namespace Server.Arkaine.Admin
         public bool Running { get; set; }
         public string Status { get; set; } = "idle";
         public string Path { get; set; } = string.Empty;
+        public bool DeleteConvertedFiles { get; set; } = true;
         public string CurrentFile { get; set; } = string.Empty;
         public string Error { get; set; } = string.Empty;
         public DateTimeOffset? StartedUtc { get; set; }
@@ -30,6 +31,7 @@ namespace Server.Arkaine.Admin
                 Failures = Failures.Select(failure => failure with { }).ToList(),
                 Finished = Finished,
                 FinishedUtc = FinishedUtc,
+                DeleteConvertedFiles = DeleteConvertedFiles,
                 Path = Path,
                 Recovered = Recovered,
                 Running = Running,

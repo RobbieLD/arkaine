@@ -150,6 +150,22 @@
                     </dd>
                 </div>
                 <div>
+                    <dt>Source handling</dt>
+                    <dd>
+                        <label class="checkbox" for="delete-converted-files">
+                            <input
+                                id="delete-converted-files"
+                                v-model="deleteConvertedFiles"
+                                type="checkbox"
+                                :disabled="adminStatus.conversion.isRunning"
+                            />
+                            <span>
+                                {{ deleteConvertedFiles ? 'Delete after conversion' : 'Move to converted/' }}
+                            </span>
+                        </label>
+                    </dd>
+                </div>
+                <div>
                     <dt>FFmpeg</dt>
                     <dd :class="{ 'value--warning': adminStatus.conversion.ffmpegAvailable === false }">
                         {{ ffmpegStatus }}
@@ -352,6 +368,7 @@
             const conversionProgress = computed(() => store.conversionProgress)
             const conversionPaths = computed(() => store.conversionPaths)
             const conversionPath = ref('')
+            const deleteConvertedFiles = ref(true)
             const cache = computed(() => store.thumbnailCache)
             const cacheBusy = ref(false)
             const loading = ref(true)
@@ -506,7 +523,7 @@
                     await store.stopConversion()
                 }
                 else {
-                    await store.startConversion(conversionPath.value)
+                    await store.startConversion(conversionPath.value, deleteConvertedFiles.value)
                 }
             })
 
@@ -536,6 +553,7 @@
 
                 if (adminStatus.value.conversion.isRunning && reportedPath) {
                     conversionPath.value = reportedPath
+                    deleteConvertedFiles.value = conversionProgress.value.deleteConvertedFiles
                     return
                 }
 
@@ -602,6 +620,7 @@
                 clearCache,
                 conversionBadgeClass,
                 conversionCardNote,
+                deleteConvertedFiles,
                 conversionIdleMessage,
                 conversionPath,
                 conversionPaths,

@@ -206,6 +206,21 @@ namespace Server.Arkaine.B2
             await _hubContext.Clients.All.SendAsync("update", $"Delete file {request.FileName} succeeded", cancellationToken);
         }
 
+        public async Task Copy(CopyRequest request, CancellationToken cancellationToken)
+        {
+            _ = await MakeAuthenticatedRequest<CopyRequest, CopyResponse>(
+                request,
+                WriteCacheKey,
+                "/b2api/v2/b2_copy_file",
+                cancellationToken,
+                useWriteCredentials: true);
+
+            await _hubContext.Clients.All.SendAsync(
+                "update",
+                $"Copied file {request.FileName} successfully",
+                cancellationToken);
+        }
+
         public async Task UploadMultiPartFile(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken)
         {
             ValidateMultipartUpload(content, chunkSize);

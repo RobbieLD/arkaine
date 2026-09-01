@@ -30,5 +30,6 @@ namespace Server.Arkaine.Admin
     {
         public string Job { get; set; } = "thumbnail";
         public string Path { get; set; } = string.Empty;
+        public bool DeleteConvertedFiles { get; set; } = true;
     }
 }

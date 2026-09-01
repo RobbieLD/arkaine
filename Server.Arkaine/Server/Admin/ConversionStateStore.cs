@@ -19,6 +19,8 @@ namespace Server.Arkaine.Admin
         public string SourceFile { get; set; } = string.Empty;
         public string TargetFile { get; set; } = string.Empty;
         public string SourceId { get; set; } = string.Empty;
+        public bool DeleteConvertedFiles { get; set; } = true;
+        public string ConvertedSourceFile { get; set; } = string.Empty;
         public bool TargetUploaded { get; set; }
         public bool ReferencesRenamed { get; set; }
         public bool ThumbnailMoved { get; set; }

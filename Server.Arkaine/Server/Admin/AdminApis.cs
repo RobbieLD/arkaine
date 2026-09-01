@@ -147,6 +147,7 @@ namespace Server.Arkaine.Admin
                 return await StartJobAsync(new AdminJobRequest
                 {
                     Path = request.Path,
+                    DeleteConvertedFiles = request.DeleteConvertedFiles,
                     Job = "conversion"
                 }, userName, thumbnailManager, conversionManager, cache, converter, cancellationToken);
             });
@@ -164,7 +165,8 @@ namespace Server.Arkaine.Admin
                 return await StartJobAsync(new AdminJobRequest
                 {
                     Job = "conversion",
-                    Path = request.Path
+                    Path = request.Path,
+                    DeleteConvertedFiles = request.DeleteConvertedFiles
                 }, userName, thumbnailManager, conversionManager, cache, converter, cancellationToken);
             });
 
@@ -280,7 +282,7 @@ namespace Server.Arkaine.Admin
                         : availability.Error);
             }
 
-            return conversionManager.TryStart(userName, normalizedPath)
+            return conversionManager.TryStart(userName, normalizedPath, request.DeleteConvertedFiles)
                 ? Results.Ok(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken))
                 : Results.Conflict(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken));
         }

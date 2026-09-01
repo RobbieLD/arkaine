@@ -440,9 +440,9 @@ export const useAppStore = defineStore('app', {
             }
         },
 
-        async startConversion(path: string): Promise<void> {
+        async startConversion(path: string, deleteConvertedFiles: boolean): Promise<void> {
             const service = new ArkaineService()
-            const response = await service.StartConversion(path)
+            const response = await service.StartConversion(path, deleteConvertedFiles)
             this.setConversionProgress(emptyConversionProgress())
             this.setConversionRunning(true)
             if (response) {

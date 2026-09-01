@@ -58,7 +58,8 @@ namespace Server.Arkaine.Tests
                 var response = await client.PostAsJsonAsync("/admin/start", new AdminJobRequest
                 {
                     Job = "conversion",
-                    Path = "gallery-alpha"
+                    Path = "gallery-alpha",
+                    DeleteConvertedFiles = false
                 });
 
                 response.EnsureSuccessStatusCode();
@@ -66,6 +67,7 @@ namespace Server.Arkaine.Tests
 
                 Assert.That(status, Is.Not.Null);
                 Assert.That(status!.Conversion.Report.Path, Is.EqualTo("gallery-alpha/"));
+                Assert.That(status.Conversion.Report.DeleteConvertedFiles, Is.False);
             }
         }
 
@@ -275,6 +277,7 @@ namespace Server.Arkaine.Tests
                 Task.FromResult<Stream>(new MemoryStream());
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 Task.FromResult(new AuthResponse());
+            public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 
             public async Task<FilesResponse> ListFiles(
                 FilesRequest request,
@@ -304,6 +307,7 @@ namespace Server.Arkaine.Tests
                 Task.FromResult<Stream>(new MemoryStream());
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 Task.FromResult(new AuthResponse());
+            public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 
             public Task<FilesResponse> ListFiles(
                 FilesRequest request,

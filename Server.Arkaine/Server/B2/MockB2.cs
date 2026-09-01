@@ -250,6 +250,30 @@ namespace Server.Arkaine.B2
             return Task.CompletedTask;
         }
 
+        public Task Copy(CopyRequest request, CancellationToken cancellationToken)
+        {
+            lock (_store.SyncRoot)
+            {
+                var source = _store.Library.Files.Values
+                    .FirstOrDefault(file => string.Equals(file.Metadata.Id, request.Id, StringComparison.Ordinal));
+                if (source is null)
+                {
+                    throw new FileNotFoundException($"Mock file with id '{request.Id}' was not found.", request.Id);
+                }
+
+                var existing = _store.Library.Files.TryGetValue(request.FileName, out var stored)
+                    ? stored
+                    : null;
+                var fileId = existing?.Metadata.Id ?? $"mock-copy-{_store.Library.NextId++:D4}";
+                var metadata = Clone(source.Metadata);
+                metadata.FileName = request.FileName;
+                metadata.Id = fileId;
+                _store.Library.Files[request.FileName] = new MockStoredFile(metadata, source.Content.ToArray());
+            }
+
+            return Task.CompletedTask;
+        }
+
         private void PopulatePreviews(IEnumerable<B2File> files)
         {
             string thumbnailDir;

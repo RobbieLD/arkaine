@@ -39,7 +39,7 @@ namespace Server.Arkaine.Admin
             _logger = logger;
         }
 
-        public bool TryStart(string userName, string? path)
+        public bool TryStart(string userName, string? path, bool deleteConvertedFiles = true)
         {
             var normalizedPath = ConversionPath.Normalize(path);
 
@@ -64,12 +64,17 @@ namespace Server.Arkaine.Admin
                     _stoppingToken = new CancellationTokenSource();
                     _report = new ConversionReport
                     {
+                        DeleteConvertedFiles = deleteConvertedFiles,
                         Path = normalizedPath,
                         Running = true,
                         StartedUtc = DateTimeOffset.UtcNow,
                         Status = "running"
                     };
-                    _runningTask = RunAsync(userName, normalizedPath, _stoppingToken.Token);
+                    _runningTask = RunAsync(
+                        userName,
+                        normalizedPath,
+                        deleteConvertedFiles,
+                        _stoppingToken.Token);
                     ObserveTask(_runningTask);
                     return true;
                 }
@@ -99,9 +104,12 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        public async Task ConvertAsync(string userName, string? path)
+        public async Task ConvertAsync(
+            string userName,
+            string? path,
+            bool deleteConvertedFiles = true)
         {
-            if (!TryStart(userName, path))
+            if (!TryStart(userName, path, deleteConvertedFiles))
             {
                 return;
             }
@@ -152,7 +160,11 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task RunAsync(string userName, string path, CancellationToken cancellationToken)
+        private async Task RunAsync(
+            string userName,
+            string path,
+            bool deleteConvertedFiles,
+            CancellationToken cancellationToken)
         {
             try
             {
@@ -186,7 +198,14 @@ namespace Server.Arkaine.Admin
                     var references = scope.ServiceProvider.GetRequiredService<IMediaLibraryReferenceService>();
                     var page = await b2.ListFiles(request, userName, null, cancellationToken);
 
-                    await ProcessPageAsync(page, userName, b2, references, cancellationToken);
+                    await ProcessPageAsync(
+                        page,
+                        path,
+                        deleteConvertedFiles,
+                        userName,
+                        b2,
+                        references,
+                        cancellationToken);
                     request.StartFile = page.NextFileName;
 
                     if (string.IsNullOrEmpty(page.NextFileName))
@@ -272,6 +291,13 @@ namespace Server.Arkaine.Admin
 
                 try
                 {
+                    if (!marker.DeleteConvertedFiles &&
+                        string.IsNullOrWhiteSpace(marker.ConvertedSourceFile))
+                    {
+                        marker.ConvertedSourceFile = GetConvertedSourceFileName(path, marker.SourceFile);
+                        _stateStore.Save(marker);
+                    }
+
                     var targetFile = await GetExactFileAsync(b2, userName, marker.TargetFile, cancellationToken);
                     if (targetFile is not null)
                     {
@@ -303,7 +329,14 @@ namespace Server.Arkaine.Admin
                         await ConvertAndUploadAsync(sourceFile, marker, userName, b2, cancellationToken);
                     }
 
-                    await FinalizeConversionAsync(marker, userName, b2, references, cancellationToken, recovered: true);
+                    await FinalizeConversionAsync(
+                        marker,
+                        path,
+                        userName,
+                        b2,
+                        references,
+                        cancellationToken,
+                        recovered: true);
                 }
                 catch (OperationCanceledException)
                 {
@@ -323,6 +356,8 @@ namespace Server.Arkaine.Admin
 
         private async Task ProcessPageAsync(
             FilesResponse page,
+            string path,
+            bool deleteConvertedFiles,
             string userName,
             IB2Service b2,
             IMediaLibraryReferenceService references,
@@ -331,6 +366,17 @@ namespace Server.Arkaine.Admin
             foreach (var file in page.Files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (IsConvertedSourceFile(file.FileName, path))
+                {
+                    lock (_syncRoot)
+                    {
+                        _report.Scanned++;
+                        _report.CurrentFile = file.FileName;
+                        _report.Skipped++;
+                    }
+                    continue;
+                }
 
                 if (!_options.IsConvertibleImage(file.FileName) &&
                     !_options.IsConvertibleVideo(file.FileName))
@@ -385,7 +431,11 @@ namespace Server.Arkaine.Admin
                     MarkerId = ConversionStateMarker.CreateMarkerId(file.FileName, targetFile),
                     SourceFile = file.FileName,
                     SourceId = file.Id,
-                    TargetFile = targetFile
+                    TargetFile = targetFile,
+                    DeleteConvertedFiles = deleteConvertedFiles,
+                    ConvertedSourceFile = deleteConvertedFiles
+                        ? string.Empty
+                        : GetConvertedSourceFileName(path, file.FileName)
                 };
 
                 try
@@ -401,7 +451,14 @@ namespace Server.Arkaine.Admin
 
                     _stateStore.Save(marker);
                     await ConvertAndUploadAsync(file, marker, userName, b2, cancellationToken);
-                    await FinalizeConversionAsync(marker, userName, b2, references, cancellationToken, recovered: false);
+                    await FinalizeConversionAsync(
+                        marker,
+                        path,
+                        userName,
+                        b2,
+                        references,
+                        cancellationToken,
+                        recovered: false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -521,6 +578,7 @@ namespace Server.Arkaine.Admin
 
         private async Task FinalizeConversionAsync(
             ConversionStateMarker marker,
+            string path,
             string userName,
             IB2Service b2,
             IMediaLibraryReferenceService references,
@@ -558,6 +616,21 @@ namespace Server.Arkaine.Admin
                 else
                 {
                     marker.SourceId = string.IsNullOrWhiteSpace(marker.SourceId) ? sourceFile.Id : marker.SourceId;
+
+                    if (!marker.DeleteConvertedFiles)
+                    {
+                        var convertedSourceFile = string.IsNullOrWhiteSpace(marker.ConvertedSourceFile)
+                            ? GetConvertedSourceFileName(path, marker.SourceFile)
+                            : marker.ConvertedSourceFile;
+                        marker.ConvertedSourceFile = convertedSourceFile;
+                        await MoveSourceToConvertedAsync(
+                            sourceFile,
+                            convertedSourceFile,
+                            userName,
+                            b2,
+                            cancellationToken);
+                    }
+
                     await b2.Delete(new DeleteModel
                     {
                         FileName = marker.SourceFile,
@@ -581,6 +654,28 @@ namespace Server.Arkaine.Admin
                 {
                     _report.Converted++;
                 }
+            }
+        }
+
+        private async Task MoveSourceToConvertedAsync(
+            B2File sourceFile,
+            string convertedSourceFile,
+            string userName,
+            IB2Service b2,
+            CancellationToken cancellationToken)
+        {
+            await b2.Copy(
+                new CopyRequest
+                {
+                    Id = sourceFile.Id,
+                    FileName = convertedSourceFile
+                },
+                cancellationToken);
+
+            if (await GetExactFileAsync(b2, userName, convertedSourceFile, cancellationToken) is null)
+            {
+                throw new InvalidOperationException(
+                    $"Moved source '{sourceFile.FileName}' could not be verified at '{convertedSourceFile}'.");
             }
         }
 
@@ -702,6 +797,35 @@ namespace Server.Arkaine.Admin
         {
             return sourceFile.StartsWith(path, StringComparison.Ordinal) &&
                    targetFile.StartsWith(path, StringComparison.Ordinal);
+        }
+
+        private static bool IsConvertedSourceFile(string fileName, string path)
+        {
+            return fileName.StartsWith(GetConvertedFolderPath(path), StringComparison.Ordinal);
+        }
+
+        private static string GetConvertedFolderPath(string path)
+        {
+            return $"{path}converted/";
+        }
+
+        private static string GetConvertedSourceFileName(string path, string sourceFile)
+        {
+            if (!sourceFile.StartsWith(path, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Source '{sourceFile}' is outside conversion path '{path}'.");
+            }
+
+            var relativeFile = sourceFile[path.Length..];
+            if (string.IsNullOrWhiteSpace(relativeFile) ||
+                IsConvertedSourceFile(sourceFile, path))
+            {
+                throw new InvalidOperationException(
+                    $"Source '{sourceFile}' cannot be moved into the converted folder.");
+            }
+
+            return $"{GetConvertedFolderPath(path)}{relativeFile}";
         }
 
         private static void TryDeleteDirectory(string directory)

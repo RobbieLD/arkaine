@@ -10,12 +10,18 @@ Starting a conversion requires a request body containing the selected folder:
 
 ```json
 {
-  "path": "gallery-alpha/"
+  "path": "gallery-alpha/",
+  "deleteConvertedFiles": true
 }
 ```
 
 The path is sent to B2 as the listing `prefix`. It must identify one top-level
 folder; nested paths, absolute paths, and an empty path are rejected.
+`deleteConvertedFiles` defaults to `true`, which deletes each source after its
+browser-friendly target has been uploaded and verified. When it is `false`, the
+source is copied to `<path>converted/` (preserving its relative subfolders),
+verified, and then removed from its original location. The `converted/` subtree
+is not processed on later runs for the same path.
 
 ## Configuration
 
@@ -64,6 +70,7 @@ The canonical Admin endpoints are:
 - `GET /admin/thumbnail-cache`
 - `POST /admin/thumbnail-cache/clear`
 - `POST /admin/thumbnails/start|stop`
-- `POST /admin/convert/start|stop` (`start` requires a `path`)
+- `POST /admin/convert/start|stop` (`start` requires a `path` and optional
+  `deleteConvertedFiles`)
 
 All Admin endpoints require an authenticated user with the `Admin` role.

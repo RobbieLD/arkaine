@@ -55,6 +55,43 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ConvertAsync_WhenDeleteConvertedFilesIsFalse_MovesSourcesIntoConvertedFolder()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            Directory.CreateDirectory(options.THUMBNAIL_DIR);
+            const string source = "gallery-alpha/photo-01.webp";
+            const string target = "gallery-alpha/photo-01.jpg";
+            const string convertedSource = "gallery-alpha/converted/photo-01.webp";
+
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object(source, "image/webp", Encoding.UTF8.GetBytes("image"), "source-01")],
+                options.THUMBNAIL_DIR);
+
+            var converter = new StubMediaConverter();
+            using var services = BuildServices(options, converter, mockStore);
+            var manager = services.GetRequiredService<ConversionManager>();
+
+            Assert.That(
+                manager.TryStart("admin", "gallery-alpha/", deleteConvertedFiles: false),
+                Is.True);
+            await manager.WaitForCompletionAsync();
+
+            var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
+            Assert.That(files, Does.Contain(target));
+            Assert.That(files, Does.Contain(convertedSource));
+            Assert.That(files, Does.Not.Contain(source));
+            Assert.That(manager.GetStatus().Report.DeleteConvertedFiles, Is.False);
+
+            Assert.That(manager.TryStart("admin", "gallery-alpha/", deleteConvertedFiles: false), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(converter.Requests, Has.Count.EqualTo(1));
+            Assert.That(manager.GetStatus().Report.Skipped, Is.EqualTo(2));
+            Assert.That(mockStore.SnapshotFiles().Select(file => file.FileName), Does.Contain(convertedSource));
+        }
+
+        [Test]
         public async Task ConvertAsync_SelectedPathDoesNotRecoverOtherPendingState()
         {
             var root = CreateRoot();
@@ -489,6 +526,9 @@ namespace Server.Arkaine.Tests
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 _inner.GetToken(key, cancellationToken);
 
+            public Task Copy(CopyRequest request, CancellationToken cancellationToken) =>
+                _inner.Copy(request, cancellationToken);
+
             public Task<FilesResponse> ListFiles(
                 FilesRequest request,
                 string userName,
@@ -552,6 +592,9 @@ namespace Server.Arkaine.Tests
 
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 _inner.GetToken(key, cancellationToken);
+
+            public Task Copy(CopyRequest request, CancellationToken cancellationToken) =>
+                _inner.Copy(request, cancellationToken);
 
             public Task<FilesResponse> ListFiles(
                 FilesRequest request,

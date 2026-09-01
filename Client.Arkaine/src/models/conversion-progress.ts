@@ -1,5 +1,6 @@
 export default interface ConversionProgress {
     path: string
+    deleteConvertedFiles: boolean
     converted: number
     skipped: number
     failed: number
@@ -11,6 +12,7 @@ export default interface ConversionProgress {
 
 export const emptyConversionProgress = (): ConversionProgress => ({
     path: '',
+    deleteConvertedFiles: true,
     converted: 0,
     skipped: 0,
     failed: 0,
@@ -49,9 +51,13 @@ const readNumber = (record: Record<string, unknown> | null, keys: string[]): num
     return 0
 }
 
-const readBoolean = (record: Record<string, unknown> | null, keys: string[]): boolean => {
+const readBoolean = (
+    record: Record<string, unknown> | null,
+    keys: string[],
+    fallback = false
+): boolean => {
     if (!record) {
-        return false
+        return fallback
     }
 
     for (const key of keys) {
@@ -72,7 +78,7 @@ const readBoolean = (record: Record<string, unknown> | null, keys: string[]): bo
         }
     }
 
-    return false
+    return fallback
 }
 
 const readString = (record: Record<string, unknown> | null, keys: string[]): string => {
@@ -96,6 +102,11 @@ export const normalizeConversionProgress = (value: unknown): ConversionProgress 
 
     return {
         path: readString(record, ['path', 'Path', 'conversionPath', 'ConversionPath']),
+        deleteConvertedFiles: readBoolean(
+            record,
+            ['deleteConvertedFiles', 'DeleteConvertedFiles'],
+            true
+        ),
         converted: readNumber(record, ['converted', 'Converted', 'generated', 'Generated']),
         skipped: readNumber(record, ['skipped', 'Skipped']),
         failed: readNumber(record, ['failed', 'Failed']),

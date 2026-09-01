@@ -199,6 +199,7 @@ namespace Server.Arkaine.Tests
         public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) => Task.FromResult<Stream>(new MemoryStream());
         public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) => Task.FromResult(new AuthResponse());
+        public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<FilesResponse> ListFiles(FilesRequest request, string userName, IFavouritesService? favouritesService, CancellationToken cancellationToken) => Task.FromResult(new FilesResponse());
         public IResult Preview(string fileName) => Results.NotFound();
         public Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken) => Task.FromResult<IResult>(Results.NotFound());
