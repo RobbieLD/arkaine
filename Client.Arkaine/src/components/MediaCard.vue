@@ -4,28 +4,24 @@
         <router-link
             v-if="file.isDirectory"
             :to="to"
-            class="media-card__media"
-            :class="showFolderPlaceholder
-                ? 'media-card__media--placeholder'
-                : ['media-card__media--frame', { 'media-card__media--auto': !ratioStyle }]"
+            class="media-card__media media-card__media--frame"
+            :class="{ 'media-card__media--auto': !ratioStyle }"
             :style="ratioStyle"
             @mouseenter="$emit('prefetch')"
             @focus="$emit('prefetch')"
             @touchstart.passive="$emit('prefetch')"
         >
-            <template v-if="!showFolderPlaceholder">
-                <img
-                    class="media-card__image"
-                    :src="file.preview || file.thumb"
-                    :alt="''"
-                    loading="lazy"
-                    decoding="async"
-                    @error="onImageError"
-                />
-                <span class="media-card__badge">
-                    <app-icon name="folder" />
-                </span>
-            </template>
+            <img
+                class="media-card__image"
+                :src="file.preview || file.thumb"
+                :alt="''"
+                loading="lazy"
+                decoding="async"
+                @error="onImageError"
+            />
+            <span class="media-card__badge">
+                <app-icon name="folder" />
+            </span>
         </router-link>
 
         <!-- Image -->
@@ -158,13 +154,6 @@
             })
 
             const onImageError = (event: Event) => {
-                failed.value = true
-
-                // Folders fall back to a drawn placeholder rather than another image.
-                if (props.file.isDirectory) {
-                    return
-                }
-
                 const image = event.target as HTMLImageElement
 
                 if (image.dataset.fallbackApplied) {
@@ -172,15 +161,13 @@
                 }
 
                 image.dataset.fallbackApplied = 'true'
+                failed.value = true
                 image.src = '/icon.png'
             }
-
-            const showFolderPlaceholder = computed(() => props.file.isDirectory && failed.value)
 
             return {
                 onImageError,
                 ratioStyle,
-                showFolderPlaceholder,
                 subtitle
             }
         }
@@ -229,14 +216,6 @@
     /* No server dimensions: let the image dictate the height instead of cropping. */
     .media-card__media--auto .media-card__image {
         height: auto;
-    }
-
-    /* Folders with no generated thumbnail get a drawn folder tab, not a stock image. */
-    .media-card__media--placeholder {
-        height: 3em;
-        border-top: var(--folder-tab) 22px solid;
-        border-right: var(--folder-tab) 22px solid;
-        background: var(--folder);
     }
 
     .media-card__badge {
