@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Server.Arkaine.Notification;
 using System.Net;
 
 namespace Server.Arkaine
@@ -7,12 +6,10 @@ namespace Server.Arkaine
     public class GlobalExceptionHandler : IMiddleware
     {
         private readonly ILogger<GlobalExceptionHandler> _logger;
-        private readonly INotifier _notifier;
 
-        public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, INotifier notifier)
+        public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
         {
             _logger = logger;
-            _notifier = notifier;
         }
 
         public async Task InvokeAsync(HttpContext context, RequestDelegate next)
@@ -24,7 +21,6 @@ namespace Server.Arkaine
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
-                await _notifier.Send(ex.Message);
 
                 context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 

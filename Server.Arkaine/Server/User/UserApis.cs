@@ -5,7 +5,6 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Identity;
 using Server.Arkaine.B2;
-using Server.Arkaine.Notification;
 using System.Data;
 using System.Security.Claims;
 using System.Text.Json;
@@ -35,14 +34,12 @@ namespace Server.Arkaine.User
                     IUserService userService,
                     UserManager<IdentityUser> userManager,
                     IB2Service b2Service,
-                    IMemoryCache cache,
-                    INotifier notifier) =>
+                    IMemoryCache cache) =>
             {
                 var user = await userService.TwoFactorAuthenticateAsync(request.Code, request.Remember);
 
                 if (user == null)
                 {
-                    await notifier.Send("A user failed to login due to an incorrect auth code");
                     return Results.Unauthorized();
                 }
 
@@ -77,7 +74,6 @@ namespace Server.Arkaine.User
                 cache.Set(username,
                     new CacheModel(authResponse.Token, authResponse.DownloadBaseUrl, authResponse.ApiBaseUrl, authResponse.AccountId),
                     DateTime.UtcNow.AddHours(23));
-                await notifier.Send($"{username} Successfully logged in");
 
                 var response = new LoginResponse(username, roles.Contains("Admin"));
 
@@ -110,7 +106,6 @@ namespace Server.Arkaine.User
             async (
                     PasskeyLoginRequest request,
                     IUserService userService,
-                    INotifier notifier,
                     ILoggerFactory loggerFactory) =>
             {
                 if (request.Credential.ValueKind != JsonValueKind.Object)
@@ -139,7 +134,6 @@ namespace Server.Arkaine.User
 
                 if (!signInResult.Succeeded)
                 {
-                    await notifier.Send("A user failed to login with a passkey");
                     return Results.Unauthorized();
                 }
 
@@ -150,12 +144,10 @@ namespace Server.Arkaine.User
                 [AllowAnonymous]
             async (
                     LoginRequest request,
-                    IUserService userService,
-                    INotifier notifier) =>
+                    IUserService userService) =>
             {
                 if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
                 {
-                    await notifier.Send($"{request.Username} failed to login because no password was supplied");
                     return Results.BadRequest("Username and password are required");
                 }
                 
@@ -171,7 +163,6 @@ namespace Server.Arkaine.User
                 }
                 else
                 {
-                    await notifier.Send($"{request.Username} failed to sign in");
                     return Results.Unauthorized();
                 }
             });

@@ -11,7 +11,6 @@ using Server.Arkaine.B2;
 using Server.Arkaine.Favourites;
 using Server.Arkaine.Ingest;
 using Server.Arkaine.Media;
-using Server.Arkaine.Notification;
 using Server.Arkaine.Tags;
 using Server.Arkaine.User;
 using System.Net;
@@ -95,7 +94,6 @@ builder.Services.AddHttpClient<B2Service>()
             UrlSafetyValidator.ConnectAsync(context, cancellationToken, b2AuthHost)
     });
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
 builder.Services.AddScoped<SgExtractor>();
 builder.Services.AddSingleton<AdminJobCoordinator>();
 builder.Services.AddSingleton<ThumbnailManager>();

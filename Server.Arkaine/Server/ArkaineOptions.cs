@@ -23,9 +23,6 @@ namespace Server.Arkaine
         public string API_KEY { get; set; } = string.Empty;
         public string PAGE_SIZE { get; set; } = string.Empty;
         public string SITE_KEYS { get; set; } = string.Empty;
-        public string PUSHOVER_TOKEN { get; set; } = string.Empty;
-        public string PUSHOVER_USER { get; set; } = string.Empty;
-        public string PushoverUrl { get; set; } = string.Empty;
         public string THUMBNAIL_DIR { get; set; } = string.Empty;
         public string THUMBNAIL_EXTENSIONS { get; set; } = string.Empty;
         public string CONVERT_IMAGE_EXTENSIONS { get; set; } = string.Empty;
