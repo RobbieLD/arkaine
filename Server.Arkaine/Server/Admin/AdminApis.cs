@@ -38,7 +38,10 @@ namespace Server.Arkaine.Admin
                 {
                     Delimiter = "/"
                 };
-                var paths = new HashSet<string>(StringComparer.Ordinal);
+                var paths = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    ConversionPath.RootSelection
+                };
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -266,9 +269,9 @@ namespace Server.Arkaine.Admin
             IMediaConverter converter,
             CancellationToken cancellationToken)
         {
-            if (!ConversionPath.TryNormalize(request.Path, out var normalizedPath))
+            if (!ConversionPath.TryNormalize(request.Path, out _))
             {
-                return Results.BadRequest("A conversion path must be supplied as a top-level folder.");
+                return Results.BadRequest("A conversion path must be supplied as the root or a top-level folder.");
             }
 
             var availability = await converter.GetAvailabilityAsync(cancellationToken);
@@ -282,7 +285,7 @@ namespace Server.Arkaine.Admin
                         : availability.Error);
             }
 
-            return conversionManager.TryStart(userName, normalizedPath, request.DeleteConvertedFiles)
+            return conversionManager.TryStart(userName, request.Path, request.DeleteConvertedFiles)
                 ? Results.Ok(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken))
                 : Results.Conflict(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken));
         }

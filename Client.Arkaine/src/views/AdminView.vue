@@ -119,7 +119,7 @@
 
             <job-panel
                 title="Browser media conversion"
-                description="Convert unsupported images and videos to browser-friendly formats."
+                description="Convert unsupported images and videos to browser-friendly formats in the selected path."
                 :running="adminStatus.conversion.isRunning"
                 :unavailable="adminStatus.conversion.ffmpegAvailable === false"
                 :toggle-disabled="conversionStartDisabled"
@@ -142,9 +142,9 @@
                             class="select"
                             :disabled="adminStatus.conversion.isRunning || conversionPaths.length === 0"
                         >
-                            <option value="" disabled>Select a top-level folder</option>
+                            <option value="" disabled>Select root or a top-level folder</option>
                             <option v-for="path of conversionPaths" :key="path" :value="path">
-                                {{ path }}
+                                {{ path === rootConversionPath ? 'Root' : path }}
                             </option>
                         </select>
                     </dd>
@@ -355,6 +355,8 @@
             : 'Something went wrong.'
     }
 
+    const rootConversionPath = '/'
+
     export default defineComponent({
         name: 'AdminView',
         components: {
@@ -412,8 +414,8 @@
 
                 if (!conversionPath.value) {
                     return conversionPaths.value.length > 0
-                        ? 'Select a top-level folder before starting'
-                        : 'No top-level folders available'
+                        ? 'Select root or a top-level folder before starting'
+                        : 'No conversion paths available'
                 }
 
                 return conversionProgress.value.finished ? 'Last run completed' : 'Ready to start'
@@ -551,8 +553,8 @@
             const synchronizeConversionPath = () => {
                 const reportedPath = conversionProgress.value.path
 
-                if (adminStatus.value.conversion.isRunning && reportedPath) {
-                    conversionPath.value = reportedPath
+                if (adminStatus.value.conversion.isRunning) {
+                    conversionPath.value = reportedPath || rootConversionPath
                     deleteConvertedFiles.value = conversionProgress.value.deleteConvertedFiles
                     return
                 }
@@ -624,6 +626,7 @@
                 conversionIdleMessage,
                 conversionPath,
                 conversionPaths,
+                rootConversionPath,
                 conversionProgress,
                 conversionProgressMessage,
                 conversionStartDisabled,

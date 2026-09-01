@@ -4,10 +4,10 @@ const string thumbnailDirectoryVariable = "THUMBNAIL_DIR";
 var dataDirectory = ResolveDirectory(dataDirectoryVariable);
 var thumbnailDirectory = ResolveDirectory(thumbnailDirectoryVariable);
 
-if (!IsNestedDirectory(dataDirectory, thumbnailDirectory))
+if (!AreSiblingDirectories(dataDirectory, thumbnailDirectory))
 {
     throw new InvalidOperationException(
-        $"{thumbnailDirectoryVariable} must point to a directory inside {dataDirectoryVariable}.");
+        $"{thumbnailDirectoryVariable} must point to a sibling directory of {dataDirectoryVariable}.");
 }
 
 Console.WriteLine($"Validating local data directory: {dataDirectory}");
@@ -34,14 +34,20 @@ static string ResolveDirectory(string variableName)
     return Path.GetFullPath(value.Trim());
 }
 
-static bool IsNestedDirectory(string parent, string child)
+static bool AreSiblingDirectories(string first, string second)
 {
-    var relative = Path.GetRelativePath(parent, child);
-    if (relative is "." or ".." || Path.IsPathRooted(relative))
+    var firstParent = Directory.GetParent(first)?.FullName;
+    var secondParent = Directory.GetParent(second)?.FullName;
+
+    if (string.IsNullOrWhiteSpace(firstParent) || string.IsNullOrWhiteSpace(secondParent))
     {
         return false;
     }
 
-    return !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
-           !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
+    var comparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+    return string.Equals(firstParent, secondParent, comparison) &&
+           !string.Equals(first, second, comparison);
 }

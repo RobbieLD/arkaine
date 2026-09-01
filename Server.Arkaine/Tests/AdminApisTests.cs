@@ -82,10 +82,30 @@ namespace Server.Arkaine.Tests
             {
                 var paths = await app.GetTestClient().GetFromJsonAsync<string[]>("/admin/conversion/paths");
 
-                Assert.That(paths, Is.EqualTo(new[] { "gallery-alpha/", "gallery-beta/" }));
+                Assert.That(paths, Is.EqualTo(new[] { "/", "gallery-alpha/", "gallery-beta/" }));
                 Assert.That(b2.Requests, Has.Count.EqualTo(2));
                 Assert.That(b2.Requests[0].Delimiter, Is.EqualTo("/"));
                 Assert.That(b2.Requests[1].StartFile, Is.EqualTo("gallery-beta/"));
+            }
+        }
+
+        [Test]
+        public async Task ConversionStart_AcceptsRootPath()
+        {
+            var root = CreateRoot();
+            var app = await CreateAppAsync(TestOptionsFactory.Create(root), new StubMediaConverter());
+
+            using (app)
+            {
+                var response = await app.GetTestClient().PostAsJsonAsync(
+                    "/admin/convert/start",
+                    new AdminJobRequest { Path = "/" });
+
+                response.EnsureSuccessStatusCode();
+                var status = await response.Content.ReadFromJsonAsync<AdminStatusResponse>();
+
+                Assert.That(status, Is.Not.Null);
+                Assert.That(status!.Conversion.Report.Path, Is.Empty);
             }
         }
 

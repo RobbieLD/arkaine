@@ -15,9 +15,9 @@ dotnet run --project Server.Arkaine\Server.Arkaine.AppHost
 
 The `local-storage-setup` resource validates and creates the local bucket and
 thumbnail directories before the application starts. The local bucket is
-stored in `Server.Arkaine\Server.Arkaine.LocalB2\data`, with thumbnails in its
-`thumbnails` subdirectory. Add source media beneath top-level folders in the
-bucket directory, for example:
+stored in `Server.Arkaine\Server.Arkaine.LocalB2\data`, with thumbnails beside
+it in `Server.Arkaine\Server.Arkaine.LocalB2\thumbnails`. Add source media
+beneath top-level folders in the bucket directory, for example:
 
 ```text
 Server.Arkaine\Server.Arkaine.LocalB2\data\gallery-alpha\photo.webp
@@ -34,15 +34,15 @@ These environment variables control the local Aspire setup:
 | Setting | Default | Description |
 | --- | --- | --- |
 | `LOCAL_B2_ROOT` | `data` | Absolute bucket directory, or a path relative to the local B2 content root |
-| `THUMBNAIL_DIR` | `<LOCAL_B2_ROOT>\thumbnails` | Directory created by the setup resource and used by Arkaine for generated thumbnails |
+| `THUMBNAIL_DIR` | `<parent of LOCAL_B2_ROOT>\thumbnails` | Directory created by the setup resource and used by Arkaine for generated thumbnails |
 | `LOCAL_B2_BUCKET_ID` | `local-bucket` | Bucket ID accepted by the compatibility API |
 | `LOCAL_B2_BUCKET_NAME` | `local` | Bucket name used in download URLs |
 
 Aspire configures Arkaine to use the local service automatically and passes the
-thumbnail directory to the server. The setup resource requires the thumbnail
-directory to be inside the bucket directory. The local service does not
-validate credentials, so its endpoint should only be exposed to a trusted
-local development environment.
+thumbnail directory to the server. The setup resource requires the data and
+thumbnail directories to be siblings. The local service does not validate
+credentials, so its endpoint should only be exposed to a trusted local
+development environment.
 
 ## Limitations and switching backends
 

@@ -55,6 +55,34 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ConvertAsync_RootPathUsesEmptyB2Prefix()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            Directory.CreateDirectory(options.THUMBNAIL_DIR);
+            var bytes = Encoding.UTF8.GetBytes("image");
+
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object("photo.webp", "image/webp", bytes, "source-01")],
+                options.THUMBNAIL_DIR);
+
+            var converter = new StubMediaConverter();
+            var b2 = new RecordingB2Service(mockStore);
+            using var services = BuildServices(options, converter, mockStore, b2);
+            var manager = services.GetRequiredService<ConversionManager>();
+
+            Assert.That(manager.TryStart("admin", ConversionPath.RootSelection), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(
+                b2.Requests.Any(request =>
+                    request.ExactFileName is null &&
+                    request.Prefix == string.Empty),
+                Is.True);
+            Assert.That(mockStore.SnapshotFiles().Select(file => file.FileName), Does.Contain("photo.jpg"));
+        }
+
+        [Test]
         public async Task ConvertAsync_WhenDeleteConvertedFilesIsFalse_MovesSourcesIntoConvertedFolder()
         {
             var root = CreateRoot();

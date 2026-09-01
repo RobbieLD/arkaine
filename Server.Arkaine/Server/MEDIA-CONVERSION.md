@@ -1,22 +1,24 @@
 # Media conversion
 
-The Admin page can convert configured image and video sources within a selected
-top-level folder into files that browsers can display or play. Conversion is
-destructive: the source is deleted only after the target upload, metadata rename,
-thumbnail move, and final source deletion have succeeded.
+The Admin page can convert configured image and video sources within the
+selected root or top-level folder into files that browsers can display or play.
+Conversion is destructive: the source is deleted only after the target upload,
+metadata rename, thumbnail move, and final source deletion have succeeded.
 
-The Admin page loads available top-level folders from `GET /admin/conversion/paths`.
-Starting a conversion requires a request body containing the selected folder:
+The Admin page loads the root and available top-level folders from
+`GET /admin/conversion/paths`. Starting a conversion requires a request body
+containing the selected path:
 
 ```json
 {
-  "path": "gallery-alpha/",
+  "path": "/",
   "deleteConvertedFiles": true
 }
 ```
 
-The path is sent to B2 as the listing `prefix`. It must identify one top-level
-folder; nested paths, absolute paths, and an empty path are rejected.
+The root is represented by `/` in the request and is sent to B2 with an empty
+listing `prefix`. A folder path is sent as its listing prefix. Nested paths,
+other absolute paths, and an empty path are rejected.
 `deleteConvertedFiles` defaults to `true`, which deletes each source after its
 browser-friendly target has been uploaded and verified. When it is `false`, the
 source is copied to `<path>converted/` (preserving its relative subfolders),

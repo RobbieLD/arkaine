@@ -9,6 +9,7 @@ launchSettings.json
 .env.list
 postgres
 Server.Arkaine/Server.Arkaine.LocalB2/data/
+Server.Arkaine/Server.Arkaine.LocalB2/thumbnails/
 
 #Vue stuff
 .DS_Store
