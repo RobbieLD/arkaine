@@ -267,7 +267,18 @@ namespace Server.Arkaine.Admin
                 }
                 catch (Exception exception)
                 {
-                    File.Create(badFileName).Dispose();
+                    try
+                    {
+                        File.Create(badFileName).Dispose();
+                    }
+                    catch (Exception markerException) when (
+                        markerException is IOException or UnauthorizedAccessException)
+                    {
+                        _logger.LogWarning(
+                            markerException,
+                            "Unable to write bad-thumbnail marker for {FileName}",
+                            file.FileName);
+                    }
                     _logger.LogError(exception, "Generating thumbnail failed for {FileName}", file.FileName);
                     lock (_syncRoot)
                     {

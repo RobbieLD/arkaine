@@ -102,6 +102,23 @@ namespace Server.Arkaine.Tests
             Assert.That(availability.MissingEncoders, Is.EquivalentTo(new[] { "libx264", "aac" }));
         }
 
+        [Test]
+        public async Task GetAvailabilityAsync_RetriesAfterTransientTimeout()
+        {
+            var runner = new QueueProcessRunner();
+            runner.Enqueue(new ProcessRunResult(-1, string.Empty, "timeout", TimeSpan.FromSeconds(5), true, false));
+            runner.Enqueue(new ProcessRunResult(0, "ffmpeg version 7.0", string.Empty, TimeSpan.Zero, false, false));
+            runner.Enqueue(new ProcessRunResult(0, "Encoders:\n V..... libx264\n A..... aac", string.Empty, TimeSpan.Zero, false, false));
+            var converter = CreateConverter(runner);
+
+            var first = await converter.GetAvailabilityAsync(CancellationToken.None);
+            var second = await converter.GetAvailabilityAsync(CancellationToken.None);
+
+            Assert.That(first.IsAvailable, Is.False);
+            Assert.That(second.IsAvailable, Is.True);
+            Assert.That(runner.Calls, Has.Count.EqualTo(3));
+        }
+
         private static FfmpegMediaConverter CreateConverter(QueueProcessRunner runner)
         {
             var options = TestOptionsFactory.Create(Path.Combine(TestContext.CurrentContext.WorkDirectory, "artifacts", Guid.NewGuid().ToString("n")));

@@ -389,9 +389,13 @@ export const useAppStore = defineStore('app', {
                     return
                 }
 
-                await connection.stop()
-                if (updatesConnection === connection) {
-                    updatesConnection = null
+                try {
+                    await connection.stop()
+                }
+                finally {
+                    if (updatesConnection === connection) {
+                        updatesConnection = null
+                    }
                 }
             })
 

@@ -61,6 +61,9 @@ namespace Server.Arkaine.Tests
                 Assert.That(ThumbnailPathResolver.TryResolve(root, ".. /outside.jpg", out _), Is.False);
                 Assert.That(ThumbnailPathResolver.TryResolve(root, @"C:\outside.jpg", out _), Is.False);
                 Assert.That(ThumbnailPathResolver.TryResolve(root, "/outside.jpg", out _), Is.False);
+                Assert.That(ThumbnailPathResolver.TryResolve(root, "folder/bad?.jpg", out _), Is.False);
+                Assert.That(ThumbnailPathResolver.TryResolve(root, "folder/CON.jpg", out _), Is.False);
+                Assert.That(ThumbnailPathResolver.TryResolve(root, "folder/LPT9.png", out _), Is.False);
             }
             finally
             {

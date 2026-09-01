@@ -2,6 +2,8 @@ namespace Server.Arkaine
 {
     public static class ThumbnailPathResolver
     {
+        private static readonly char[] InvalidFileNameCharacters = ['<', '>', '"', '|', '?', '*'];
+
         public static bool TryResolve(string? rootDirectory, string? relativePath, out string fullPath)
         {
             fullPath = string.Empty;
@@ -22,6 +24,8 @@ namespace Server.Arkaine
             if (segments.Length == 0 ||
                 segments.Any(segment =>
                     segment is "." or ".." ||
+                    segment.Any(character => character < ' ' || InvalidFileNameCharacters.Contains(character)) ||
+                    IsReservedWindowsName(segment) ||
                     segment.EndsWith('.') ||
                     segment.EndsWith(' ')))
             {
@@ -71,6 +75,19 @@ namespace Server.Arkaine
                    path.StartsWith("//", StringComparison.Ordinal) ||
                    path.StartsWith(@"\\", StringComparison.Ordinal) ||
                    (path.Length > 1 && char.IsLetter(path[0]) && path[1] == ':');
+        }
+
+        private static bool IsReservedWindowsName(string segment)
+        {
+            var name = segment.Split('.', 2)[0];
+            return name.Equals("CON", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("PRN", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("AUX", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("NUL", StringComparison.OrdinalIgnoreCase) ||
+                   (name.Length == 4 &&
+                    (name.StartsWith("COM", StringComparison.OrdinalIgnoreCase) ||
+                     name.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) &&
+                    name[3] is >= '1' and <= '9');
         }
 
         private static bool ContainsReparsePoint(string root, string path)

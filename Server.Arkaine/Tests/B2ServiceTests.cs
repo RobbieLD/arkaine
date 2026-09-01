@@ -113,6 +113,26 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public void UploadMultiPartFile_RejectsTruncatedNonSeekableSinglePartStream()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root);
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+            using var content = new NonSeekableStream(new byte[] { 1, 2, 3 });
+
+            Assert.That(
+                async () => await service.UploadMultiPartFile(
+                    "truncated.mp4",
+                    "video/mp4",
+                    content,
+                    B2MultipartLimits.MinimumPartSizeBytes,
+                    CancellationToken.None),
+                Throws.InvalidOperationException.With.Message.Contains("at least two parts"));
+            Assert.That(handler.FinishedLargeFile, Is.False);
+        }
+
+        [Test]
         public void UploadMultiPartFile_RejectsMoreThanB2MaximumParts()
         {
             var root = CreateRoot();
@@ -311,6 +331,40 @@ namespace Server.Arkaine.Tests
             public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
             public override void SetLength(long value) => throw new NotSupportedException();
             public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+
+        private sealed class NonSeekableStream(byte[] content) : Stream
+        {
+            private readonly MemoryStream _inner = new(content, writable: false);
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position
+            {
+                get => throw new NotSupportedException();
+                set => throw new NotSupportedException();
+            }
+
+            public override void Flush() => throw new NotSupportedException();
+            public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+            public override int Read(Span<byte> buffer) => _inner.Read(buffer);
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+                _inner.ReadAsync(buffer, cancellationToken);
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    _inner.Dispose();
+                }
+
+                base.Dispose(disposing);
+            }
         }
     }
 }

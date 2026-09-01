@@ -234,6 +234,7 @@ namespace Server.Arkaine.B2
 
             // Upload each chunk
             var partNumber = 1;
+            long uploadedBytes = 0;
             var buffer = new byte[chunkSize];
             var shas = new List<string>();
             
@@ -256,11 +257,23 @@ namespace Server.Arkaine.B2
                         $"Multipart uploads cannot exceed {B2MultipartLimits.MaximumPartCount} parts.");
                 }
 
+                uploadedBytes += read;
+                if (uploadedBytes > B2MultipartLimits.MaximumFileSizeBytes)
+                {
+                    throw new InvalidOperationException(
+                        $"Multipart upload size cannot exceed {B2MultipartLimits.MaximumFileSizeBytes} bytes.");
+                }
+
                 await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
                 var sha = await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
                 
                 partNumber++;
                 shas.Add(sha);
+            }
+
+            if (shas.Count < 2)
+            {
+                throw new InvalidOperationException("Multipart uploads must contain at least two parts.");
             }
 
             // Finish the upload

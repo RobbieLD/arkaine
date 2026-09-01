@@ -36,7 +36,13 @@ namespace Server.Arkaine.Media
             {
                 if (_availability is null)
                 {
-                    _availability = await ProbeAvailabilityAsync(cancellationToken);
+                    var probe = await ProbeAvailabilityAsync(cancellationToken);
+                    if (probe.Cacheable)
+                    {
+                        _availability = probe.Availability;
+                    }
+
+                    return probe.Availability;
                 }
 
                 return _availability;
@@ -47,7 +53,7 @@ namespace Server.Arkaine.Media
             }
         }
 
-        private async Task<MediaConverterAvailability> ProbeAvailabilityAsync(CancellationToken cancellationToken)
+        private async Task<AvailabilityProbeResult> ProbeAvailabilityAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -58,14 +64,17 @@ namespace Server.Arkaine.Media
                 var versionResult = await _runner.RunAsync(versionProcess, timeout, cancellationToken);
                 if (versionResult.TimedOut || versionResult.Cancelled || versionResult.ExitCode != 0)
                 {
-                    return new MediaConverterAvailability(
-                        false,
-                        false,
-                        false,
-                        _options.FFMPEG_PATH,
-                        string.Empty,
-                        [],
-                        BuildFailure(versionResult, "ffmpeg -version"));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new AvailabilityProbeResult(
+                        new MediaConverterAvailability(
+                            false,
+                            false,
+                            false,
+                            _options.FFMPEG_PATH,
+                            string.Empty,
+                            [],
+                            BuildFailure(versionResult, "ffmpeg -version")),
+                        !versionResult.TimedOut && !versionResult.Cancelled);
                 }
 
                 var encodersProcess = CreateBareStartInfo();
@@ -75,14 +84,17 @@ namespace Server.Arkaine.Media
                 var encoderResult = await _runner.RunAsync(encodersProcess, timeout, cancellationToken);
                 if (encoderResult.TimedOut || encoderResult.Cancelled || encoderResult.ExitCode != 0)
                 {
-                    return new MediaConverterAvailability(
-                        false,
-                        true,
-                        false,
-                        _options.FFMPEG_PATH,
-                        ExtractFirstLine(versionResult.StandardOutput),
-                        ["libx264", "aac"],
-                        BuildFailure(encoderResult, "ffmpeg -encoders"));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new AvailabilityProbeResult(
+                        new MediaConverterAvailability(
+                            false,
+                            true,
+                            false,
+                            _options.FFMPEG_PATH,
+                            ExtractFirstLine(versionResult.StandardOutput),
+                            ["libx264", "aac"],
+                            BuildFailure(encoderResult, "ffmpeg -encoders")),
+                        !encoderResult.TimedOut && !encoderResult.Cancelled);
                 }
 
                 var missingEncoders = new List<string>();
@@ -96,14 +108,16 @@ namespace Server.Arkaine.Media
                     missingEncoders.Add("aac");
                 }
 
-                return new MediaConverterAvailability(
-                    missingEncoders.Count == 0,
-                    true,
-                    missingEncoders.Count == 0,
-                    _options.FFMPEG_PATH,
-                    ExtractFirstLine(versionResult.StandardOutput),
-                    missingEncoders,
-                    string.Empty);
+                return new AvailabilityProbeResult(
+                    new MediaConverterAvailability(
+                        missingEncoders.Count == 0,
+                        true,
+                        missingEncoders.Count == 0,
+                        _options.FFMPEG_PATH,
+                        ExtractFirstLine(versionResult.StandardOutput),
+                        missingEncoders,
+                        string.Empty),
+                    true);
             }
             catch (OperationCanceledException)
             {
@@ -112,12 +126,16 @@ namespace Server.Arkaine.Media
             catch (Win32Exception exception)
             {
                 _logger.LogWarning(exception, "ffmpeg was not available at {ExecutablePath}", _options.FFMPEG_PATH);
-                return new MediaConverterAvailability(false, false, false, _options.FFMPEG_PATH, string.Empty, ["libx264", "aac"], exception.Message);
+                return new AvailabilityProbeResult(
+                    new MediaConverterAvailability(false, false, false, _options.FFMPEG_PATH, string.Empty, ["libx264", "aac"], exception.Message),
+                    true);
             }
             catch (Exception exception)
             {
                 _logger.LogWarning(exception, "ffmpeg availability probe failed.");
-                return new MediaConverterAvailability(false, false, false, _options.FFMPEG_PATH, string.Empty, ["libx264", "aac"], exception.Message);
+                return new AvailabilityProbeResult(
+                    new MediaConverterAvailability(false, false, false, _options.FFMPEG_PATH, string.Empty, ["libx264", "aac"], exception.Message),
+                    false);
             }
         }
 
@@ -239,6 +257,10 @@ namespace Server.Arkaine.Media
 
             return builder.ToString();
         }
+
+        private sealed record AvailabilityProbeResult(
+            MediaConverterAvailability Availability,
+            bool Cacheable);
     }
 
     public class SystemProcessRunner : IProcessRunner
