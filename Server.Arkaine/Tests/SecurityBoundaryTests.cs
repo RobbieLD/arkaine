@@ -6,6 +6,9 @@ using Server.Arkaine.Ingest;
 using System;
 using System.IO;
 using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -41,6 +44,40 @@ namespace Server.Arkaine.Tests
             Assert.That(
                 await UrlSafetyValidator.IsSafeAsync("https://127.0.0.1", CancellationToken.None),
                 Is.False);
+        }
+
+        [Test]
+        public async Task ConnectAsync_AllowsPrivateAddressesForTheConfiguredB2Host()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+
+            try
+            {
+                var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                var acceptedClient = listener.AcceptTcpClientAsync();
+                using var client = new HttpClient(new SocketsHttpHandler
+                {
+                    UseProxy = false,
+                    ConnectCallback = (context, cancellationToken) =>
+                        UrlSafetyValidator.ConnectAsync(context, cancellationToken, "localhost")
+                });
+                var responseTask = client.GetAsync($"http://localhost:{port}/");
+
+                using var connection = await acceptedClient;
+                await using var stream = connection.GetStream();
+                var responseBytes = Encoding.ASCII.GetBytes(
+                    "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
+                await stream.WriteAsync(responseBytes);
+
+                var response = await responseTask;
+                Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+                Assert.That(await response.Content.ReadAsStringAsync(), Is.EqualTo("ok"));
+            }
+            finally
+            {
+                listener.Stop();
+            }
         }
 
         [Test]

@@ -27,6 +27,10 @@ IConfiguration config = builder.Configuration
     .AddEnvironmentVariables()
     .Build();
 
+var b2AuthHost = Uri.TryCreate(config["B2AuthUrl"], UriKind.Absolute, out var b2AuthUri) &&
+                 b2AuthUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+    ? b2AuthUri.DnsSafeHost
+    : null;
 var proxyHostName = config["TRUSTED_PROXY"];
 
 var proxyIpAddresses = string.IsNullOrEmpty(proxyHostName) ? [] : Dns.GetHostAddresses(proxyHostName!);
@@ -82,6 +86,14 @@ builder.Services.Configure<HttpClientFactoryOptions>(Options.DefaultName, option
         };
     });
 });
+builder.Services.AddHttpClient<B2Service>()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseProxy = false,
+        ConnectCallback = (context, cancellationToken) =>
+            UrlSafetyValidator.ConnectAsync(context, cancellationToken, b2AuthHost)
+    });
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INotifier>(s => ActivatorUtilities.CreateInstance<Pushover>(s, dev));
 builder.Services.AddScoped<SgExtractor>();
@@ -107,16 +119,7 @@ builder.Services.AddSingleton<IThumbnailInfoProvider, ThumbnailInfoCache>();
 builder.Services.AddSingleton<IConversionStateStore, FileSystemConversionStateStore>();
 builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
 builder.Services.AddSingleton<IMediaConverter, FfmpegMediaConverter>();
-
-if (!string.IsNullOrEmpty(builder.Configuration["MOCK_B2"]))
-{
-    builder.Services.AddSingleton<MockB2.Store>();
-    builder.Services.AddScoped<IB2Service, MockB2>();
-}
-else
-{
-    builder.Services.AddScoped<IB2Service, B2Service>();
-}
+builder.Services.AddScoped<IB2Service>(services => services.GetRequiredService<B2Service>());
 
 builder.Services.AddHttpsRedirection(options =>
 {

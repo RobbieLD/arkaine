@@ -11,6 +11,16 @@ var migrations = builder.AddProject<Projects.Server_Arkaine_Migrations>("databas
     .WithEnvironment("DB_CONNECTION_STRING", database)
     .WaitFor(database);
 
+var localB2Root = builder.Configuration["LOCAL_B2_ROOT"] ?? "data";
+var localB2BucketId = builder.Configuration["LOCAL_B2_BUCKET_ID"] ?? "local-bucket";
+var localB2BucketName = builder.Configuration["LOCAL_B2_BUCKET_NAME"] ?? "local";
+var localB2 = builder.AddProject<Projects.Server_Arkaine_LocalB2>("local-b2")
+    .WithHttpEndpoint()
+    .WithEnvironment("LOCAL_B2_ROOT", localB2Root)
+    .WithEnvironment("LOCAL_B2_BUCKET_ID", localB2BucketId)
+    .WithEnvironment("LOCAL_B2_BUCKET_NAME", localB2BucketName)
+    .WithExternalHttpEndpoints();
+
 builder.AddContainer("adminer", "michalhosna/adminer")
     .WithEnvironment("ADMINER_DB", "arkaine")
     .WithEnvironment("ADMINER_DRIVER", "pgsql")
@@ -26,6 +36,12 @@ builder.AddContainer("adminer", "michalhosna/adminer")
 
 var arkaine = builder.AddProject<Projects.Server_Arkaine>("arkaine")
     .WithEnvironment("DB_CONNECTION_STRING", database)
+    .WithEnvironment("B2AuthUrl", $"{localB2.GetEndpoint("http")}/b2api/v2/b2_authorize_account")
+    .WithEnvironment("B2_KEY_READ", "local-read")
+    .WithEnvironment("B2_KEY_WRITE", "local-write")
+    .WithEnvironment("BUCKET_ID", localB2BucketId)
+    .WithEnvironment("BUCKET_NAME", localB2BucketName)
+    .WaitFor(localB2)
     .WaitForCompletion(migrations);
 
 var client = builder.AddViteApp("client", "../../Client.Arkaine")

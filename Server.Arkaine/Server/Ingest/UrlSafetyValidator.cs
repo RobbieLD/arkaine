@@ -112,10 +112,21 @@ namespace Server.Arkaine.Ingest
             SocketsHttpConnectionContext context,
             CancellationToken cancellationToken)
         {
+            return await ConnectAsync(context, cancellationToken, null);
+        }
+
+        public static async ValueTask<Stream> ConnectAsync(
+            SocketsHttpConnectionContext context,
+            CancellationToken cancellationToken,
+            string? allowedPrivateHost)
+        {
             var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
             SocketException? lastException = null;
+            var allowPrivateAddresses = IsAllowedPrivateHost(context.DnsEndPoint.Host, allowedPrivateHost);
 
-            foreach (var address in addresses.Where(IsPublicAddress))
+            foreach (var address in addresses.Where(address =>
+                         IsPublicAddress(address) ||
+                         (allowPrivateAddresses && IsPrivateAddress(address))))
             {
                 var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                 var connected = false;
@@ -140,6 +151,38 @@ namespace Server.Arkaine.Ingest
             }
 
             throw new HttpRequestException("The outbound connection target is not public or could not be reached.", lastException);
+        }
+
+        private static bool IsAllowedPrivateHost(string host, string? allowedPrivateHost)
+        {
+            return !string.IsNullOrWhiteSpace(allowedPrivateHost) &&
+                   string.Equals(host, allowedPrivateHost, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsPrivateAddress(IPAddress address)
+        {
+            if (address.IsIPv4MappedToIPv6)
+            {
+                address = address.MapToIPv4();
+            }
+
+            if (IPAddress.IsLoopback(address))
+            {
+                return true;
+            }
+
+            var bytes = address.GetAddressBytes();
+            if (address.AddressFamily == AddressFamily.InterNetwork)
+            {
+                var value = BinaryPrimitives.ReadUInt32BigEndian(bytes);
+                return IsInRange(value, 0x0a000000, 0xff000000) ||
+                       IsInRange(value, 0xac100000, 0xfff00000) ||
+                       IsInRange(value, 0xc0a80000, 0xffff0000);
+            }
+
+            return address.AddressFamily == AddressFamily.InterNetworkV6 &&
+                   ((bytes[0] & 0xfe) == 0xfc ||
+                    (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80));
         }
 
         private static bool TryCreateUri(string url, out Uri uri)

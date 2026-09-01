@@ -22,6 +22,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Server\Server.Arkaine.csproj" />
+    <ProjectReference Include="..\Server.Arkaine.LocalB2\Server.Arkaine.LocalB2.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Server\test.jpg" Link="test.jpg" CopyToOutputDirectory="Always" />
+    <None Include="..\Server\test.mp4" Link="test.mp4" CopyToOutputDirectory="Always" />
+    <None Include="..\Server\test.mp3" Link="test.mp3" CopyToOutputDirectory="Always" />
   </ItemGroup>
 
 </Project>

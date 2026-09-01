@@ -366,6 +366,7 @@ namespace Server.Arkaine.B2
             var buffer = Encoding.UTF8.GetBytes(content);
 
             var byteContent = new ByteArrayContent(buffer);
+            byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             var response = await _httpClient.PostAsync(cacheModel.ApiUrl + url, byteContent, cancellationToken);
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
 

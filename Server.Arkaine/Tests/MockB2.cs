@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Server.Arkaine.Favourites;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -6,6 +7,7 @@ namespace Server.Arkaine.B2
 {
     public class MockB2 : IB2Service
     {
+        // This in-process implementation is kept in the test project for deterministic fixtures.
         private readonly IThumbnailInfoProvider _thumbnails;
         private readonly Store _store;
 
