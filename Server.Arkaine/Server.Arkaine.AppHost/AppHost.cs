@@ -11,14 +11,27 @@ var migrations = builder.AddProject<Projects.Server_Arkaine_Migrations>("databas
     .WithEnvironment("DB_CONNECTION_STRING", database)
     .WaitFor(database);
 
-var localB2Root = builder.Configuration["LOCAL_B2_ROOT"] ?? "data";
+var localB2ProjectDirectory = Path.GetFullPath(
+    Path.Combine(builder.Environment.ContentRootPath, "..", "Server.Arkaine.LocalB2"));
+var localB2Root = ResolvePath(
+    builder.Configuration["LOCAL_B2_ROOT"],
+    localB2ProjectDirectory,
+    "data");
+var thumbnailDirectory = Path.Combine(
+    Directory.GetParent(localB2Root)?.FullName
+        ?? throw new InvalidOperationException("The local B2 data directory must have a parent directory."),
+    "thumbnails");
 var localB2BucketId = builder.Configuration["LOCAL_B2_BUCKET_ID"] ?? "local-bucket";
 var localB2BucketName = builder.Configuration["LOCAL_B2_BUCKET_NAME"] ?? "local";
+var storageSetup = builder.AddProject<Projects.Server_Arkaine_StorageSetup>("local-storage-setup")
+    .WithEnvironment("LOCAL_B2_ROOT", localB2Root)
+    .WithEnvironment("THUMBNAIL_DIR", thumbnailDirectory);
 var localB2 = builder.AddProject<Projects.Server_Arkaine_LocalB2>("local-b2")
     .WithHttpEndpoint()
     .WithEnvironment("LOCAL_B2_ROOT", localB2Root)
     .WithEnvironment("LOCAL_B2_BUCKET_ID", localB2BucketId)
     .WithEnvironment("LOCAL_B2_BUCKET_NAME", localB2BucketName)
+    .WaitForCompletion(storageSetup)
     .WithExternalHttpEndpoints();
 
 builder.AddContainer("adminer", "michalhosna/adminer")
@@ -41,7 +54,9 @@ var arkaine = builder.AddProject<Projects.Server_Arkaine>("arkaine")
     .WithEnvironment("B2_KEY_WRITE", "local-write")
     .WithEnvironment("BUCKET_ID", localB2BucketId)
     .WithEnvironment("BUCKET_NAME", localB2BucketName)
+    .WithEnvironment("THUMBNAIL_DIR", thumbnailDirectory)
     .WaitFor(localB2)
+    .WaitForCompletion(storageSetup)
     .WaitForCompletion(migrations);
 
 var client = builder.AddViteApp("client", "../../Client.Arkaine")
@@ -55,3 +70,9 @@ var client = builder.AddViteApp("client", "../../Client.Arkaine")
 arkaine.WithEnvironment("CORS_ORIGIN", client.GetEndpoint("http"));
 
 builder.Build().Run();
+
+static string ResolvePath(string? configuredPath, string relativeBase, string defaultPath)
+{
+    var path = string.IsNullOrWhiteSpace(configuredPath) ? defaultPath : configuredPath.Trim();
+    return Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(relativeBase, path));
+}

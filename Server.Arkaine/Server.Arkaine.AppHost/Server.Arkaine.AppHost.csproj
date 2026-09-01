@@ -18,6 +18,7 @@
     <ProjectReference Include="..\Server\Server.Arkaine.csproj" />
     <ProjectReference Include="..\Server.Arkaine.Migrations\Server.Arkaine.Migrations.csproj" />
     <ProjectReference Include="..\Server.Arkaine.LocalB2\Server.Arkaine.LocalB2.csproj" />
+    <ProjectReference Include="..\Server.Arkaine.StorageSetup\Server.Arkaine.StorageSetup.csproj" />
   </ItemGroup>
 
 </Project>
