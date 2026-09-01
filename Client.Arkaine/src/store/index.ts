@@ -43,6 +43,7 @@ const createInitialState = (): State => ({
     adminStatus: emptyAdminStatus(),
     thumbnailProgress: emptyThumbnailProgress(),
     conversionProgress: emptyConversionProgress(),
+    conversionPaths: [],
     thumbnailCache: emptyThumbnailCacheStats()
 })
 
@@ -266,10 +267,15 @@ export const useAppStore = defineStore('app', {
             this.conversionProgress = progress
         },
 
+        setConversionPaths(paths: string[]): void {
+            this.conversionPaths = paths
+        },
+
         resetAdminState(): void {
             this.adminStatus = emptyAdminStatus()
             this.thumbnailProgress = emptyThumbnailProgress()
             this.conversionProgress = emptyConversionProgress()
+            this.conversionPaths = []
             this.thumbnailCache = emptyThumbnailCacheStats()
         },
 
@@ -434,9 +440,9 @@ export const useAppStore = defineStore('app', {
             }
         },
 
-        async startConversion(): Promise<void> {
+        async startConversion(path: string): Promise<void> {
             const service = new ArkaineService()
-            const response = await service.StartConversion()
+            const response = await service.StartConversion(path)
             this.setConversionProgress(emptyConversionProgress())
             this.setConversionRunning(true)
             if (response) {
@@ -445,6 +451,12 @@ export const useAppStore = defineStore('app', {
             else {
                 await this.loadAdminStatus()
             }
+        },
+
+        async loadConversionPaths(): Promise<void> {
+            const service = new ArkaineService()
+            const paths = await service.GetConversionPaths()
+            this.setConversionPaths(paths)
         },
 
         async stopConversion(): Promise<void> {

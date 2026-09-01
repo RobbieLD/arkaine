@@ -39,8 +39,10 @@ namespace Server.Arkaine.Admin
             _logger = logger;
         }
 
-        public bool TryStart(string userName, string? exactTarget)
+        public bool TryStart(string userName, string? path)
         {
+            var normalizedPath = ConversionPath.Normalize(path);
+
             lock (_syncRoot)
             {
                 if (IsRunning)
@@ -62,12 +64,12 @@ namespace Server.Arkaine.Admin
                     _stoppingToken = new CancellationTokenSource();
                     _report = new ConversionReport
                     {
-                        ExactTarget = NormalizePath(exactTarget),
+                        Path = normalizedPath,
                         Running = true,
                         StartedUtc = DateTimeOffset.UtcNow,
                         Status = "running"
                     };
-                    _runningTask = RunAsync(userName, _report.ExactTarget, _stoppingToken.Token);
+                    _runningTask = RunAsync(userName, normalizedPath, _stoppingToken.Token);
                     ObserveTask(_runningTask);
                     return true;
                 }
@@ -97,9 +99,9 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        public async Task ConvertAsync(string userName, string? exactTarget)
+        public async Task ConvertAsync(string userName, string? path)
         {
-            if (!TryStart(userName, exactTarget))
+            if (!TryStart(userName, path))
             {
                 return;
             }
@@ -150,11 +152,11 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task RunAsync(string userName, string exactTarget, CancellationToken cancellationToken)
+        private async Task RunAsync(string userName, string path, CancellationToken cancellationToken)
         {
             try
             {
-                await RecoverPendingStatesAsync(userName, exactTarget, cancellationToken);
+                await RecoverPendingStatesAsync(userName, path, cancellationToken);
 
                 var availability = await _converter.GetAvailabilityAsync(cancellationToken);
                 if (!availability.IsAvailable)
@@ -174,7 +176,7 @@ namespace Server.Arkaine.Admin
                 {
                     BucketId = _options.BUCKET_ID,
                     PageSize = _options.CONVERT_PAGE_SIZE,
-                    Prefix = _options.GetConversionScanPrefix(exactTarget)
+                    Prefix = path
                 };
 
                 while (!cancellationToken.IsCancellationRequested)
@@ -184,11 +186,10 @@ namespace Server.Arkaine.Admin
                     var references = scope.ServiceProvider.GetRequiredService<IMediaLibraryReferenceService>();
                     var page = await b2.ListFiles(request, userName, null, cancellationToken);
 
-                    await ProcessPageAsync(page, exactTarget, userName, b2, references, cancellationToken);
+                    await ProcessPageAsync(page, userName, b2, references, cancellationToken);
                     request.StartFile = page.NextFileName;
 
-                    if (string.IsNullOrEmpty(page.NextFileName) ||
-                        (!string.IsNullOrWhiteSpace(exactTarget) && SnapshotReport().Converted + SnapshotReport().Recovered > 0))
+                    if (string.IsNullOrEmpty(page.NextFileName))
                     {
                         break;
                     }
@@ -236,7 +237,7 @@ namespace Server.Arkaine.Admin
 
         private async Task RecoverPendingStatesAsync(
             string userName,
-            string exactTarget,
+            string path,
             CancellationToken cancellationToken)
         {
             var markers = _stateStore.LoadAll();
@@ -253,7 +254,7 @@ namespace Server.Arkaine.Admin
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (!MatchesExactTarget(marker.SourceFile, marker.TargetFile, exactTarget))
+                if (!MatchesConversionPath(marker.SourceFile, marker.TargetFile, path))
                 {
                     continue;
                 }
@@ -322,7 +323,6 @@ namespace Server.Arkaine.Admin
 
         private async Task ProcessPageAsync(
             FilesResponse page,
-            string exactTarget,
             string userName,
             IB2Service b2,
             IMediaLibraryReferenceService references,
@@ -372,15 +372,6 @@ namespace Server.Arkaine.Admin
                 }
 
                 if (HasPermanentFailureMarker(file.FileName))
-                {
-                    lock (_syncRoot)
-                    {
-                        _report.Skipped++;
-                    }
-                    continue;
-                }
-
-                if (!MatchesExactTarget(file.FileName, targetFile, exactTarget))
                 {
                     lock (_syncRoot)
                     {
@@ -707,20 +698,10 @@ namespace Server.Arkaine.Admin
             return response.Files.SingleOrDefault();
         }
 
-        private static bool MatchesExactTarget(string sourceFile, string targetFile, string exactTarget)
+        private static bool MatchesConversionPath(string sourceFile, string targetFile, string path)
         {
-            if (string.IsNullOrWhiteSpace(exactTarget))
-            {
-                return true;
-            }
-
-            return string.Equals(sourceFile, exactTarget, StringComparison.Ordinal) ||
-                   string.Equals(targetFile, exactTarget, StringComparison.Ordinal);
-        }
-
-        private static string NormalizePath(string? value)
-        {
-            return string.IsNullOrWhiteSpace(value) ? string.Empty : value;
+            return sourceFile.StartsWith(path, StringComparison.Ordinal) &&
+                   targetFile.StartsWith(path, StringComparison.Ordinal);
         }
 
         private static void TryDeleteDirectory(string directory)

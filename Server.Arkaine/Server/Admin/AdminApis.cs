@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Server.Arkaine.B2;
 using Server.Arkaine.Media;
 using System.Security.Claims;
 
@@ -21,6 +22,46 @@ namespace Server.Arkaine.Admin
             async (ThumbnailManager thumbnailManager, ConversionManager conversionManager, IThumbnailInfoProvider cache, IMediaConverter converter, CancellationToken cancellationToken) =>
             {
                 return Results.Ok(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken));
+            });
+
+            app.MapGet("/admin/conversion/paths",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async (ClaimsPrincipal user, IB2Service b2, CancellationToken cancellationToken) =>
+            {
+                var userName = user?.Identity?.Name ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return Results.BadRequest("User name must be supplied.");
+                }
+
+                var request = new FilesRequest
+                {
+                    Delimiter = "/"
+                };
+                var paths = new HashSet<string>(StringComparer.Ordinal);
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var page = await b2.ListFiles(request, userName, null, cancellationToken);
+
+                    foreach (var file in page.Files.Where(file =>
+                                 string.Equals(file.Type, "folder", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        if (ConversionPath.TryNormalize(file.FileName, out var path))
+                        {
+                            paths.Add(path);
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(page.NextFileName))
+                    {
+                        break;
+                    }
+
+                    request.StartFile = page.NextFileName;
+                }
+
+                return Results.Ok(paths.OrderBy(path => path, StringComparer.Ordinal).ToArray());
             });
 
             app.MapGet("/admin/cache",
@@ -105,14 +146,14 @@ namespace Server.Arkaine.Admin
 
                 return await StartJobAsync(new AdminJobRequest
                 {
-                    ExactTarget = request.ExactTarget,
+                    Path = request.Path,
                     Job = "conversion"
                 }, userName, thumbnailManager, conversionManager, cache, converter, cancellationToken);
             });
 
             app.MapPost("/admin/convert/start",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
-            async (ClaimsPrincipal user, ThumbnailManager thumbnailManager, ConversionManager conversionManager, IThumbnailInfoProvider cache, IMediaConverter converter, CancellationToken cancellationToken) =>
+            async (AdminJobRequest request, ClaimsPrincipal user, ThumbnailManager thumbnailManager, ConversionManager conversionManager, IThumbnailInfoProvider cache, IMediaConverter converter, CancellationToken cancellationToken) =>
             {
                 var userName = user?.Identity?.Name ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(userName))
@@ -120,7 +161,11 @@ namespace Server.Arkaine.Admin
                     return Results.BadRequest("User name must be supplied.");
                 }
 
-                return await StartJobAsync(new AdminJobRequest { Job = "conversion" }, userName, thumbnailManager, conversionManager, cache, converter, cancellationToken);
+                return await StartJobAsync(new AdminJobRequest
+                {
+                    Job = "conversion",
+                    Path = request.Path
+                }, userName, thumbnailManager, conversionManager, cache, converter, cancellationToken);
             });
 
             app.MapPost("/admin/conversion/stop",
@@ -219,6 +264,11 @@ namespace Server.Arkaine.Admin
             IMediaConverter converter,
             CancellationToken cancellationToken)
         {
+            if (!ConversionPath.TryNormalize(request.Path, out var normalizedPath))
+            {
+                return Results.BadRequest("A conversion path must be supplied as a top-level folder.");
+            }
+
             var availability = await converter.GetAvailabilityAsync(cancellationToken);
             if (!availability.IsAvailable)
             {
@@ -230,7 +280,7 @@ namespace Server.Arkaine.Admin
                         : availability.Error);
             }
 
-            return conversionManager.TryStart(userName, request.ExactTarget)
+            return conversionManager.TryStart(userName, normalizedPath)
                 ? Results.Ok(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken))
                 : Results.Conflict(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken));
         }

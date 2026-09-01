@@ -140,8 +140,8 @@ export default class ArkaineService extends BaseService {
         return result.data
     }
 
-    public async StartConversion(): Promise<AdminStatusPayload> {
-        const result = await this.http.post<AdminStatusPayload>('/admin/convert/start')
+    public async StartConversion(path: string): Promise<AdminStatusPayload> {
+        const result = await this.http.post<AdminStatusPayload>('/admin/convert/start', { path })
         return result.data
     }
 
@@ -162,6 +162,11 @@ export default class ArkaineService extends BaseService {
 
     public async ClearThumbnailCache(): Promise<ThumbnailCacheStats> {
         const result = await this.http.post<ThumbnailCacheStats>('/admin/thumbnail-cache/clear')
+        return result.data
+    }
+
+    public async GetConversionPaths(): Promise<string[]> {
+        const result = await this.http.get<string[]>('/admin/conversion/paths')
         return result.data
     }
     

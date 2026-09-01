@@ -18,5 +18,6 @@ export default interface State {
     adminStatus: AdminStatusResponse,
     thumbnailProgress: ThumbnailProgress,
     conversionProgress: ConversionProgress,
+    conversionPaths: string[],
     thumbnailCache: ThumbnailCacheStats
 }

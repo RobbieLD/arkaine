@@ -234,16 +234,6 @@ namespace Server.Arkaine
             return fileName;
         }
 
-        public string GetConversionScanPrefix(string? exactTarget)
-        {
-            if (string.IsNullOrWhiteSpace(exactTarget))
-            {
-                return string.Empty;
-            }
-
-            return Path.ChangeExtension(exactTarget, null) ?? exactTarget;
-        }
-
         public string GetConversionTempDirectory()
         {
             Normalize();

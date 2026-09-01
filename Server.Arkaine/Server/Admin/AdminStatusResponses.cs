@@ -29,6 +29,6 @@ namespace Server.Arkaine.Admin
     public sealed class AdminJobRequest
     {
         public string Job { get; set; } = "thumbnail";
-        public string ExactTarget { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
     }
 }

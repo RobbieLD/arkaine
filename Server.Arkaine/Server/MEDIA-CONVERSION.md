@@ -1,9 +1,21 @@
 # Media conversion
 
-The Admin page can convert configured image and video sources into files that browsers
-can display or play. Conversion is destructive: the source is deleted only after the
-target upload, metadata rename, thumbnail move, and final source deletion have
-succeeded.
+The Admin page can convert configured image and video sources within a selected
+top-level folder into files that browsers can display or play. Conversion is
+destructive: the source is deleted only after the target upload, metadata rename,
+thumbnail move, and final source deletion have succeeded.
+
+The Admin page loads available top-level folders from `GET /admin/conversion/paths`.
+Starting a conversion requires a request body containing the selected folder:
+
+```json
+{
+  "path": "gallery-alpha/"
+}
+```
+
+The path is sent to B2 as the listing `prefix`. It must identify one top-level
+folder; nested paths, absolute paths, and an empty path are rejected.
 
 ## Configuration
 
@@ -48,9 +60,10 @@ runs until that marker is removed.
 The canonical Admin endpoints are:
 
 - `GET /admin`
+- `GET /admin/conversion/paths`
 - `GET /admin/thumbnail-cache`
 - `POST /admin/thumbnail-cache/clear`
 - `POST /admin/thumbnails/start|stop`
-- `POST /admin/convert/start|stop`
+- `POST /admin/convert/start|stop` (`start` requires a `path`)
 
 All Admin endpoints require an authenticated user with the `Admin` role.

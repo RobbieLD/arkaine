@@ -1,4 +1,5 @@
 export default interface ConversionProgress {
+    path: string
     converted: number
     skipped: number
     failed: number
@@ -9,6 +10,7 @@ export default interface ConversionProgress {
 }
 
 export const emptyConversionProgress = (): ConversionProgress => ({
+    path: '',
     converted: 0,
     skipped: 0,
     failed: 0,
@@ -93,6 +95,7 @@ export const normalizeConversionProgress = (value: unknown): ConversionProgress 
     const record = asRecord(value)
 
     return {
+        path: readString(record, ['path', 'Path', 'conversionPath', 'ConversionPath']),
         converted: readNumber(record, ['converted', 'Converted', 'generated', 'Generated']),
         skipped: readNumber(record, ['skipped', 'Skipped']),
         failed: readNumber(record, ['failed', 'Failed']),

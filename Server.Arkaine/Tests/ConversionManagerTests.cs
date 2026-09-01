@@ -15,7 +15,7 @@ namespace Server.Arkaine.Tests
     public class ConversionManagerTests
     {
         [Test]
-        public async Task ConvertAsync_OnlyProcessesTheExactTarget()
+        public async Task ConvertAsync_OnlyProcessesFilesInSelectedPath()
         {
             var root = CreateRoot();
             var options = TestOptionsFactory.Create(root);
@@ -29,15 +29,21 @@ namespace Server.Arkaine.Tests
             ], options.THUMBNAIL_DIR);
 
             var converter = new StubMediaConverter();
-            using var services = BuildServices(options, converter, mockStore);
+            var b2 = new RecordingB2Service(mockStore);
+            using var services = BuildServices(options, converter, mockStore, b2);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", "gallery-alpha/photo-01.jpg"), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             var files = mockStore.SnapshotFiles().Select(file => file.FileName).OrderBy(name => name, StringComparer.Ordinal).ToArray();
 
             Assert.That(converter.Requests, Has.Count.EqualTo(1));
+            Assert.That(
+                b2.Requests.Any(request =>
+                    request.ExactFileName is null &&
+                    request.Prefix == "gallery-alpha/"),
+                Is.True);
             Assert.That(files, Does.Contain("gallery-alpha/photo-01.jpg"));
             Assert.That(
                 files,
@@ -49,14 +55,13 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
-        public async Task ConvertAsync_TargetedRunDoesNotRecoverOtherPendingState()
+        public async Task ConvertAsync_SelectedPathDoesNotRecoverOtherPendingState()
         {
             var root = CreateRoot();
             var options = TestOptionsFactory.Create(root);
             Directory.CreateDirectory(options.THUMBNAIL_DIR);
             var bytes = Encoding.UTF8.GetBytes("image");
             const string alphaSource = "gallery-alpha/photo-01.webp";
-            const string alphaTarget = "gallery-alpha/photo-01.jpg";
             const string betaSource = "gallery-beta/photo-02.webp";
             const string betaTarget = "gallery-beta/photo-02.jpg";
 
@@ -77,7 +82,7 @@ namespace Server.Arkaine.Tests
             });
 
             var manager = services.GetRequiredService<ConversionManager>();
-            Assert.That(manager.TryStart("admin", alphaTarget), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(converter.Requests, Has.Count.EqualTo(1));
@@ -137,7 +142,7 @@ namespace Server.Arkaine.Tests
             Assert.That(File.Exists(sourceThumbnail), Is.True);
 
             var manager = services.GetRequiredService<ConversionManager>();
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
@@ -185,7 +190,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, converter, mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
@@ -222,7 +227,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, converter, mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(ThumbnailPathResolver.TryResolve(
@@ -233,7 +238,7 @@ namespace Server.Arkaine.Tests
             Assert.That(mockStore.SnapshotFiles().Select(file => file.FileName), Does.Contain(source));
             Assert.That(manager.GetStatus().Report.Failed, Is.EqualTo(1));
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(converter.Requests, Has.Count.EqualTo(1));
@@ -267,7 +272,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, converter, mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(ThumbnailPathResolver.TryResolve(
@@ -285,7 +290,7 @@ namespace Server.Arkaine.Tests
             var root = CreateRoot();
             var options = TestOptionsFactory.Create(root);
             Directory.CreateDirectory(options.THUMBNAIL_DIR);
-            const string source = "gallery\\ready.mp4";
+            const string source = "gallery-alpha/ready.mp4";
 
             var mockStore = CreateMockStore(
             [
@@ -296,7 +301,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, converter, mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(converter.Requests, Is.Empty);
@@ -304,10 +309,10 @@ namespace Server.Arkaine.Tests
             Assert.That(manager.GetStatus().Report.Skipped, Is.EqualTo(1));
         }
 
-        [TestCase("bad:name.mov")]
-        [TestCase("folder. /clip.mov")]
-        [TestCase("folder\\clip.mov")]
-        [TestCase("folder//clip.mov")]
+        [TestCase("gallery-alpha/bad:name.mov")]
+        [TestCase("gallery-alpha/folder. /clip.mov")]
+        [TestCase("gallery-alpha/folder\\clip.mov")]
+        [TestCase("gallery-alpha/folder//clip.mov")]
         public async Task ConvertAsync_RejectsConvertibleKeysThatCannotMapSafelyToThumbnails(string source)
         {
             var root = CreateRoot();
@@ -321,7 +326,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, converter, mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(converter.Requests, Is.Empty);
@@ -345,7 +350,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, new StubMediaConverter(), mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             Assert.That(File.Exists(unrelatedFile), Is.True);
@@ -367,7 +372,7 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, new StubMediaConverter(), mockStore, b2);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
             await manager.WaitForCompletionAsync();
 
             var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
@@ -402,8 +407,8 @@ namespace Server.Arkaine.Tests
             using var services = BuildServices(options, converter, mockStore);
             var manager = services.GetRequiredService<ConversionManager>();
 
-            Assert.That(manager.TryStart("admin", null), Is.True);
-            Assert.That(manager.TryStart("admin", null), Is.False);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.False);
 
             manager.Cancel();
             await manager.WaitForCompletionAsync();
@@ -462,6 +467,67 @@ namespace Server.Arkaine.Tests
             var root = Path.Combine(TestContext.CurrentContext.WorkDirectory, "artifacts", Guid.NewGuid().ToString("n"));
             Directory.CreateDirectory(root);
             return root;
+        }
+
+        private sealed class RecordingB2Service : IB2Service
+        {
+            private readonly MockB2 _inner;
+
+            public RecordingB2Service(MockB2.Store store)
+            {
+                _inner = new MockB2(new ThumbnailInfoCache(), store);
+            }
+
+            public List<FilesRequest> Requests { get; } = [];
+
+            public Task Delete(DeleteModel request, CancellationToken cancellationToken) =>
+                _inner.Delete(request, cancellationToken);
+
+            public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) =>
+                _inner.Download(userName, fileName, cancellationToken);
+
+            public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
+                _inner.GetToken(key, cancellationToken);
+
+            public Task<FilesResponse> ListFiles(
+                FilesRequest request,
+                string userName,
+                IFavouritesService? favouritesService,
+                CancellationToken cancellationToken)
+            {
+                Requests.Add(new FilesRequest
+                {
+                    BucketId = request.BucketId,
+                    Delimiter = request.Delimiter,
+                    ExactFileName = request.ExactFileName,
+                    PageSize = request.PageSize,
+                    Prefix = request.Prefix,
+                    StartFile = request.StartFile
+                });
+
+                return _inner.ListFiles(request, userName, favouritesService, cancellationToken);
+            }
+
+            public IResult Preview(string fileName) => _inner.Preview(fileName);
+
+            public Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken) =>
+                _inner.Stream(userName, fileName, cancellationToken);
+
+            public Task UploadMultiPartFile(
+                string fileName,
+                string contentType,
+                Stream content,
+                int chunkSize,
+                CancellationToken cancellationToken) =>
+                _inner.UploadMultiPartFile(fileName, contentType, content, chunkSize, cancellationToken);
+
+            public Task UploadSingleFile(
+                string fileName,
+                string contentType,
+                long length,
+                Stream content,
+                CancellationToken cancellationToken) =>
+                _inner.UploadSingleFile(fileName, contentType, length, content, cancellationToken);
         }
 
         private sealed class DroppingUploadB2Service : IB2Service

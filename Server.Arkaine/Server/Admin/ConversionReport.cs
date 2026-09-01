@@ -11,7 +11,7 @@ namespace Server.Arkaine.Admin
         public bool Cancelled { get; set; }
         public bool Running { get; set; }
         public string Status { get; set; } = "idle";
-        public string ExactTarget { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
         public string CurrentFile { get; set; } = string.Empty;
         public string Error { get; set; } = string.Empty;
         public DateTimeOffset? StartedUtc { get; set; }
@@ -26,11 +26,11 @@ namespace Server.Arkaine.Admin
                 Converted = Converted,
                 CurrentFile = CurrentFile,
                 Error = Error,
-                ExactTarget = ExactTarget,
                 Failed = Failed,
                 Failures = Failures.Select(failure => failure with { }).ToList(),
                 Finished = Finished,
                 FinishedUtc = FinishedUtc,
+                Path = Path,
                 Recovered = Recovered,
                 Running = Running,
                 Scanned = Scanned,

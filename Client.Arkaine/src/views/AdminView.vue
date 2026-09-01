@@ -134,6 +134,22 @@
                 @toggle="toggleConversion"
             >
                 <div>
+                    <dt><label for="conversion-path">Path</label></dt>
+                    <dd>
+                        <select
+                            id="conversion-path"
+                            v-model="conversionPath"
+                            class="select"
+                            :disabled="adminStatus.conversion.isRunning || conversionPaths.length === 0"
+                        >
+                            <option value="" disabled>Select a top-level folder</option>
+                            <option v-for="path of conversionPaths" :key="path" :value="path">
+                                {{ path }}
+                            </option>
+                        </select>
+                    </dd>
+                </div>
+                <div>
                     <dt>FFmpeg</dt>
                     <dd :class="{ 'value--warning': adminStatus.conversion.ffmpegAvailable === false }">
                         {{ ffmpegStatus }}
@@ -292,7 +308,7 @@
     import AppIcon from '@/components/AppIcon.vue'
     import JobPanel from '@/components/JobPanel.vue'
     import { useAppStore } from '@/store'
-    import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+    import { computed, defineComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
     const isForbiddenError = (error: unknown): boolean => {
         if (!error || typeof error !== 'object') {
@@ -334,6 +350,8 @@
             const adminStatus = computed(() => store.adminStatus)
             const thumbnailProgress = computed(() => store.thumbnailProgress)
             const conversionProgress = computed(() => store.conversionProgress)
+            const conversionPaths = computed(() => store.conversionPaths)
+            const conversionPath = ref('')
             const cache = computed(() => store.thumbnailCache)
             const cacheBusy = ref(false)
             const loading = ref(true)
@@ -375,6 +393,12 @@
                     return 'Last run was cancelled'
                 }
 
+                if (!conversionPath.value) {
+                    return conversionPaths.value.length > 0
+                        ? 'Select a top-level folder before starting'
+                        : 'No top-level folders available'
+                }
+
                 return conversionProgress.value.finished ? 'Last run completed' : 'Ready to start'
             })
 
@@ -402,7 +426,11 @@
             }))
 
             const conversionStartDisabled = computed(() => {
-                return adminStatus.value.conversion.ffmpegAvailable === false && !adminStatus.value.conversion.isRunning
+                if (adminStatus.value.conversion.isRunning) {
+                    return false
+                }
+
+                return adminStatus.value.conversion.ffmpegAvailable === false || !conversionPath.value
             })
 
             const ffmpegStatus = computed(() => {
@@ -478,7 +506,7 @@
                     await store.stopConversion()
                 }
                 else {
-                    await store.startConversion()
+                    await store.startConversion(conversionPath.value)
                 }
             })
 
@@ -503,6 +531,25 @@
             const refreshCache = () => runCacheAction(() => store.loadThumbnailCacheStats())
             const clearCache = () => runCacheAction(() => store.clearThumbnailCache())
 
+            const synchronizeConversionPath = () => {
+                const reportedPath = conversionProgress.value.path
+
+                if (adminStatus.value.conversion.isRunning && reportedPath) {
+                    conversionPath.value = reportedPath
+                    return
+                }
+
+                if (conversionPath.value && !conversionPaths.value.includes(conversionPath.value)) {
+                    conversionPath.value = ''
+                }
+            }
+
+            watch(conversionPaths, synchronizeConversionPath)
+            watch(
+                () => [adminStatus.value.conversion.isRunning, conversionProgress.value.path],
+                synchronizeConversionPath
+            )
+
             onMounted(async () => {
                 loading.value = true
                 accessDenied.value = false
@@ -512,9 +559,11 @@
                 try {
                     await Promise.all([
                         store.loadAdminStatus(),
+                        store.loadConversionPaths(),
                         store.loadThumbnailCacheStats(),
                         store.subscribeToUpdates()
                     ])
+                    synchronizeConversionPath()
                 }
                 catch (error) {
                     await store.unsubscribeFromUpdates()
@@ -554,6 +603,8 @@
                 conversionBadgeClass,
                 conversionCardNote,
                 conversionIdleMessage,
+                conversionPath,
+                conversionPaths,
                 conversionProgress,
                 conversionProgressMessage,
                 conversionStartDisabled,

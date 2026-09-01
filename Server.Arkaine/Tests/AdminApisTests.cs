@@ -58,14 +58,51 @@ namespace Server.Arkaine.Tests
                 var response = await client.PostAsJsonAsync("/admin/start", new AdminJobRequest
                 {
                     Job = "conversion",
-                    ExactTarget = "gallery-alpha/photo-01.jpg"
+                    Path = "gallery-alpha"
                 });
 
                 response.EnsureSuccessStatusCode();
                 var status = await response.Content.ReadFromJsonAsync<AdminStatusResponse>();
 
                 Assert.That(status, Is.Not.Null);
-                Assert.That(status!.Conversion.Report.ExactTarget, Is.EqualTo("gallery-alpha/photo-01.jpg"));
+                Assert.That(status!.Conversion.Report.Path, Is.EqualTo("gallery-alpha/"));
+            }
+        }
+
+        [Test]
+        public async Task ConversionPathsRoute_ReturnsTopLevelFoldersAcrossPages()
+        {
+            var root = CreateRoot();
+            var b2 = new FolderListingB2Service();
+            var app = await CreateAppAsync(TestOptionsFactory.Create(root), new StubMediaConverter(), b2: b2);
+
+            using (app)
+            {
+                var paths = await app.GetTestClient().GetFromJsonAsync<string[]>("/admin/conversion/paths");
+
+                Assert.That(paths, Is.EqualTo(new[] { "gallery-alpha/", "gallery-beta/" }));
+                Assert.That(b2.Requests, Has.Count.EqualTo(2));
+                Assert.That(b2.Requests[0].Delimiter, Is.EqualTo("/"));
+                Assert.That(b2.Requests[1].StartFile, Is.EqualTo("gallery-beta/"));
+            }
+        }
+
+        [TestCase("")]
+        [TestCase("gallery-alpha/photo-01.webp")]
+        [TestCase("/gallery-alpha")]
+        [TestCase("..")]
+        public async Task ConversionStart_RejectsInvalidPath(string path)
+        {
+            var root = CreateRoot();
+            var app = await CreateAppAsync(TestOptionsFactory.Create(root), new StubMediaConverter());
+
+            using (app)
+            {
+                var response = await app.GetTestClient().PostAsJsonAsync(
+                    "/admin/convert/start",
+                    new AdminJobRequest { Path = path });
+
+                Assert.That((int)response.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
             }
         }
 
@@ -87,7 +124,9 @@ namespace Server.Arkaine.Tests
 
             using (app)
             {
-                var response = await app.GetTestClient().PostAsync("/admin/convert/start", null);
+                var response = await app.GetTestClient().PostAsJsonAsync(
+                    "/admin/convert/start",
+                    new AdminJobRequest { Path = "gallery-alpha/" });
 
                 Assert.That((int)response.StatusCode, Is.EqualTo(StatusCodes.Status503ServiceUnavailable));
             }
@@ -162,7 +201,9 @@ namespace Server.Arkaine.Tests
                 var thumbnailStart = await client.PostAsync("/admin/thumbnails/start", null);
                 thumbnailStart.EnsureSuccessStatusCode();
 
-                var conversionStart = await client.PostAsync("/admin/convert/start", null);
+                var conversionStart = await client.PostAsJsonAsync(
+                    "/admin/convert/start",
+                    new AdminJobRequest { Path = "gallery-alpha/" });
                 Assert.That((int)conversionStart.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
 
                 await client.PostAsync("/admin/thumbnails/stop", null);
@@ -243,6 +284,53 @@ namespace Server.Arkaine.Tests
             {
                 await Task.Delay(Timeout.Infinite, cancellationToken);
                 return new FilesResponse();
+            }
+
+            public IResult Preview(string fileName) => Results.NotFound();
+            public Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult<IResult>(Results.NotFound());
+            public Task UploadMultiPartFile(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken) =>
+                Task.CompletedTask;
+            public Task UploadSingleFile(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken) =>
+                Task.CompletedTask;
+        }
+
+        private sealed class FolderListingB2Service : IB2Service
+        {
+            public List<FilesRequest> Requests { get; } = [];
+
+            public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
+            public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult<Stream>(new MemoryStream());
+            public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
+                Task.FromResult(new AuthResponse());
+
+            public Task<FilesResponse> ListFiles(
+                FilesRequest request,
+                string userName,
+                IFavouritesService? favouritesService,
+                CancellationToken cancellationToken)
+            {
+                Requests.Add(request);
+
+                return Task.FromResult(request.StartFile is null
+                    ? new FilesResponse
+                    {
+                        Files =
+                        [
+                            new B2File { FileName = "gallery-beta/", Type = "folder" },
+                            new B2File { FileName = "root.jpg", Type = "upload" }
+                        ],
+                        NextFileName = "gallery-beta/"
+                    }
+                    : new FilesResponse
+                    {
+                        Files =
+                        [
+                            new B2File { FileName = "gallery-alpha/", Type = "folder" },
+                            new B2File { FileName = "nested/path/", Type = "folder" }
+                        ]
+                    });
             }
 
             public IResult Preview(string fileName) => Results.NotFound();
