@@ -154,11 +154,7 @@
                     return props.file.size || 'Size unavailable'
                 }
 
-                if (props.file.childCount === undefined) {
-                    return 'Folder'
-                }
-
-                return `${props.file.childCount} ${props.file.childCount === 1 ? 'item' : 'items'}`
+                return 'Folder'
             })
 
             const onImageError = (event: Event) => {

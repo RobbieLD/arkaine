@@ -18,7 +18,6 @@ export default class ArkaineFile {
     preview: string
     previewWidth?: number
     previewHeight?: number
-    childCount?: number
     tags: Tag[]
 
     constructor(file: B2File, baseUrl: string) {
@@ -29,7 +28,6 @@ export default class ArkaineFile {
         this.isDirectory = file.action === 'folder'
         this.rawFileName = file.fileName
         this.size = file.contentLength
-        this.childCount = file.childCount
         this.tags = file.tags
         this.isImage = file.contentType?.startsWith('image') || false
         this.isAudio = file.contentType?.startsWith('audio') || false

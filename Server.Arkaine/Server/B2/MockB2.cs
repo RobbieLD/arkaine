@@ -141,13 +141,9 @@ namespace Server.Arkaine.B2
                 {
                     var folderName = relativeName[..(delimiterIndex + delimiter!.Length)];
                     var folderPath = prefix + folderName;
-                    var childCount = sourceFiles.Count(candidate =>
-                        candidate.FileName.StartsWith(folderPath, StringComparison.Ordinal) &&
-                        !candidate.FileName[folderPath.Length..].Contains('/'));
 
                     listedFiles.TryAdd(folderPath, new B2File
                     {
-                        ChildCount = childCount,
                         ContentType = "application/x-directory",
                         FileName = folderPath,
                         Type = "folder",
@@ -415,7 +411,6 @@ namespace Server.Arkaine.B2
         {
             return new B2File
             {
-                ChildCount = file.ChildCount,
                 ContentType = file.ContentType,
                 FileName = file.FileName,
                 Id = file.Id,

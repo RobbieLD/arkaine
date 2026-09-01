@@ -10,6 +10,5 @@ export default interface B2File {
     previewWidth?: number,
     previewHeight?: number,
     favourite: boolean,
-    childCount?: number,
     tags: Tag[]
 }
