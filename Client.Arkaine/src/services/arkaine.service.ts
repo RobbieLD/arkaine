@@ -125,6 +125,14 @@ export default class ArkaineService extends BaseService {
         })
     }
 
+    public async RemoveFromFavourites(file: ArkaineFile): Promise<void> {
+        await this.http.delete('/favourite', {
+            data: {
+                fileName: file.rawFileName
+            }
+        })
+    }
+
     public async LoggedIn(): Promise<Login> {
         const result = await this.http.get('/loggedin')
         return result.data

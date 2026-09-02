@@ -22,6 +22,21 @@ namespace Server.Arkaine.Favourites
             await _context.SaveChangesAsync();
         }
 
+        public async Task Remove(string name, string user)
+        {
+            var favourites = await _context.Favourites
+                .Where(f => f.Name == name && f.UserName == user)
+                .ToListAsync();
+
+            if (favourites.Count == 0)
+            {
+                return;
+            }
+
+            _context.Favourites.RemoveRange(favourites);
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<HashSet<string>> All(string user)
         {
             return (await _context.Favourites.Where(f => f.UserName == user).Select(f => f.Name).ToListAsync()).ToHashSet();

@@ -16,6 +16,11 @@ namespace Server.Arkaine.Favourites
             await _repository.Add(fileName, userName);
         }
 
+        public async Task RemoveFavourite(string fileName, string userName)
+        {
+            await _repository.Remove(fileName, userName);
+        }
+
         public async Task<IEnumerable<string>> GetAllFavourites(string user)
         {
             return await _repository.All(user);

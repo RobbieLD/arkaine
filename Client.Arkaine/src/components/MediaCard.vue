@@ -93,7 +93,7 @@
                 class="btn btn--ghost btn--icon btn--sm media-card__fav"
                 :class="{ 'media-card__fav--on': file.isFavourite }"
                 :aria-pressed="file.isFavourite"
-                :aria-label="file.isFavourite ? 'In favourites' : 'Add to favourites'"
+                :aria-label="file.isFavourite ? 'Remove from favourites' : 'Add to favourites'"
                 @click.stop.prevent="$emit('favourite')"
             >
                 <app-icon :name="file.isFavourite ? 'heartFilled' : 'heart'" />

@@ -23,6 +23,21 @@ namespace Server.Arkaine.Favourites
                     return Results.Ok();
                 });
 
+            app.MapDelete("/favourite",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
+            async (FavouriteRequest request, ClaimsPrincipal user, IFavouritesService service) =>
+                {
+                    string userName = user?.Identity?.Name ?? string.Empty;
+
+                    if (string.IsNullOrEmpty(userName))
+                    {
+                        return Results.BadRequest("User name must be applied");
+                    }
+
+                    await service.RemoveFavourite(request.FileName, userName);
+                    return Results.Ok();
+                });
+
             app.MapGet("/favourites",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
             async (ClaimsPrincipal user, IFavouritesService service) =>

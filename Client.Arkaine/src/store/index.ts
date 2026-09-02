@@ -164,11 +164,11 @@ export const useAppStore = defineStore('app', {
             }
         },
 
-        setFavourite(rawFileName: string): void {
+        setFavourite(rawFileName: string, isFavourite: boolean): void {
             for (const entry of Object.values(this.folders)) {
                 for (const file of entry.files) {
                     if (file.rawFileName === rawFileName) {
-                        file.isFavourite = true
+                        file.isFavourite = isFavourite
                     }
                 }
             }
@@ -634,13 +634,26 @@ export const useAppStore = defineStore('app', {
             }
         },
 
-        async addToFavourite(file: ArkaineFile): Promise<void> {
+        async toggleFavourite(file: ArkaineFile): Promise<void> {
+            const wasFavourite = file.isFavourite
+            const wasInFavouritesFolder = this.currentPath.startsWith('Favourites')
+
             try {
                 const service = new ArkaineService()
-                await service.AddToFavourites(file)
-                this.setFavourite(file.rawFileName)
+                if (wasFavourite) {
+                    await service.RemoveFromFavourites(file)
+                }
+                else {
+                    await service.AddToFavourites(file)
+                }
+
+                this.setFavourite(file.rawFileName, !wasFavourite)
                 // The favourites collection has changed, so drop its cached listing.
                 this.invalidateFolders('Favourites')
+
+                if (wasInFavouritesFolder && this.currentPath.startsWith('Favourites')) {
+                    await this.loadFiles(this.currentPath)
+                }
             }
             catch (e) {
                 this.setAlert({

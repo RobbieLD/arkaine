@@ -80,9 +80,7 @@
             }
 
             const fav = async (file: ArkaineFile) => {
-                if (!file.isFavourite) {
-                    await store.addToFavourite(file).catch(() => undefined)
-                }
+                await store.toggleFavourite(file).catch(() => undefined)
             }
 
             const loadMore = async () => {
