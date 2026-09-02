@@ -24,7 +24,14 @@ namespace Server.Arkaine.Ingest
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await ProcessUploadQueue(stoppingToken);
+            try
+            {
+                await ProcessUploadQueue(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Queue reads are cancelled when the host shuts down.
+            }
         }
 
         private async Task ProcessUploadQueue(CancellationToken cancellationToken)
@@ -52,8 +59,17 @@ namespace Server.Arkaine.Ingest
                         await uploader.UploadSingleFile(cleanFileName, resp.MimeType, resp.Length, resp.Content, cancellationToken);
                     }
                 }
-                catch(Exception ex)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
                     _logger.LogError(ex, "Error processing upload");
                     await _hubContext.Clients.All.SendAsync("update", "Error processing upload", cancellationToken);
                 }

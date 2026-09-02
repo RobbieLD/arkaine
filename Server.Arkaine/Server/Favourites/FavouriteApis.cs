@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
 namespace Server.Arkaine.Favourites
@@ -25,7 +26,7 @@ namespace Server.Arkaine.Favourites
 
             app.MapDelete("/favourite",
                 [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "User, Admin")]
-            async (FavouriteRequest request, ClaimsPrincipal user, IFavouritesService service) =>
+            async ([FromBody] FavouriteRequest request, ClaimsPrincipal user, [FromServices] IFavouritesService service) =>
                 {
                     string userName = user?.Identity?.Name ?? string.Empty;
 

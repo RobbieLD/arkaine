@@ -55,6 +55,7 @@ var arkaine = builder.AddProject<Projects.Server_Arkaine>("arkaine")
     .WithEnvironment("BUCKET_ID", localB2BucketId)
     .WithEnvironment("BUCKET_NAME", localB2BucketName)
     .WithEnvironment("THUMBNAIL_DIR", thumbnailDirectory)
+    .WithEnvironment("MAX_COOKIE_LIFETIME", builder.Configuration["MAX_COOKIE_LIFETIME"] ?? "30")
     .WaitFor(localB2)
     .WaitForCompletion(storageSetup)
     .WaitForCompletion(migrations);
