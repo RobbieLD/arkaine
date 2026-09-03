@@ -93,7 +93,8 @@ namespace Server.Arkaine.Tests
             ], options.THUMBNAIL_DIR);
 
             var converter = new StubMediaConverter();
-            using var services = BuildServices(options, converter, mockStore);
+            var reports = new RecordingProcessingReportService();
+            using var services = BuildServices(options, converter, mockStore, reportService: reports);
             var manager = services.GetRequiredService<ConversionManager>();
 
             Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
@@ -104,6 +105,10 @@ namespace Server.Arkaine.Tests
             Assert.That(files, Does.Contain(target));
             Assert.That(converter.Requests, Is.Empty);
             Assert.That(manager.GetStatus().Report.Skipped, Is.EqualTo(2));
+            Assert.That(reports.Saved, Has.Count.EqualTo(1));
+            Assert.That(reports.Saved[0].Type, Is.EqualTo(ProcessingReportType.Conversion));
+            Assert.That(reports.Saved[0].Html, Does.Contain("gallery-alpha/photo-01.webp"));
+            Assert.That(reports.Saved[0].Html, Does.Contain("The destination file already exists."));
         }
 
         [Test]
@@ -244,7 +249,8 @@ namespace Server.Arkaine.Tests
             ArkaineOptions options,
             StubMediaConverter converter,
             MockB2.Store mockStore,
-            IB2Service? b2Override = null)
+            IB2Service? b2Override = null,
+            IProcessingReportService? reportService = null)
         {
             var services = new ServiceCollection();
             var hub = new RecordingHubContext<AdminHub>();
@@ -256,6 +262,8 @@ namespace Server.Arkaine.Tests
             services.AddSingleton<AdminJobCoordinator>();
             services.AddSingleton<Server.Arkaine.Media.IMediaConverter>(converter);
             services.AddSingleton(mockStore);
+            services.AddSingleton<IProcessingReportService>(
+                reportService ?? new NoOpProcessingReportService());
             if (b2Override is null)
             {
                 services.AddScoped<IB2Service, MockB2>();

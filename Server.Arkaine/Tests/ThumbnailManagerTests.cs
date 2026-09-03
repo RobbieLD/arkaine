@@ -64,7 +64,8 @@ namespace Server.Arkaine.Tests
                 FailFirstDownload = true
             };
 
-            using var services = BuildServices(options, service);
+            var reports = new RecordingProcessingReportService();
+            using var services = BuildServices(options, service, reports);
             var manager = services.GetRequiredService<ThumbnailManager>();
 
             Assert.That(manager.TryStart("admin"), Is.True);
@@ -83,6 +84,10 @@ namespace Server.Arkaine.Tests
             Assert.That(service.Downloads, Is.EqualTo(2));
             Assert.That(File.Exists(thumbnailPath), Is.True);
             Assert.That(manager.GetStatus().Report.Generated, Is.EqualTo(1));
+            Assert.That(reports.Saved, Has.Count.EqualTo(2));
+            Assert.That(reports.Saved.All(report => report.Type == ProcessingReportType.Thumbnail), Is.True);
+            Assert.That(reports.Saved[0].Html, Does.Contain("download failed"));
+            Assert.That(reports.Saved[0].Html, Does.Contain("folder/image.webp"));
         }
 
         [Test]
@@ -107,7 +112,10 @@ namespace Server.Arkaine.Tests
             Assert.That(report.Status, Is.EqualTo("cancelled"));
         }
 
-        private static ServiceProvider BuildServices(ArkaineOptions options, IB2Service b2)
+        private static ServiceProvider BuildServices(
+            ArkaineOptions options,
+            IB2Service b2,
+            IProcessingReportService? reportService = null)
         {
             var services = new ServiceCollection();
             var hub = new RecordingHubContext<AdminHub>();
@@ -116,6 +124,8 @@ namespace Server.Arkaine.Tests
             services.AddSingleton<IHubContext<AdminHub>>(hub);
             services.AddSingleton(hub);
             services.AddSingleton<AdminJobCoordinator>();
+            services.AddSingleton<IProcessingReportService>(
+                reportService ?? new NoOpProcessingReportService());
             services.AddScoped(_ => b2);
             services.AddLogging();
             services.AddSingleton<ThumbnailManager>();

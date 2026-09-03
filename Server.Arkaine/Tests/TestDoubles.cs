@@ -124,6 +124,70 @@ namespace Server.Arkaine.Tests
             Task.FromResult<IDictionary<string, IEnumerable<Tag>>>(new Dictionary<string, IEnumerable<Tag>>());
     }
 
+    internal sealed class NoOpProcessingReportService : IProcessingReportService
+    {
+        public Task SaveAsync(
+            ProcessingReportType type,
+            DateTimeOffset createdUtc,
+            string html,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<ProcessingReportSummary>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProcessingReportSummary>>([]);
+
+        public Task<StoredProcessingReport?> GetAsync(int id, CancellationToken cancellationToken) =>
+            Task.FromResult<StoredProcessingReport?>(null);
+
+        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    internal sealed class RecordingProcessingReportService : IProcessingReportService
+    {
+        public List<(ProcessingReportType Type, DateTimeOffset CreatedUtc, string Html)> Saved { get; } = [];
+
+        public Task SaveAsync(
+            ProcessingReportType type,
+            DateTimeOffset createdUtc,
+            string html,
+            CancellationToken cancellationToken)
+        {
+            Saved.Add((type, createdUtc, html));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ProcessingReportSummary>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProcessingReportSummary>>(
+                Saved.Select((report, index) => new ProcessingReportSummary(
+                    index + 1,
+                    report.Type == ProcessingReportType.Thumbnail ? "thumbnail" : "conversion",
+                    report.CreatedUtc.ToString("O"),
+                    report.CreatedUtc)).ToList());
+
+        public Task<StoredProcessingReport?> GetAsync(int id, CancellationToken cancellationToken)
+        {
+            if (id <= 0 || id > Saved.Count)
+            {
+                return Task.FromResult<StoredProcessingReport?>(null);
+            }
+
+            var report = Saved[id - 1];
+            return Task.FromResult<StoredProcessingReport?>(
+                new StoredProcessingReport(
+                    id,
+                    report.Type == ProcessingReportType.Thumbnail ? "thumbnail" : "conversion",
+                    report.CreatedUtc.ToString("O"),
+                    report.CreatedUtc,
+                    report.Html));
+        }
+
+        public Task ClearAsync(CancellationToken cancellationToken)
+        {
+            Saved.Clear();
+            return Task.CompletedTask;
+        }
+    }
+
     internal sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
         public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Server.Arkaine.B2;
 using Server.Arkaine.Media;
 using System.Security.Claims;
+using System.Text;
 
 namespace Server.Arkaine.Admin
 {
@@ -22,6 +23,43 @@ namespace Server.Arkaine.Admin
             async (ThumbnailManager thumbnailManager, ConversionManager conversionManager, IThumbnailInfoProvider cache, IMediaConverter converter, CancellationToken cancellationToken) =>
             {
                 return Results.Ok(await CreateStatusResponse(thumbnailManager, conversionManager, cache, converter, cancellationToken));
+            });
+
+            app.MapGet("/admin/reports",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async (IProcessingReportService reports, CancellationToken cancellationToken) =>
+            {
+                return Results.Ok(await reports.ListAsync(cancellationToken));
+            });
+
+            app.MapGet("/admin/reports/{id:int}",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async (int id, IProcessingReportService reports, CancellationToken cancellationToken) =>
+            {
+                if (id <= 0)
+                {
+                    return Results.BadRequest("A report id must be positive.");
+                }
+
+                var report = await reports.GetAsync(id, cancellationToken);
+                if (report is null)
+                {
+                    return Results.NotFound();
+                }
+
+                var fileName = $"{report.Type}-{report.Name.Replace(':', '-')}.html";
+                return Results.File(
+                    Encoding.UTF8.GetBytes(report.Html),
+                    "text/html; charset=utf-8",
+                    fileName);
+            });
+
+            app.MapPost("/admin/reports/clear",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async (IProcessingReportService reports, CancellationToken cancellationToken) =>
+            {
+                await reports.ClearAsync(cancellationToken);
+                return Results.NoContent();
             });
 
             app.MapGet("/admin/conversion/paths",

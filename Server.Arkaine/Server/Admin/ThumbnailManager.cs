@@ -50,7 +50,6 @@ namespace Server.Arkaine.Admin
 
                 try
                 {
-                    Directory.CreateDirectory(_options.THUMBNAIL_DIR);
                     _stoppingToken?.Dispose();
                     _stoppingToken = new CancellationTokenSource();
                     _report = new GenerationReport
@@ -212,6 +211,7 @@ namespace Server.Arkaine.Admin
                     _report.FinishedUtc = DateTimeOffset.UtcNow;
                 }
 
+                await SaveReportAsync(SnapshotReport());
                 _jobCoordinator.Release(AdminJobKind.Thumbnails);
                 await _hubContext.Clients.All.SendAsync("update", SnapshotReport());
             }
@@ -240,10 +240,7 @@ namespace Server.Arkaine.Admin
                 if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, file.FileName, out var fullName))
                 {
                     _logger.LogWarning("Skipping thumbnail with an unsafe file name: {FileName}", file.FileName);
-                    lock (_syncRoot)
-                    {
-                        _report.Failed++;
-                    }
+                    RecordFailure(file, "The thumbnail path is unsafe.");
                     continue;
                 }
 
@@ -252,10 +249,9 @@ namespace Server.Arkaine.Admin
                     continue;
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(fullName) ?? throw new InvalidOperationException($"{file.FileName} is not a valid file name."));
-
                 try
                 {
+                    Directory.CreateDirectory(Path.GetDirectoryName(fullName) ?? throw new InvalidOperationException($"{file.FileName} is not a valid file name."));
                     await GenerateThumbnail(userName, fullName, file.FileName, uploader, cancellationToken);
                     lock (_syncRoot)
                     {
@@ -269,10 +265,7 @@ namespace Server.Arkaine.Admin
                 catch (Exception exception)
                 {
                     _logger.LogError(exception, "Generating thumbnail failed for {FileName}", file.FileName);
-                    lock (_syncRoot)
-                    {
-                        _report.Failed++;
-                    }
+                    RecordFailure(file, exception.Message);
                 }
 
                 if (SnapshotReport().Scanned % 100 == 0)
@@ -320,6 +313,45 @@ namespace Server.Arkaine.Admin
             lock (_syncRoot)
             {
                 return _report.Clone();
+            }
+        }
+
+        private void RecordFailure(B2File file, string error)
+        {
+            lock (_syncRoot)
+            {
+                _report.Failed++;
+                _report.Failures.Add(new ThumbnailFailure(
+                    file.FileName,
+                    file.Id,
+                    file.Type,
+                    file.ContentType,
+                    file.Size,
+                    error));
+            }
+        }
+
+        private async Task SaveReportAsync(GenerationReport report)
+        {
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var reports = scope.ServiceProvider.GetRequiredService<IProcessingReportService>();
+                await reports.SaveAsync(
+                    ProcessingReportType.Thumbnail,
+                    report.FinishedUtc ?? DateTimeOffset.UtcNow,
+                    ProcessingReportHtmlRenderer.RenderThumbnail(report),
+                    CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Could not save the thumbnail generation report.");
+                lock (_syncRoot)
+                {
+                    _report.Error = string.IsNullOrWhiteSpace(_report.Error)
+                        ? $"Could not save the report: {exception.Message}"
+                        : $"{_report.Error} Could not save the report: {exception.Message}";
+                }
             }
         }
 

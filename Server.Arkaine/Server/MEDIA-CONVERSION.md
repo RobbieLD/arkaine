@@ -56,9 +56,17 @@ considered complete solely when the destination file exists in B2. Failed
 conversions can therefore be retried on a later run, and cleanup of source files
 or other duplicates is handled outside this application.
 
+Each completed thumbnail or conversion run is saved as an HTML report in the
+database. Reports can be listed, downloaded, or cleared from the Admin page.
+The report contains a run summary; conversion reports also contain one row for
+each processed file, while thumbnail reports contain rows for failures.
+
 The canonical Admin endpoints are:
 
 - `GET /admin`
+- `GET /admin/reports`
+- `GET /admin/reports/{id}`
+- `POST /admin/reports/clear`
 - `GET /admin/conversion/paths`
 - `GET /admin/thumbnail-cache`
 - `POST /admin/thumbnail-cache/clear`

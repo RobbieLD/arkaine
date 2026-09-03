@@ -202,6 +202,98 @@
             <section class="panel">
                 <header class="panel__header">
                     <div>
+                        <h2 class="panel__title">Processing reports</h2>
+                        <p class="muted">
+                            Download a report from a completed thumbnail or conversion run.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn--sm btn--danger"
+                        :disabled="reportBusy || processingReports.length === 0"
+                        @click="clearReports"
+                    >
+                        <app-icon name="trash" />
+                        Clear reports
+                    </button>
+                </header>
+
+                <div class="report-list">
+                    <div class="report-row">
+                        <div class="report-row__copy">
+                            <label for="thumbnail-report">Thumbnail report</label>
+                            <small class="muted">Failures and file details</small>
+                        </div>
+                        <div class="report-row__controls">
+                            <select
+                                id="thumbnail-report"
+                                v-model="selectedThumbnailReport"
+                                class="select"
+                                :disabled="reportBusy || thumbnailReports.length === 0"
+                            >
+                                <option value="">
+                                    {{ thumbnailReports.length === 0 ? 'No reports available' : 'Select a report' }}
+                                </option>
+                                <option
+                                    v-for="report of thumbnailReports"
+                                    :key="report.id"
+                                    :value="String(report.id)"
+                                >
+                                    {{ report.name }}
+                                </option>
+                            </select>
+                            <button
+                                type="button"
+                                class="btn btn--sm"
+                                :disabled="reportBusy || !selectedThumbnailReport"
+                                @click="downloadReport(selectedThumbnailReport)"
+                            >
+                                <app-icon name="external" />
+                                Download
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="report-row">
+                        <div class="report-row__copy">
+                            <label for="conversion-report">Conversion report</label>
+                            <small class="muted">Every skipped, converted, and failed file</small>
+                        </div>
+                        <div class="report-row__controls">
+                            <select
+                                id="conversion-report"
+                                v-model="selectedConversionReport"
+                                class="select"
+                                :disabled="reportBusy || conversionReports.length === 0"
+                            >
+                                <option value="">
+                                    {{ conversionReports.length === 0 ? 'No reports available' : 'Select a report' }}
+                                </option>
+                                <option
+                                    v-for="report of conversionReports"
+                                    :key="report.id"
+                                    :value="String(report.id)"
+                                >
+                                    {{ report.name }}
+                                </option>
+                            </select>
+                            <button
+                                type="button"
+                                class="btn btn--sm"
+                                :disabled="reportBusy || !selectedConversionReport"
+                                @click="downloadReport(selectedConversionReport)"
+                            >
+                                <app-icon name="external" />
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <header class="panel__header">
+                    <div>
                         <h2 class="panel__title">Thumbnail dimension cache</h2>
                         <p class="muted">
                             Image dimensions are read once from each thumbnail header and kept in memory, so
@@ -347,6 +439,12 @@
             const conversionPaths = computed(() => store.conversionPaths)
             const conversionPath = ref('')
             const cache = computed(() => store.thumbnailCache)
+            const processingReports = computed(() => store.processingReports)
+            const thumbnailReports = computed(() => processingReports.value.filter(report => report.type === 'thumbnail'))
+            const conversionReports = computed(() => processingReports.value.filter(report => report.type === 'conversion'))
+            const selectedThumbnailReport = ref('')
+            const selectedConversionReport = ref('')
+            const reportBusy = ref(false)
             const cacheBusy = ref(false)
             const loading = ref(true)
             const accessDenied = ref(false)
@@ -525,6 +623,47 @@
             const refreshCache = () => runCacheAction(() => store.loadThumbnailCacheStats())
             const clearCache = () => runCacheAction(() => store.clearThumbnailCache())
 
+            const runReportAction = async (action: () => Promise<void>) => {
+                reportBusy.value = true
+
+                try {
+                    await action()
+                }
+                catch (error) {
+                    const message = errorMessage(error)
+                    store.setAlert({
+                        isError: true,
+                        message
+                    })
+                }
+                finally {
+                    reportBusy.value = false
+                }
+            }
+
+            const downloadReport = (reportId: string) => runReportAction(async () => {
+                const report = processingReports.value.find(item => item.id === Number(reportId))
+                if (!report) {
+                    throw new Error('The selected report is no longer available.')
+                }
+
+                const blob = await store.downloadProcessingReport(report.id)
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `${report.type}-${report.name.replace(/[^a-z0-9._-]+/gi, '-')}.html`
+                document.body.appendChild(link)
+                link.click()
+                link.remove()
+                URL.revokeObjectURL(url)
+            })
+
+            const clearReports = () => runReportAction(async () => {
+                await store.clearProcessingReports()
+                selectedThumbnailReport.value = ''
+                selectedConversionReport.value = ''
+            })
+
             const synchronizeConversionPath = () => {
                 const reportedPath = conversionProgress.value.path
 
@@ -555,6 +694,7 @@
                         store.loadAdminStatus(),
                         store.loadConversionPaths(),
                         store.loadThumbnailCacheStats(),
+                        store.loadProcessingReports(),
                         store.subscribeToUpdates()
                     ])
                     synchronizeConversionPath()
@@ -594,8 +734,10 @@
                 cacheLookups,
                 cacheSince,
                 clearCache,
+                clearReports,
                 conversionBadgeClass,
                 conversionCardNote,
+                conversionReports,
                 conversionIdleMessage,
                 conversionPath,
                 conversionPaths,
@@ -604,13 +746,19 @@
                 conversionProgressMessage,
                 conversionStartDisabled,
                 conversionStatusLabel,
+                downloadReport,
                 ffmpegStatus,
                 hitRate,
                 hitRateColour,
                 lastReset,
                 loadError,
                 loading,
+                processingReports,
+                reportBusy,
                 refreshCache,
+                selectedConversionReport,
+                selectedThumbnailReport,
+                thumbnailReports,
                 thumbnailIdleMessage,
                 thumbnailProgress,
                 thumbnailProgressMessage,
@@ -702,6 +850,46 @@
         display: flex;
         flex: 0 0 auto;
         gap: var(--space-2);
+    }
+
+    .report-list {
+        display: grid;
+        gap: var(--space-4);
+    }
+
+    .report-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-5);
+        padding: var(--space-4) 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .report-row:last-child {
+        border-bottom: 0;
+    }
+
+    .report-row__copy {
+        display: grid;
+        gap: var(--space-1);
+        min-width: 0;
+    }
+
+    .report-row__copy label {
+        font-weight: 600;
+    }
+
+    .report-row__controls {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-width: min(100%, 30rem);
+    }
+
+    .report-row__controls .select {
+        min-width: 0;
+        flex: 1 1 auto;
     }
 
     .meters {
@@ -802,6 +990,19 @@
 
         .panel__actions .btn {
             flex: 1 1 0;
+        }
+
+        .report-row {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .report-row__controls {
+            min-width: 0;
+        }
+
+        .report-row__controls .btn {
+            flex: 0 0 auto;
         }
 
         .detail-list > div:nth-last-child(-n + 2) {

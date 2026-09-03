@@ -224,6 +224,7 @@ namespace Server.Arkaine.Admin
                     _report.FinishedUtc = DateTimeOffset.UtcNow;
                 }
 
+                await SaveReportAsync(SnapshotReport(includeFiles: true));
                 _jobCoordinator.Release(AdminJobKind.Conversion);
                 await _hubContext.Clients.All.SendAsync("convert", SnapshotReport());
             }
@@ -248,24 +249,33 @@ namespace Server.Arkaine.Admin
                 if (!_options.IsConvertibleImage(file.FileName) &&
                     !_options.IsConvertibleVideo(file.FileName))
                 {
-                    IncrementSkipped();
+                    RecordSkipped(file, string.Empty, "The file type is already supported.");
                     continue;
                 }
 
                 var targetFile = _options.GetConversionTargetFileName(file.FileName);
 
-                if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
-                {
-                    IncrementSkipped();
-                    continue;
-                }
-
                 try
                 {
+                    if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
+                    {
+                        RecordSkipped(file, targetFile, "The destination file already exists.");
+                        continue;
+                    }
+
                     await ConvertAndUploadAsync(file, targetFile, userName, b2, cancellationToken);
                     lock (_syncRoot)
                     {
                         _report.Converted++;
+                        _report.Files.Add(new ConversionFileResult(
+                            file.FileName,
+                            targetFile,
+                            "converted",
+                            file.Id,
+                            file.Type,
+                            file.ContentType,
+                            file.Size,
+                            string.Empty));
                     }
                 }
                 catch (OperationCanceledException)
@@ -274,7 +284,7 @@ namespace Server.Arkaine.Admin
                 }
                 catch (Exception exception)
                 {
-                    RecordFailure(file.FileName, targetFile, exception);
+                    RecordFailure(file, targetFile, exception);
                     await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
                 }
 
@@ -393,11 +403,20 @@ namespace Server.Arkaine.Admin
             return response.Files.SingleOrDefault();
         }
 
-        private void IncrementSkipped()
+        private void RecordSkipped(B2File file, string targetFile, string details)
         {
             lock (_syncRoot)
             {
                 _report.Skipped++;
+                _report.Files.Add(new ConversionFileResult(
+                    file.FileName,
+                    targetFile,
+                    "skipped",
+                    file.Id,
+                    file.Type,
+                    file.ContentType,
+                    file.Size,
+                    details));
             }
         }
 
@@ -418,22 +437,55 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private ConversionReport SnapshotReport()
+        private ConversionReport SnapshotReport(bool includeFiles = false)
         {
             lock (_syncRoot)
             {
-                return _report.Clone();
+                return _report.Clone(includeFiles);
             }
         }
 
-        private void RecordFailure(string sourceFile, string targetFile, Exception exception)
+        private void RecordFailure(B2File file, string targetFile, Exception exception)
         {
-            _logger.LogError(exception, "Conversion failed for {SourceFile}", sourceFile);
+            _logger.LogError(exception, "Conversion failed for {SourceFile}", file.FileName);
             lock (_syncRoot)
             {
                 _report.Failed++;
                 _report.Status = "running";
-                _report.Failures.Add(new ConversionFailure(sourceFile, targetFile, exception.Message));
+                _report.Failures.Add(new ConversionFailure(file.FileName, targetFile, exception.Message));
+                _report.Files.Add(new ConversionFileResult(
+                    file.FileName,
+                    targetFile,
+                    "error",
+                    file.Id,
+                    file.Type,
+                    file.ContentType,
+                    file.Size,
+                    exception.Message));
+            }
+        }
+
+        private async Task SaveReportAsync(ConversionReport report)
+        {
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var reports = scope.ServiceProvider.GetRequiredService<IProcessingReportService>();
+                await reports.SaveAsync(
+                    ProcessingReportType.Conversion,
+                    report.FinishedUtc ?? DateTimeOffset.UtcNow,
+                    ProcessingReportHtmlRenderer.RenderConversion(report),
+                    CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Could not save the media conversion report.");
+                lock (_syncRoot)
+                {
+                    _report.Error = string.IsNullOrWhiteSpace(_report.Error)
+                        ? $"Could not save the report: {exception.Message}"
+                        : $"{_report.Error} Could not save the report: {exception.Message}";
+                }
             }
         }
 

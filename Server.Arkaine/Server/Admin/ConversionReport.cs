@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Server.Arkaine.Admin
 {
     public sealed class ConversionReport
@@ -16,8 +18,10 @@ namespace Server.Arkaine.Admin
         public DateTimeOffset? StartedUtc { get; set; }
         public DateTimeOffset? FinishedUtc { get; set; }
         public List<ConversionFailure> Failures { get; set; } = [];
+        [JsonIgnore]
+        public List<ConversionFileResult> Files { get; set; } = [];
 
-        public ConversionReport Clone()
+        public ConversionReport Clone(bool includeFiles = true)
         {
             return new ConversionReport
             {
@@ -27,6 +31,9 @@ namespace Server.Arkaine.Admin
                 Error = Error,
                 Failed = Failed,
                 Failures = Failures.Select(failure => failure with { }).ToList(),
+                Files = includeFiles
+                    ? Files.Select(file => file with { }).ToList()
+                    : [],
                 Finished = Finished,
                 FinishedUtc = FinishedUtc,
                 Path = Path,
@@ -40,4 +47,14 @@ namespace Server.Arkaine.Admin
     }
 
     public sealed record ConversionFailure(string SourceFile, string TargetFile, string Error);
+
+    public sealed record ConversionFileResult(
+        string SourceFile,
+        string TargetFile,
+        string Status,
+        string FileId,
+        string Type,
+        string ContentType,
+        string Size,
+        string Details);
 }

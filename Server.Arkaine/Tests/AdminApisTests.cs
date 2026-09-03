@@ -206,6 +206,41 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ReportRoutes_ListDownloadAndClearReports()
+        {
+            var root = CreateRoot();
+            var reports = new RecordingProcessingReportService();
+            await reports.SaveAsync(
+                ProcessingReportType.Thumbnail,
+                DateTimeOffset.UtcNow,
+                "<html>thumbnail</html>",
+                CancellationToken.None);
+            var app = await CreateAppAsync(
+                TestOptionsFactory.Create(root),
+                new StubMediaConverter(),
+                reportService: reports);
+
+            using (app)
+            {
+                var client = app.GetTestClient();
+                var listed = await client.GetFromJsonAsync<ProcessingReportSummary[]>("/admin/reports");
+
+                Assert.That(listed, Has.Length.EqualTo(1));
+                Assert.That(listed![0].Type, Is.EqualTo("thumbnail"));
+
+                var downloaded = await client.GetAsync($"/admin/reports/{listed[0].Id}");
+                downloaded.EnsureSuccessStatusCode();
+                Assert.That(await downloaded.Content.ReadAsStringAsync(), Is.EqualTo("<html>thumbnail</html>"));
+                Assert.That(downloaded.Content.Headers.ContentType?.MediaType, Is.EqualTo("text/html"));
+                Assert.That(downloaded.Content.Headers.ContentDisposition?.FileName, Does.Contain("thumbnail-"));
+
+                var cleared = await client.PostAsync("/admin/reports/clear", null);
+                Assert.That((int)cleared.StatusCode, Is.EqualTo(StatusCodes.Status204NoContent));
+                Assert.That(await client.GetFromJsonAsync<ProcessingReportSummary[]>("/admin/reports"), Is.Empty);
+            }
+        }
+
+        [Test]
         public async Task StartRoutes_PreventThumbnailAndConversionJobsRunningTogether()
         {
             var root = CreateRoot();
@@ -235,7 +270,8 @@ namespace Server.Arkaine.Tests
             ArkaineOptions options,
             StubMediaConverter converter,
             bool isAdmin = true,
-            IB2Service? b2 = null)
+            IB2Service? b2 = null,
+            IProcessingReportService? reportService = null)
         {
             Directory.CreateDirectory(options.THUMBNAIL_DIR);
 
@@ -264,6 +300,8 @@ namespace Server.Arkaine.Tests
             builder.Services.AddSingleton<AdminJobCoordinator>();
             builder.Services.AddSingleton<ThumbnailManager>();
             builder.Services.AddSingleton<ConversionManager>();
+            builder.Services.AddSingleton<IProcessingReportService>(
+                reportService ?? new NoOpProcessingReportService());
             builder.Services.AddScoped(_ => b2 ?? new NoOpB2Service());
 
             var app = builder.Build();

@@ -5,6 +5,7 @@ import ConversionProgress, { emptyConversionProgress, normalizeConversionProgres
 import Tag from '@/models/tag'
 import ThumbnailCacheStats, { emptyThumbnailCacheStats } from '@/models/thumbnail-cache-stats'
 import ThumbnailProgress, { emptyThumbnailProgress, normalizeThumbnailProgress } from '@/models/thumbnail-progress'
+import type ProcessingReport from '@/models/processing-report'
 import { PasskeyAssertionPayload, PasskeyRequestOptions } from '@/models/profile'
 import ArkaineService from '@/services/arkaine.service'
 import { serverUrl } from '@/config'
@@ -44,7 +45,8 @@ const createInitialState = (): State => ({
     thumbnailProgress: emptyThumbnailProgress(),
     conversionProgress: emptyConversionProgress(),
     conversionPaths: [],
-    thumbnailCache: emptyThumbnailCacheStats()
+    thumbnailCache: emptyThumbnailCacheStats(),
+    processingReports: []
 })
 
 const errorMessage = (error: unknown): string => {
@@ -271,12 +273,17 @@ export const useAppStore = defineStore('app', {
             this.conversionPaths = paths
         },
 
+        setProcessingReports(reports: ProcessingReport[]): void {
+            this.processingReports = reports
+        },
+
         resetAdminState(): void {
             this.adminStatus = emptyAdminStatus()
             this.thumbnailProgress = emptyThumbnailProgress()
             this.conversionProgress = emptyConversionProgress()
             this.conversionPaths = []
             this.thumbnailCache = emptyThumbnailCacheStats()
+            this.processingReports = []
         },
 
         applyAdminStatus(
@@ -338,6 +345,14 @@ export const useAppStore = defineStore('app', {
                     const progress = normalizeThumbnailProgress(data)
                     this.setThumbnailProgress(progress)
                     this.setThumbnailRunning(!progress.finished)
+                    if (progress.finished) {
+                        this.loadProcessingReports().catch(e => {
+                            this.setAlert({
+                                isError: true,
+                                message: errorMessage(e)
+                            })
+                        })
+                    }
                 })
 
                 connection.on('convert', (data: ConversionProgress | string) => {
@@ -348,13 +363,22 @@ export const useAppStore = defineStore('app', {
                     const progress = normalizeConversionProgress(data)
                     this.setConversionProgress(progress)
                     this.setConversionRunning(!progress.finished)
+                    if (progress.finished) {
+                        this.loadProcessingReports().catch(e => {
+                            this.setAlert({
+                                isError: true,
+                                message: errorMessage(e)
+                            })
+                        })
+                    }
                 })
 
                 connection.onreconnected(async () => {
                     try {
                         await Promise.all([
                             this.loadAdminStatus(),
-                            this.loadThumbnailCacheStats()
+                            this.loadThumbnailCacheStats(),
+                            this.loadProcessingReports()
                         ])
                     }
                     catch (e) {
@@ -487,6 +511,23 @@ export const useAppStore = defineStore('app', {
             const service = new ArkaineService()
             const response = await service.GetThumbnailCacheStats()
             this.setThumbnailCache(response)
+        },
+
+        async loadProcessingReports(): Promise<void> {
+            const service = new ArkaineService()
+            const response = await service.GetProcessingReports()
+            this.setProcessingReports(response)
+        },
+
+        async downloadProcessingReport(id: number): Promise<Blob> {
+            const service = new ArkaineService()
+            return await service.DownloadProcessingReport(id)
+        },
+
+        async clearProcessingReports(): Promise<void> {
+            const service = new ArkaineService()
+            await service.ClearProcessingReports()
+            this.setProcessingReports([])
         },
 
         async clearThumbnailCache(): Promise<void> {

@@ -3,6 +3,7 @@ import type AdminStatusResponse from '@/models/admin-status'
 import type ConversionProgress from '@/models/conversion-progress'
 import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
 import type ThumbnailProgress from '@/models/thumbnail-progress'
+import type ProcessingReport from '@/models/processing-report'
 import FolderCacheEntry, { FolderStatus } from './folder-cache'
 
 export default interface State {
@@ -19,5 +20,6 @@ export default interface State {
     thumbnailProgress: ThumbnailProgress,
     conversionProgress: ConversionProgress,
     conversionPaths: string[],
-    thumbnailCache: ThumbnailCacheStats
+    thumbnailCache: ThumbnailCacheStats,
+    processingReports: ProcessingReport[]
 }

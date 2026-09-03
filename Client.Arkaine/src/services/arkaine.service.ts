@@ -5,6 +5,7 @@ import ArkaineFile from '@/models/arkaine-file'
 import Login from '@/models/login'
 import Tag from '@/models/tag'
 import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
+import type ProcessingReport from '@/models/processing-report'
 import type AdminStatusResponse from '@/models/admin-status'
 import Profile, {
     Passkey,
@@ -179,7 +180,23 @@ export default class ArkaineService extends BaseService {
         const result = await this.http.get<string[]>('/admin/conversion/paths')
         return result.data
     }
-    
+
+    public async GetProcessingReports(): Promise<ProcessingReport[]> {
+        const result = await this.http.get<ProcessingReport[]>('/admin/reports')
+        return result.data
+    }
+
+    public async DownloadProcessingReport(id: number): Promise<Blob> {
+        const result = await this.http.get<Blob>(`/admin/reports/${id}`, {
+            responseType: 'blob'
+        })
+        return result.data
+    }
+
+    public async ClearProcessingReports(): Promise<void> {
+        await this.http.post('/admin/reports/clear')
+    }
+
     public async Files(path: string, nextFile: string): Promise<{ files: ArkaineFile[], nextFile: string }> {
         const results = await this.http.post<{ files: B2File[], nextFileName:string }>('/files', {
             prefix: path,
