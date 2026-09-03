@@ -44,15 +44,17 @@ namespace Server.Arkaine.Favourites
 
         public async Task<FilesResponse> Page(string user, string? start, int count)
         {
-            var startId = (await _context.Favourites.FirstOrDefaultAsync(f => f.Name == start))?.Id;
+            var userFavourites = _context.Favourites
+                .Where(f => f.UserName == user);
+            var startId = (await userFavourites.FirstOrDefaultAsync(f => f.Name == start))?.Id;
             List<Favourite> favs;
 
             if (startId != null)
             {
-                favs = await _context.Favourites.Where(f => f.Id > startId).Take(count).ToListAsync();
+                favs = await userFavourites.Where(f => f.Id > startId).Take(count).ToListAsync();
             } else
             {
-                favs = await _context.Favourites.Take(count + 1).ToListAsync();
+                favs = await userFavourites.Take(count + 1).ToListAsync();
             }
 
             // TODO: Make favourite handle other types of media
