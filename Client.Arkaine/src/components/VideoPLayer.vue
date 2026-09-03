@@ -1,6 +1,6 @@
 <template>
     <div class="video-player">
-        <video ref="video" class="video" controls preload="metadata" playsinline>
+        <video ref="video" class="video" controls preload="none" playsinline>
             <source :src="file.url" :type="file.contentType">
         </video>
         <tag-cloud :file="file" @click="setTime"></tag-cloud>
