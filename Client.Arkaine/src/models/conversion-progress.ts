@@ -1,6 +1,5 @@
 export default interface ConversionProgress {
     path: string
-    deleteConvertedFiles: boolean
     converted: number
     skipped: number
     failed: number
@@ -12,7 +11,6 @@ export default interface ConversionProgress {
 
 export const emptyConversionProgress = (): ConversionProgress => ({
     path: '',
-    deleteConvertedFiles: true,
     converted: 0,
     skipped: 0,
     failed: 0,
@@ -102,11 +100,6 @@ export const normalizeConversionProgress = (value: unknown): ConversionProgress 
 
     return {
         path: readString(record, ['path', 'Path', 'conversionPath', 'ConversionPath']),
-        deleteConvertedFiles: readBoolean(
-            record,
-            ['deleteConvertedFiles', 'DeleteConvertedFiles'],
-            true
-        ),
         converted: readNumber(record, ['converted', 'Converted', 'generated', 'Generated']),
         skipped: readNumber(record, ['skipped', 'Skipped']),
         failed: readNumber(record, ['failed', 'Failed']),

@@ -5,8 +5,7 @@
                 <p class="eyebrow">Administration</p>
                 <h1 class="page-header__title">Media processing</h1>
                 <p class="page-header__lead">
-                    Manage thumbnail generation, browser-friendly media conversion, and the
-                    thumbnail dimension cache.
+                    Manage thumbnail generation and browser-friendly media conversion.
                 </p>
             </div>
             <div class="header-badges" aria-label="Job status">
@@ -39,13 +38,6 @@
                     <span class="stat-card__label">Total thumbnails</span>
                     <strong class="stat-card__value">{{ adminStatus.thumbnails.totalThumbnails.toLocaleString() }}</strong>
                     <small class="stat-card__note">Available in the library</small>
-                </article>
-                <article class="card stat-card">
-                    <span class="stat-card__label">Needs attention</span>
-                    <strong class="stat-card__value stat-card__value--warning">
-                        {{ adminStatus.thumbnails.badThumbnails.toLocaleString() }}
-                    </strong>
-                    <small class="stat-card__note">Thumbnails that could not be generated</small>
                 </article>
                 <article class="card stat-card">
                     <span class="stat-card__label">Generated this run</span>
@@ -119,7 +111,7 @@
 
             <job-panel
                 title="Browser media conversion"
-                description="Convert unsupported images and videos to browser-friendly formats in the selected path."
+                description="Convert unsupported images and videos to browser-friendly formats in the selected path. Existing destination files are skipped and source files are left unchanged."
                 :running="adminStatus.conversion.isRunning"
                 :unavailable="adminStatus.conversion.ffmpegAvailable === false"
                 :toggle-disabled="conversionStartDisabled"
@@ -147,22 +139,6 @@
                                 {{ path === rootConversionPath ? 'Root' : path }}
                             </option>
                         </select>
-                    </dd>
-                </div>
-                <div>
-                    <dt>Source handling</dt>
-                    <dd>
-                        <label class="checkbox" for="delete-converted-files">
-                            <input
-                                id="delete-converted-files"
-                                v-model="deleteConvertedFiles"
-                                type="checkbox"
-                                :disabled="adminStatus.conversion.isRunning"
-                            />
-                            <span>
-                                {{ deleteConvertedFiles ? 'Delete after conversion' : 'Move to converted/' }}
-                            </span>
-                        </label>
                     </dd>
                 </div>
                 <div>
@@ -370,7 +346,6 @@
             const conversionProgress = computed(() => store.conversionProgress)
             const conversionPaths = computed(() => store.conversionPaths)
             const conversionPath = ref('')
-            const deleteConvertedFiles = ref(true)
             const cache = computed(() => store.thumbnailCache)
             const cacheBusy = ref(false)
             const loading = ref(true)
@@ -525,7 +500,7 @@
                     await store.stopConversion()
                 }
                 else {
-                    await store.startConversion(conversionPath.value, deleteConvertedFiles.value)
+                    await store.startConversion(conversionPath.value)
                 }
             })
 
@@ -555,7 +530,6 @@
 
                 if (adminStatus.value.conversion.isRunning) {
                     conversionPath.value = reportedPath || rootConversionPath
-                    deleteConvertedFiles.value = conversionProgress.value.deleteConvertedFiles
                     return
                 }
 
@@ -622,7 +596,6 @@
                 clearCache,
                 conversionBadgeClass,
                 conversionCardNote,
-                deleteConvertedFiles,
                 conversionIdleMessage,
                 conversionPath,
                 conversionPaths,

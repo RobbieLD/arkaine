@@ -94,7 +94,6 @@ namespace Server.Arkaine.Admin
             var status = GetStatus();
             return new SettingsResponse(
                 status.TotalThumbnails,
-                status.BadThumbnails,
                 status.ThumbnailPageSize,
                 status.ThumbnailWidth,
                 status.ThumbnailDir,
@@ -106,7 +105,6 @@ namespace Server.Arkaine.Admin
         {
             return new ThumbnailJobStatusResponse(
                 CountThumbnails(),
-                CountBadFiles(),
                 _options.THUMBNAIL_PAGE_SIZE,
                 _options.THUMBNAIL_WIDTH,
                 _options.THUMBNAIL_DIR,
@@ -239,8 +237,7 @@ namespace Server.Arkaine.Admin
                     continue;
                 }
 
-                if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, file.FileName, out var fullName) ||
-                    !ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, $"{file.FileName}.bad", out var badFileName))
+                if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, file.FileName, out var fullName))
                 {
                     _logger.LogWarning("Skipping thumbnail with an unsafe file name: {FileName}", file.FileName);
                     lock (_syncRoot)
@@ -250,35 +247,27 @@ namespace Server.Arkaine.Admin
                     continue;
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(fullName) ?? throw new InvalidOperationException($"{file.FileName} is not a valid file name."));
-
-                if (!string.IsNullOrEmpty(file.Thumbnail) || File.Exists(badFileName))
+                if (File.Exists(fullName))
                 {
                     continue;
                 }
 
+                Directory.CreateDirectory(Path.GetDirectoryName(fullName) ?? throw new InvalidOperationException($"{file.FileName} is not a valid file name."));
+
                 try
                 {
-                    await GenerateThumbnail(userName, fullName, file.FileName, uploader, CancellationToken.None);
+                    await GenerateThumbnail(userName, fullName, file.FileName, uploader, cancellationToken);
                     lock (_syncRoot)
                     {
                         _report.Generated++;
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
                 catch (Exception exception)
                 {
-                    try
-                    {
-                        File.Create(badFileName).Dispose();
-                    }
-                    catch (Exception markerException) when (
-                        markerException is IOException or UnauthorizedAccessException)
-                    {
-                        _logger.LogWarning(
-                            markerException,
-                            "Unable to write bad-thumbnail marker for {FileName}",
-                            file.FileName);
-                    }
                     _logger.LogError(exception, "Generating thumbnail failed for {FileName}", file.FileName);
                     lock (_syncRoot)
                     {
@@ -308,12 +297,6 @@ namespace Server.Arkaine.Admin
                 .Count(file => _options.GetThumbnailExtensions().Contains(Path.GetExtension(file)));
         }
 
-        private long CountBadFiles()
-        {
-            return EnumerateManagedFiles()
-                .Count(file => string.Equals(Path.GetExtension(file), ".bad", StringComparison.OrdinalIgnoreCase));
-        }
-
         private IEnumerable<string> EnumerateManagedFiles()
         {
             if (string.IsNullOrWhiteSpace(_options.THUMBNAIL_DIR) || !Directory.Exists(_options.THUMBNAIL_DIR))
@@ -329,8 +312,7 @@ namespace Server.Arkaine.Admin
         {
             var relative = Path.GetRelativePath(_options.THUMBNAIL_DIR, file)
                 .Replace('\\', '/');
-            return relative.StartsWith(".conversion-state/", StringComparison.OrdinalIgnoreCase) ||
-                   relative.StartsWith(".conversion-temp/", StringComparison.OrdinalIgnoreCase);
+            return relative.StartsWith(".conversion-temp/", StringComparison.OrdinalIgnoreCase);
         }
 
         private GenerationReport SnapshotReport()

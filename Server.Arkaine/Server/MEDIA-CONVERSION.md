@@ -2,8 +2,8 @@
 
 The Admin page can convert configured image and video sources within the
 selected root or top-level folder into files that browsers can display or play.
-Conversion is destructive: the source is deleted only after the target upload,
-metadata rename, thumbnail move, and final source deletion have succeeded.
+Conversion creates the browser-friendly target beside the source and leaves the
+source unchanged. If the target already exists, the source is skipped.
 
 The Admin page loads the root and available top-level folders from
 `GET /admin/conversion/paths`. Starting a conversion requires a request body
@@ -11,19 +11,14 @@ containing the selected path:
 
 ```json
 {
-  "path": "/",
-  "deleteConvertedFiles": true
+  "path": "/"
 }
 ```
 
 The root is represented by `/` in the request and is sent to B2 with an empty
 listing `prefix`. A folder path is sent as its listing prefix. Nested paths,
-other absolute paths, and an empty path are rejected.
-`deleteConvertedFiles` defaults to `true`, which deletes each source after its
-browser-friendly target has been uploaded and verified. When it is `false`, the
-source is copied to `<path>converted/` (preserving its relative subfolders),
-verified, and then removed from its original location. The `converted/` subtree
-is not processed on later runs for the same path.
+other absolute paths, and an empty path are rejected. Image targets use the
+`.jpg` extension and video targets use `.mp4`.
 
 ## Configuration
 
@@ -56,14 +51,10 @@ install ffmpeg separately or set `FFMPEG_PATH`.
 Multipart uploads must contain at least two parts and cannot exceed B2's 10,000-part
 or 10 TB limits.
 
-## Recovery
-
-Pending operations are stored as JSON markers under
-`<THUMBNAIL_DIR>/.conversion-state`. A marker is written before conversion and
-records the upload and finalization stages, so a restart can finish an operation
-without deleting a source prematurely. Permanent ffmpeg conversion failures leave a
-`<source>.convert-failed` marker beside the thumbnail path and are skipped on later
-runs until that marker is removed.
+The conversion job does not persist progress or recovery markers. A target is
+considered complete solely when the destination file exists in B2. Failed
+conversions can therefore be retried on a later run, and cleanup of source files
+or other duplicates is handled outside this application.
 
 The canonical Admin endpoints are:
 
@@ -72,7 +63,6 @@ The canonical Admin endpoints are:
 - `GET /admin/thumbnail-cache`
 - `POST /admin/thumbnail-cache/clear`
 - `POST /admin/thumbnails/start|stop`
-- `POST /admin/convert/start|stop` (`start` requires a `path` and optional
-  `deleteConvertedFiles`)
+- `POST /admin/convert/start|stop` (`start` requires a `path`)
 
 All Admin endpoints require an authenticated user with the `Admin` role.

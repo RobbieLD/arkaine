@@ -1,35 +1,88 @@
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NUnit.Framework;
 using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
-using System.Text;
+using Server.Arkaine.Favourites;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Server.Arkaine.Tests
 {
     public class ThumbnailManagerTests
     {
         [Test]
-        public void GetStatus_ExcludesInternalConversionArtifactsFromCounts()
+        public void GetStatus_CountsOnlyThumbnailFilesAndIgnoresConversionTemp()
         {
             var root = CreateRoot();
             var options = TestOptionsFactory.Create(root);
             Directory.CreateDirectory(Path.Combine(options.THUMBNAIL_DIR, "folder"));
             Directory.CreateDirectory(Path.Combine(options.THUMBNAIL_DIR, ".conversion-temp"));
-            Directory.CreateDirectory(Path.Combine(options.THUMBNAIL_DIR, ".conversion-state"));
-            File.WriteAllBytes(Path.Combine(options.THUMBNAIL_DIR, "folder", "image.jpg"), Encoding.UTF8.GetBytes("jpg"));
+            File.WriteAllBytes(Path.Combine(options.THUMBNAIL_DIR, "folder", "image.jpg"), []);
             File.WriteAllBytes(Path.Combine(options.THUMBNAIL_DIR, "folder", "image.jpg.bad"), []);
-            File.WriteAllBytes(Path.Combine(options.THUMBNAIL_DIR, ".conversion-temp", "temp.jpg"), Encoding.UTF8.GetBytes("tmp"));
-            File.WriteAllText(Path.Combine(options.THUMBNAIL_DIR, ".conversion-state", "marker.json"), "{}");
+            File.WriteAllBytes(Path.Combine(options.THUMBNAIL_DIR, ".conversion-temp", "temp.jpg"), []);
 
             using var services = BuildServices(options, new NoOpB2Service());
             var manager = services.GetRequiredService<ThumbnailManager>();
             var status = manager.GetStatus();
 
             Assert.That(status.TotalThumbnails, Is.EqualTo(1));
-            Assert.That(status.BadThumbnails, Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task GenerateThumbnails_SkipsAnExistingFile()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var service = new ThumbnailB2Service(CreateImageBytes());
+            Assert.That(
+                ThumbnailPathResolver.TryResolve(options.THUMBNAIL_DIR, "folder/image.webp", out var thumbnailPath),
+                Is.True);
+            Directory.CreateDirectory(Path.GetDirectoryName(thumbnailPath)!);
+            await File.WriteAllTextAsync(thumbnailPath, "existing");
+
+            using var services = BuildServices(options, service);
+            var manager = services.GetRequiredService<ThumbnailManager>();
+
+            Assert.That(manager.TryStart("admin"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(service.Downloads, Is.EqualTo(0));
+            Assert.That(manager.GetStatus().Report.Generated, Is.EqualTo(0));
+            Assert.That(manager.GetStatus().Report.Failed, Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task GenerateThumbnails_RetriesFailedGenerationWithoutBadMarker()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var service = new ThumbnailB2Service(CreateImageBytes())
+            {
+                FailFirstDownload = true
+            };
+
+            using var services = BuildServices(options, service);
+            var manager = services.GetRequiredService<ThumbnailManager>();
+
+            Assert.That(manager.TryStart("admin"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(
+                ThumbnailPathResolver.TryResolve(options.THUMBNAIL_DIR, "folder/image.webp", out var thumbnailPath),
+                Is.True);
+            Assert.That(File.Exists(thumbnailPath), Is.False);
+            Assert.That(File.Exists($"{thumbnailPath}.bad"), Is.False);
+            Assert.That(manager.GetStatus().Report.Failed, Is.EqualTo(1));
+
+            Assert.That(manager.TryStart("admin"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(service.Downloads, Is.EqualTo(2));
+            Assert.That(File.Exists(thumbnailPath), Is.True);
+            Assert.That(manager.GetStatus().Report.Generated, Is.EqualTo(1));
         }
 
         [Test]
@@ -70,11 +123,90 @@ namespace Server.Arkaine.Tests
             return services.BuildServiceProvider();
         }
 
+        private static byte[] CreateImageBytes()
+        {
+            using var image = new Image<Rgba32>(20, 20);
+            using var stream = new MemoryStream();
+            image.SaveAsPng(stream);
+            return stream.ToArray();
+        }
+
         private static string CreateRoot()
         {
             var root = Path.Combine(TestContext.CurrentContext.WorkDirectory, "artifacts", Guid.NewGuid().ToString("n"));
             Directory.CreateDirectory(root);
             return root;
+        }
+
+        private sealed class ThumbnailB2Service : IB2Service
+        {
+            private readonly byte[] _image;
+
+            public ThumbnailB2Service(byte[] image)
+            {
+                _image = image;
+            }
+
+            public bool FailFirstDownload { get; set; }
+            public int Downloads { get; private set; }
+
+            public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+            public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
+            {
+                Downloads++;
+                if (FailFirstDownload && Downloads == 1)
+                {
+                    throw new InvalidOperationException("download failed");
+                }
+
+                return Task.FromResult<Stream>(new MemoryStream(_image, writable: false));
+            }
+
+            public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
+                Task.FromResult(new AuthResponse());
+
+            public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+            public Task<FilesResponse> ListFiles(
+                FilesRequest request,
+                string userName,
+                IFavouritesService? favouritesService,
+                CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new FilesResponse
+                {
+                    Files =
+                    [
+                        new B2File
+                        {
+                            FileName = "folder/image.webp",
+                            Type = "upload"
+                        }
+                    ]
+                });
+            }
+
+            public IResult Preview(string fileName) => Results.NotFound();
+
+            public Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult<IResult>(Results.NotFound());
+
+            public Task UploadMultiPartFile(
+                string fileName,
+                string contentType,
+                Stream content,
+                int chunkSize,
+                CancellationToken cancellationToken) =>
+                Task.CompletedTask;
+
+            public Task UploadSingleFile(
+                string fileName,
+                string contentType,
+                long length,
+                Stream content,
+                CancellationToken cancellationToken) =>
+                Task.CompletedTask;
         }
 
         private sealed class BlockingThumbnailB2Service : IB2Service
@@ -86,7 +218,11 @@ namespace Server.Arkaine.Tests
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) => Task.FromResult(new AuthResponse());
             public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 
-            public async Task<FilesResponse> ListFiles(FilesRequest request, string userName, Server.Arkaine.Favourites.IFavouritesService? favouritesService, CancellationToken cancellationToken)
+            public async Task<FilesResponse> ListFiles(
+                FilesRequest request,
+                string userName,
+                IFavouritesService? favouritesService,
+                CancellationToken cancellationToken)
             {
                 await Task.WhenAny(_release.Task, Task.Delay(Timeout.Infinite, cancellationToken));
                 cancellationToken.ThrowIfCancellationRequested();

@@ -6,9 +6,8 @@
         {
         }
 
-        public SettingsResponse(long totalThumbnails, long badThumbnails, int thumbnailPageSize, int thumbnailWidth, string thumbnailDir, string thumbnailExt, bool isRunning)
+        public SettingsResponse(long totalThumbnails, int thumbnailPageSize, int thumbnailWidth, string thumbnailDir, string thumbnailExt, bool isRunning)
         {
-            BadThumbnails = badThumbnails;
             TotalThumbnails = totalThumbnails;
             ThumbnailPageSize = thumbnailPageSize;
             ThumbnailWidth = thumbnailWidth;
@@ -17,7 +16,6 @@
             IsRunning = isRunning;
         }
 
-        public long BadThumbnails { get; set; }
         public long TotalThumbnails { get; set; }
         public string ThumbnailDir { get; set; } = string.Empty;
         public string ThumbnailExtensions { get; set; } = string.Empty;

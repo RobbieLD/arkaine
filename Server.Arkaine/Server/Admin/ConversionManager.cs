@@ -11,7 +11,6 @@ namespace Server.Arkaine.Admin
         private readonly ArkaineOptions _options;
         private readonly IServiceProvider _serviceProvider;
         private readonly IHubContext<AdminHub> _hubContext;
-        private readonly IConversionStateStore _stateStore;
         private readonly IMediaConverter _converter;
         private readonly AdminJobCoordinator _jobCoordinator;
         private readonly ILogger<ConversionManager> _logger;
@@ -24,7 +23,6 @@ namespace Server.Arkaine.Admin
             IServiceProvider serviceProvider,
             IOptions<ArkaineOptions> options,
             IHubContext<AdminHub> hubContext,
-            IConversionStateStore stateStore,
             IMediaConverter converter,
             AdminJobCoordinator jobCoordinator,
             ILogger<ConversionManager> logger)
@@ -33,13 +31,12 @@ namespace Server.Arkaine.Admin
             _options = options.Value;
             _options.Normalize();
             _hubContext = hubContext;
-            _stateStore = stateStore;
             _converter = converter;
             _jobCoordinator = jobCoordinator;
             _logger = logger;
         }
 
-        public bool TryStart(string userName, string? path, bool deleteConvertedFiles = true)
+        public bool TryStart(string userName, string? path)
         {
             var normalizedPath = ConversionPath.Normalize(path);
 
@@ -57,24 +54,16 @@ namespace Server.Arkaine.Admin
 
                 try
                 {
-                    Directory.CreateDirectory(_options.GetConversionTempDirectory());
-                    Directory.CreateDirectory(_stateStore.MarkerDirectory);
-
                     _stoppingToken?.Dispose();
                     _stoppingToken = new CancellationTokenSource();
                     _report = new ConversionReport
                     {
-                        DeleteConvertedFiles = deleteConvertedFiles,
                         Path = normalizedPath,
                         Running = true,
                         StartedUtc = DateTimeOffset.UtcNow,
                         Status = "running"
                     };
-                    _runningTask = RunAsync(
-                        userName,
-                        normalizedPath,
-                        deleteConvertedFiles,
-                        _stoppingToken.Token);
+                    _runningTask = RunAsync(userName, normalizedPath, _stoppingToken.Token);
                     ObserveTask(_runningTask);
                     return true;
                 }
@@ -104,12 +93,9 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        public async Task ConvertAsync(
-            string userName,
-            string? path,
-            bool deleteConvertedFiles = true)
+        public async Task ConvertAsync(string userName, string? path)
         {
-            if (!TryStart(userName, path, deleteConvertedFiles))
+            if (!TryStart(userName, path))
             {
                 return;
             }
@@ -163,13 +149,10 @@ namespace Server.Arkaine.Admin
         private async Task RunAsync(
             string userName,
             string path,
-            bool deleteConvertedFiles,
             CancellationToken cancellationToken)
         {
             try
             {
-                await RecoverPendingStatesAsync(userName, path, cancellationToken);
-
                 var availability = await _converter.GetAvailabilityAsync(cancellationToken);
                 if (!availability.IsAvailable)
                 {
@@ -195,17 +178,9 @@ namespace Server.Arkaine.Admin
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var b2 = scope.ServiceProvider.GetRequiredService<IB2Service>();
-                    var references = scope.ServiceProvider.GetRequiredService<IMediaLibraryReferenceService>();
                     var page = await b2.ListFiles(request, userName, null, cancellationToken);
 
-                    await ProcessPageAsync(
-                        page,
-                        path,
-                        deleteConvertedFiles,
-                        userName,
-                        b2,
-                        references,
-                        cancellationToken);
+                    await ProcessPageAsync(page, userName, b2, cancellationToken);
                     request.StartFile = page.NextFileName;
 
                     if (string.IsNullOrEmpty(page.NextFileName))
@@ -254,143 +229,15 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task RecoverPendingStatesAsync(
-            string userName,
-            string path,
-            CancellationToken cancellationToken)
-        {
-            var markers = _stateStore.LoadAll();
-            if (markers.Count == 0)
-            {
-                return;
-            }
-
-            using var scope = _serviceProvider.CreateScope();
-            var b2 = scope.ServiceProvider.GetRequiredService<IB2Service>();
-            var references = scope.ServiceProvider.GetRequiredService<IMediaLibraryReferenceService>();
-
-            foreach (var marker in markers)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (!MatchesConversionPath(marker.SourceFile, marker.TargetFile, path))
-                {
-                    continue;
-                }
-
-                if (!marker.ThumbnailMoved &&
-                    !CanManageThumbnailArtifacts(marker.SourceFile, marker.TargetFile))
-                {
-                    RecordFailure(
-                        marker.SourceFile,
-                        marker.TargetFile,
-                        new InvalidOperationException(
-                            $"The B2 key '{marker.SourceFile}' cannot be represented safely in the thumbnail cache."));
-                    continue;
-                }
-
-                try
-                {
-                    if (!marker.DeleteConvertedFiles &&
-                        string.IsNullOrWhiteSpace(marker.ConvertedSourceFile))
-                    {
-                        marker.ConvertedSourceFile = GetConvertedSourceFileName(path, marker.SourceFile);
-                        _stateStore.Save(marker);
-                    }
-
-                    var targetFile = await GetExactFileAsync(b2, userName, marker.TargetFile, cancellationToken);
-                    if (targetFile is not null)
-                    {
-                        marker.TargetUploaded = true;
-                        _stateStore.Save(marker);
-                    }
-                    else if (!marker.TargetUploaded)
-                    {
-                        var sourceFile = await GetExactFileAsync(b2, userName, marker.SourceFile, cancellationToken);
-                        if (sourceFile is null)
-                        {
-                            throw new InvalidOperationException($"Pending conversion source '{marker.SourceFile}' was not found.");
-                        }
-
-                        marker.SourceId = string.IsNullOrWhiteSpace(marker.SourceId) ? sourceFile.Id : marker.SourceId;
-                        await ConvertAndUploadAsync(sourceFile, marker, userName, b2, cancellationToken);
-                    }
-                    else
-                    {
-                        marker.TargetUploaded = false;
-                        _stateStore.Save(marker);
-                        var sourceFile = await GetExactFileAsync(b2, userName, marker.SourceFile, cancellationToken);
-                        if (sourceFile is null)
-                        {
-                            throw new InvalidOperationException(
-                                $"Pending conversion target '{marker.TargetFile}' is missing and source '{marker.SourceFile}' was not found.");
-                        }
-
-                        await ConvertAndUploadAsync(sourceFile, marker, userName, b2, cancellationToken);
-                    }
-
-                    await FinalizeConversionAsync(
-                        marker,
-                        path,
-                        userName,
-                        b2,
-                        references,
-                        cancellationToken,
-                        recovered: true);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (PermanentConversionException exception)
-                {
-                    _stateStore.Delete(marker);
-                    RecordFailure(marker.SourceFile, marker.TargetFile, exception);
-                }
-                catch (Exception exception)
-                {
-                    RecordFailure(marker.SourceFile, marker.TargetFile, exception);
-                }
-            }
-        }
-
         private async Task ProcessPageAsync(
             FilesResponse page,
-            string path,
-            bool deleteConvertedFiles,
             string userName,
             IB2Service b2,
-            IMediaLibraryReferenceService references,
             CancellationToken cancellationToken)
         {
             foreach (var file in page.Files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                if (IsConvertedSourceFile(file.FileName, path))
-                {
-                    lock (_syncRoot)
-                    {
-                        _report.Scanned++;
-                        _report.CurrentFile = file.FileName;
-                        _report.Skipped++;
-                    }
-                    continue;
-                }
-
-                if (!_options.IsConvertibleImage(file.FileName) &&
-                    !_options.IsConvertibleVideo(file.FileName))
-                {
-                    lock (_syncRoot)
-                    {
-                        _report.Scanned++;
-                        _report.CurrentFile = file.FileName;
-                        _report.Skipped++;
-                    }
-                    continue;
-                }
-
-                var targetFile = _options.GetConversionTargetFileName(file.FileName);
 
                 lock (_syncRoot)
                 {
@@ -398,86 +245,40 @@ namespace Server.Arkaine.Admin
                     _report.CurrentFile = file.FileName;
                 }
 
-                if (!CanManageThumbnailArtifacts(file.FileName, targetFile))
+                if (!_options.IsConvertibleImage(file.FileName) &&
+                    !_options.IsConvertibleVideo(file.FileName))
                 {
-                    RecordFailure(
-                        file.FileName,
-                        targetFile,
-                        new InvalidOperationException(
-                            $"The B2 key '{file.FileName}' cannot be represented safely in the thumbnail cache."));
+                    IncrementSkipped();
                     continue;
                 }
 
-                if (string.Equals(file.FileName, targetFile, StringComparison.Ordinal))
+                var targetFile = _options.GetConversionTargetFileName(file.FileName);
+
+                if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
                 {
-                    lock (_syncRoot)
-                    {
-                        _report.Skipped++;
-                    }
+                    IncrementSkipped();
                     continue;
                 }
-
-                if (HasPermanentFailureMarker(file.FileName))
-                {
-                    lock (_syncRoot)
-                    {
-                        _report.Skipped++;
-                    }
-                    continue;
-                }
-
-                var marker = new ConversionStateMarker
-                {
-                    MarkerId = ConversionStateMarker.CreateMarkerId(file.FileName, targetFile),
-                    SourceFile = file.FileName,
-                    SourceId = file.Id,
-                    TargetFile = targetFile,
-                    DeleteConvertedFiles = deleteConvertedFiles,
-                    ConvertedSourceFile = deleteConvertedFiles
-                        ? string.Empty
-                        : GetConvertedSourceFileName(path, file.FileName)
-                };
 
                 try
                 {
-                    if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
+                    await ConvertAndUploadAsync(file, targetFile, userName, b2, cancellationToken);
+                    lock (_syncRoot)
                     {
-                        lock (_syncRoot)
-                        {
-                            _report.Skipped++;
-                        }
-                        continue;
+                        _report.Converted++;
                     }
-
-                    _stateStore.Save(marker);
-                    await ConvertAndUploadAsync(file, marker, userName, b2, cancellationToken);
-                    await FinalizeConversionAsync(
-                        marker,
-                        path,
-                        userName,
-                        b2,
-                        references,
-                        cancellationToken,
-                        recovered: false);
                 }
                 catch (OperationCanceledException)
                 {
                     throw;
                 }
-                catch (PermanentConversionException exception)
-                {
-                    _stateStore.Delete(marker);
-                    RecordFailure(file.FileName, targetFile, exception);
-                    await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
-                }
                 catch (Exception exception)
                 {
                     RecordFailure(file.FileName, targetFile, exception);
-
                     await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
                 }
 
-                if (SnapshotReport().Scanned % 25 == 0 || SnapshotReport().Converted > 0 || SnapshotReport().Recovered > 0)
+                if (SnapshotReport().Scanned % 25 == 0 || SnapshotReport().Converted > 0)
                 {
                     await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
                 }
@@ -486,7 +287,7 @@ namespace Server.Arkaine.Admin
 
         private async Task ConvertAndUploadAsync(
             B2File file,
-            ConversionStateMarker marker,
+            string targetFile,
             string userName,
             IB2Service b2,
             CancellationToken cancellationToken)
@@ -494,7 +295,6 @@ namespace Server.Arkaine.Admin
             var kind = _options.IsConvertibleImage(file.FileName)
                 ? MediaConversionKind.Image
                 : MediaConversionKind.Video;
-            var targetFile = marker.TargetFile;
             var tempDirectory = Path.Combine(_options.GetConversionTempDirectory(), Guid.NewGuid().ToString("n"));
             Directory.CreateDirectory(tempDirectory);
 
@@ -532,21 +332,15 @@ namespace Server.Arkaine.Admin
                         ? $"ffmpeg exited with code {result.ExitCode}."
                         : result.StandardError;
 
-                    if (result.TimedOut)
-                    {
-                        throw new TimeoutException(error);
-                    }
-
-                    WritePermanentFailureMarker(file.FileName, error);
-                    throw new PermanentConversionException(error);
+                    throw result.TimedOut
+                        ? new TimeoutException(error)
+                        : new InvalidOperationException(error);
                 }
 
                 var fileInfo = new FileInfo(tempTarget);
                 if (!fileInfo.Exists || fileInfo.Length == 0)
                 {
-                    const string error = "ffmpeg did not produce an output file.";
-                    WritePermanentFailureMarker(file.FileName, error);
-                    throw new PermanentConversionException(error);
+                    throw new InvalidOperationException("ffmpeg did not produce an output file.");
                 }
 
                 await using var convertedStream = File.OpenRead(tempTarget);
@@ -554,11 +348,21 @@ namespace Server.Arkaine.Admin
 
                 if (fileInfo.Length > _options.UPLOAD_CHUNK_SIZE)
                 {
-                    await b2.UploadMultiPartFile(targetFile, contentType, convertedStream, _options.UPLOAD_CHUNK_SIZE, cancellationToken);
+                    await b2.UploadMultiPartFile(
+                        targetFile,
+                        contentType,
+                        convertedStream,
+                        _options.UPLOAD_CHUNK_SIZE,
+                        cancellationToken);
                 }
                 else
                 {
-                    await b2.UploadSingleFile(targetFile, contentType, fileInfo.Length, convertedStream, cancellationToken);
+                    await b2.UploadSingleFile(
+                        targetFile,
+                        contentType,
+                        fileInfo.Length,
+                        convertedStream,
+                        cancellationToken);
                 }
 
                 if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is null)
@@ -566,9 +370,6 @@ namespace Server.Arkaine.Admin
                     throw new InvalidOperationException(
                         $"Uploaded conversion target '{targetFile}' could not be verified.");
                 }
-
-                marker.TargetUploaded = true;
-                _stateStore.Save(marker);
             }
             finally
             {
@@ -576,212 +377,11 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task FinalizeConversionAsync(
-            ConversionStateMarker marker,
-            string path,
-            string userName,
+        private async Task<B2File?> GetExactFileAsync(
             IB2Service b2,
-            IMediaLibraryReferenceService references,
-            CancellationToken cancellationToken,
-            bool recovered)
-        {
-            if (!marker.TargetUploaded)
-            {
-                throw new InvalidOperationException($"Converted target '{marker.TargetFile}' has not been uploaded.");
-            }
-
-            _stateStore.Save(marker);
-
-            if (!marker.ReferencesRenamed)
-            {
-                await references.RenameFileReferencesAsync(marker.SourceFile, marker.TargetFile, cancellationToken);
-                marker.ReferencesRenamed = true;
-                _stateStore.Save(marker);
-            }
-
-            if (!marker.ThumbnailMoved)
-            {
-                MoveThumbnailArtifacts(marker.SourceFile, marker.TargetFile);
-                marker.ThumbnailMoved = true;
-                _stateStore.Save(marker);
-            }
-
-            if (!marker.SourceDeleted)
-            {
-                var sourceFile = await GetExactFileAsync(b2, userName, marker.SourceFile, cancellationToken);
-                if (sourceFile is null)
-                {
-                    marker.SourceDeleted = true;
-                }
-                else
-                {
-                    marker.SourceId = string.IsNullOrWhiteSpace(marker.SourceId) ? sourceFile.Id : marker.SourceId;
-
-                    if (!marker.DeleteConvertedFiles)
-                    {
-                        var convertedSourceFile = string.IsNullOrWhiteSpace(marker.ConvertedSourceFile)
-                            ? GetConvertedSourceFileName(path, marker.SourceFile)
-                            : marker.ConvertedSourceFile;
-                        marker.ConvertedSourceFile = convertedSourceFile;
-                        await MoveSourceToConvertedAsync(
-                            sourceFile,
-                            convertedSourceFile,
-                            userName,
-                            b2,
-                            cancellationToken);
-                    }
-
-                    await b2.Delete(new DeleteModel
-                    {
-                        FileName = marker.SourceFile,
-                        Id = marker.SourceId
-                    }, cancellationToken);
-                    marker.SourceDeleted = true;
-                }
-
-                _stateStore.Save(marker);
-            }
-
-            _stateStore.Delete(marker);
-
-            lock (_syncRoot)
-            {
-                if (recovered)
-                {
-                    _report.Recovered++;
-                }
-                else
-                {
-                    _report.Converted++;
-                }
-            }
-        }
-
-        private async Task MoveSourceToConvertedAsync(
-            B2File sourceFile,
-            string convertedSourceFile,
             string userName,
-            IB2Service b2,
+            string fileName,
             CancellationToken cancellationToken)
-        {
-            await b2.Copy(
-                new CopyRequest
-                {
-                    Id = sourceFile.Id,
-                    FileName = convertedSourceFile
-                },
-                cancellationToken);
-
-            if (await GetExactFileAsync(b2, userName, convertedSourceFile, cancellationToken) is null)
-            {
-                throw new InvalidOperationException(
-                    $"Moved source '{sourceFile.FileName}' could not be verified at '{convertedSourceFile}'.");
-            }
-        }
-
-        private void MoveThumbnailArtifacts(string sourceFile, string targetFile)
-        {
-            MoveThumbnailArtifact(sourceFile, targetFile);
-            DeleteThumbnailArtifact($"{sourceFile}.bad");
-            DeleteThumbnailArtifact($"{targetFile}.bad");
-        }
-
-        private void DeleteThumbnailArtifact(string relativePath)
-        {
-            if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, relativePath, out var path))
-            {
-                throw new InvalidOperationException($"Unable to resolve thumbnail state for {relativePath}.");
-            }
-
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-
-        private bool HasPermanentFailureMarker(string sourceFile)
-        {
-            return ThumbnailPathResolver.TryResolve(
-                       _options.THUMBNAIL_DIR,
-                       $"{sourceFile}.convert-failed",
-                       out var markerPath) &&
-                   File.Exists(markerPath);
-        }
-
-        private bool CanManageThumbnailArtifacts(string sourceFile, string targetFile)
-        {
-            return IsCanonicalThumbnailKey(sourceFile) &&
-                   IsCanonicalThumbnailKey(targetFile) &&
-                   ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, sourceFile, out _) &&
-                   ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, targetFile, out _) &&
-                   ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, $"{sourceFile}.bad", out _) &&
-                   ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, $"{targetFile}.bad", out _) &&
-                   ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, $"{sourceFile}.convert-failed", out _);
-        }
-
-        private static bool IsCanonicalThumbnailKey(string fileName)
-        {
-            return !fileName.Contains('\\') &&
-                   fileName.Split('/').All(segment => segment.Length > 0);
-        }
-
-        private void WritePermanentFailureMarker(string sourceFile, string error)
-        {
-            if (!ThumbnailPathResolver.TryResolve(
-                    _options.THUMBNAIL_DIR,
-                    $"{sourceFile}.convert-failed",
-                    out var markerPath))
-            {
-                throw new InvalidOperationException($"Unable to resolve conversion failure marker for {sourceFile}.");
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(markerPath) ??
-                                      throw new InvalidOperationException("Conversion failure marker directory is invalid."));
-            File.WriteAllText(markerPath, $"{DateTimeOffset.UtcNow:O}{Environment.NewLine}{error}");
-        }
-
-        private void MoveThumbnailArtifact(string sourceRelativePath, string targetRelativePath)
-        {
-            if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, sourceRelativePath, out var sourcePath) ||
-                !ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, targetRelativePath, out var targetPath))
-            {
-                throw new InvalidOperationException($"Unable to resolve thumbnail state for {sourceRelativePath}.");
-            }
-
-            var sourceIsBadMarker = string.Equals(Path.GetExtension(sourcePath), ".bad", StringComparison.OrdinalIgnoreCase);
-            var targetMarkerPath = sourceIsBadMarker ? targetPath[..^4] : $"{targetPath}.bad";
-
-            if (!sourceIsBadMarker && File.Exists(targetMarkerPath))
-            {
-                File.Delete(targetMarkerPath);
-            }
-
-            if (sourceIsBadMarker && File.Exists(targetPath[..^4]))
-            {
-                if (File.Exists(sourcePath))
-                {
-                    File.Delete(sourcePath);
-                }
-                return;
-            }
-
-            if (!File.Exists(sourcePath))
-            {
-                return;
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? throw new InvalidOperationException("Target thumbnail directory is invalid."));
-
-            if (File.Exists(targetPath))
-            {
-                File.Delete(sourcePath);
-                return;
-            }
-
-            File.Move(sourcePath, targetPath);
-        }
-
-        private async Task<B2File?> GetExactFileAsync(IB2Service b2, string userName, string fileName, CancellationToken cancellationToken)
         {
             var response = await b2.ListFiles(new FilesRequest
             {
@@ -793,39 +393,12 @@ namespace Server.Arkaine.Admin
             return response.Files.SingleOrDefault();
         }
 
-        private static bool MatchesConversionPath(string sourceFile, string targetFile, string path)
+        private void IncrementSkipped()
         {
-            return sourceFile.StartsWith(path, StringComparison.Ordinal) &&
-                   targetFile.StartsWith(path, StringComparison.Ordinal);
-        }
-
-        private static bool IsConvertedSourceFile(string fileName, string path)
-        {
-            return fileName.StartsWith(GetConvertedFolderPath(path), StringComparison.Ordinal);
-        }
-
-        private static string GetConvertedFolderPath(string path)
-        {
-            return $"{path}converted/";
-        }
-
-        private static string GetConvertedSourceFileName(string path, string sourceFile)
-        {
-            if (!sourceFile.StartsWith(path, StringComparison.Ordinal))
+            lock (_syncRoot)
             {
-                throw new InvalidOperationException(
-                    $"Source '{sourceFile}' is outside conversion path '{path}'.");
+                _report.Skipped++;
             }
-
-            var relativeFile = sourceFile[path.Length..];
-            if (string.IsNullOrWhiteSpace(relativeFile) ||
-                IsConvertedSourceFile(sourceFile, path))
-            {
-                throw new InvalidOperationException(
-                    $"Source '{sourceFile}' cannot be moved into the converted folder.");
-            }
-
-            return $"{GetConvertedFolderPath(path)}{relativeFile}";
         }
 
         private static void TryDeleteDirectory(string directory)
@@ -863,8 +436,6 @@ namespace Server.Arkaine.Admin
                 _report.Failures.Add(new ConversionFailure(sourceFile, targetFile, exception.Message));
             }
         }
-
-        private sealed class PermanentConversionException(string message) : Exception(message);
 
         private void ObserveTask(Task task)
         {

@@ -4,7 +4,6 @@ namespace Server.Arkaine.Admin
 {
     public sealed record ThumbnailJobStatusResponse(
         long TotalThumbnails,
-        long BadThumbnails,
         int ThumbnailPageSize,
         int ThumbnailWidth,
         string ThumbnailDir,
@@ -30,6 +29,5 @@ namespace Server.Arkaine.Admin
     {
         public string Job { get; set; } = "thumbnail";
         public string Path { get; set; } = string.Empty;
-        public bool DeleteConvertedFiles { get; set; } = true;
     }
 }

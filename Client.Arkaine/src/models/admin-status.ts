@@ -6,7 +6,6 @@ import { emptyThumbnailProgress, normalizeThumbnailProgress } from '@/models/thu
 
 export interface ThumbnailJobStatus {
     totalThumbnails: number
-    badThumbnails: number
     thumbnailDir: string
     thumbnailExtensions: string
     thumbnailPageSize: number
@@ -34,7 +33,6 @@ export default interface AdminStatusResponse {
 
 interface LegacyAdminStatusResponse {
     totalThumbnails?: unknown
-    badThumbnails?: unknown
     thumbnailDir?: unknown
     thumbnailExtensions?: unknown
     thumbnailPageSize?: unknown
@@ -63,7 +61,6 @@ interface LegacyAdminStatusResponse {
 
 const emptyThumbnailJobStatus = (): ThumbnailJobStatus => ({
     totalThumbnails: 0,
-    badThumbnails: 0,
     thumbnailDir: '',
     thumbnailExtensions: '',
     thumbnailPageSize: 0,
@@ -174,7 +171,6 @@ const normalizeThumbnailStatus = (
     source: Record<string, unknown> | null
 ): ThumbnailJobStatus => ({
     totalThumbnails: readNumber(source, ['totalThumbnails', 'TotalThumbnails']),
-    badThumbnails: readNumber(source, ['badThumbnails', 'BadThumbnails']),
     thumbnailDir: readString(source, ['thumbnailDir', 'ThumbnailDir']),
     thumbnailExtensions: readString(source, ['thumbnailExtensions', 'ThumbnailExtensions']),
     thumbnailPageSize: readNumber(source, ['thumbnailPageSize', 'ThumbnailPageSize']),
@@ -251,8 +247,6 @@ export const normalizeAdminStatus = (value: LegacyAdminStatusResponse | unknown)
     const hasThumbnailFields = hasAnyValue(root, [
         'totalThumbnails',
         'TotalThumbnails',
-        'badThumbnails',
-        'BadThumbnails',
         'thumbnailDir',
         'ThumbnailDir'
     ])

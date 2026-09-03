@@ -148,10 +148,9 @@ export default class ArkaineService extends BaseService {
         return result.data
     }
 
-    public async StartConversion(path: string, deleteConvertedFiles: boolean): Promise<AdminStatusPayload> {
+    public async StartConversion(path: string): Promise<AdminStatusPayload> {
         const result = await this.http.post<AdminStatusPayload>('/admin/convert/start', {
             path,
-            deleteConvertedFiles
         })
         return result.data
     }

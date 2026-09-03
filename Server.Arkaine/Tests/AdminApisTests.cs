@@ -58,8 +58,7 @@ namespace Server.Arkaine.Tests
                 var response = await client.PostAsJsonAsync("/admin/start", new AdminJobRequest
                 {
                     Job = "conversion",
-                    Path = "gallery-alpha",
-                    DeleteConvertedFiles = false
+                    Path = "gallery-alpha"
                 });
 
                 response.EnsureSuccessStatusCode();
@@ -67,7 +66,6 @@ namespace Server.Arkaine.Tests
 
                 Assert.That(status, Is.Not.Null);
                 Assert.That(status!.Conversion.Report.Path, Is.EqualTo("gallery-alpha/"));
-                Assert.That(status.Conversion.Report.DeleteConvertedFiles, Is.False);
             }
         }
 
@@ -261,14 +259,12 @@ namespace Server.Arkaine.Tests
             builder.Services.AddLogging();
             builder.Services.AddSingleton<IOptions<ArkaineOptions>>(Options.Create(options));
             builder.Services.AddSingleton<IThumbnailInfoProvider, ThumbnailInfoCache>();
-            builder.Services.AddSingleton<IConversionStateStore, FileSystemConversionStateStore>();
             builder.Services.AddSingleton<IMediaConverter>(converter);
             builder.Services.AddSingleton<IHubContext<AdminHub>>(new RecordingHubContext<AdminHub>());
             builder.Services.AddSingleton<AdminJobCoordinator>();
             builder.Services.AddSingleton<ThumbnailManager>();
             builder.Services.AddSingleton<ConversionManager>();
             builder.Services.AddScoped(_ => b2 ?? new NoOpB2Service());
-            builder.Services.AddScoped<IMediaLibraryReferenceService, NoOpReferenceService>();
 
             var app = builder.Build();
             app.UseAuthentication();
@@ -283,11 +279,6 @@ namespace Server.Arkaine.Tests
             var root = Path.Combine(TestContext.CurrentContext.WorkDirectory, "artifacts", Guid.NewGuid().ToString("n"));
             Directory.CreateDirectory(root);
             return root;
-        }
-
-        private sealed class NoOpReferenceService : IMediaLibraryReferenceService
-        {
-            public Task RenameFileReferencesAsync(string sourceFile, string targetFile, CancellationToken cancellationToken) => Task.CompletedTask;
         }
 
         private sealed class BlockingAdminB2Service : IB2Service
