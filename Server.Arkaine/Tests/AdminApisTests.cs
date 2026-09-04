@@ -324,6 +324,8 @@ namespace Server.Arkaine.Tests
             public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
             public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) =>
                 Task.FromResult<Stream>(new MemoryStream());
+            public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult(new Uri($"https://example.invalid/file/bucket/{Uri.EscapeDataString(fileName)}?Authorization=test"));
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 Task.FromResult(new AuthResponse());
             public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -354,6 +356,8 @@ namespace Server.Arkaine.Tests
             public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
             public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) =>
                 Task.FromResult<Stream>(new MemoryStream());
+            public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult(new Uri($"https://example.invalid/file/bucket/{Uri.EscapeDataString(fileName)}?Authorization=test"));
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 Task.FromResult(new AuthResponse());
             public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;

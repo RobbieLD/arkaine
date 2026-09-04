@@ -19,6 +19,7 @@ namespace Server.Arkaine.B2
     public class B2Service : IB2Service
     {
         private const string WriteCacheKey = "__b2_write__";
+        private const int DownloadAuthorizationDurationSeconds = 900;
 
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
@@ -173,6 +174,39 @@ namespace Server.Arkaine.B2
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
 
+        public async Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                throw new ArgumentException("A file name must be supplied.", nameof(fileName));
+            }
+
+            return await ExecuteWithCacheRefreshAsync(
+                userName,
+                _options.B2_KEY_READ,
+                async cacheModel =>
+                {
+                    var authorization = await SendAuthenticatedRequestAsync<DownloadAuthorizationRequest, DownloadAuthorizationResponse>(
+                        new DownloadAuthorizationRequest
+                        {
+                            BucketId = _options.BUCKET_ID,
+                            FileNamePrefix = fileName,
+                            ValidDurationInSeconds = DownloadAuthorizationDurationSeconds
+                        },
+                        cacheModel,
+                        "/b2api/v2/b2_get_download_authorization",
+                        cancellationToken);
+
+                    if (string.IsNullOrWhiteSpace(authorization.AuthorizationToken))
+                    {
+                        throw new InvalidOperationException("B2 did not return a download authorization token.");
+                    }
+
+                    return BuildDownloadUrl(cacheModel.DownloadUrl, fileName, authorization.AuthorizationToken);
+                },
+                cancellationToken);
+        }
+
         public async Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
         {
             return await ExecuteWithCacheRefreshAsync(
@@ -187,6 +221,18 @@ namespace Server.Arkaine.B2
                         cancellationToken);
                 },
                 cancellationToken);
+        }
+
+        private Uri BuildDownloadUrl(string downloadBaseUrl, string fileName, string authorizationToken)
+        {
+            var encodedFileName = string.Join(
+                "/",
+                fileName.Split('/', StringSplitOptions.None).Select(Uri.EscapeDataString));
+            var encodedBucketName = Uri.EscapeDataString(_options.BUCKET_NAME);
+            var encodedToken = Uri.EscapeDataString(authorizationToken);
+            var url = $"{downloadBaseUrl.TrimEnd('/')}/file/{encodedBucketName}/{encodedFileName}?Authorization={encodedToken}";
+
+            return new Uri(url, UriKind.Absolute);
         }
 
         public async Task UploadSingleFile(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken)

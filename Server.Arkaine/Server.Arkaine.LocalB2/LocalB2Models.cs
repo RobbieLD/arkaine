@@ -20,6 +20,18 @@ public sealed class LocalB2ListRequest
     public string? StartFileName { get; set; }
 }
 
+public sealed class LocalB2DownloadAuthorizationRequest
+{
+    [JsonPropertyName("bucketId")]
+    public string BucketId { get; set; } = string.Empty;
+
+    [JsonPropertyName("fileNamePrefix")]
+    public string FileNamePrefix { get; set; } = string.Empty;
+
+    [JsonPropertyName("validDurationInSeconds")]
+    public int ValidDurationInSeconds { get; set; }
+}
+
 public sealed class LocalB2DeleteRequest
 {
     [JsonPropertyName("fileId")]

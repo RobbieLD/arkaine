@@ -58,7 +58,7 @@
 
             <job-panel
                 title="Thumbnail generation"
-                description="Scan the media library and create missing thumbnails."
+                description="Scan the media library and create missing image and video thumbnails."
                 :running="adminStatus.thumbnails.isRunning"
                 start-label="Start generation"
                 stop-label="Cancel run"

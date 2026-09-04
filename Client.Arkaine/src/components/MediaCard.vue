@@ -48,9 +48,28 @@
         </a>
 
         <!-- Video -->
-        <div v-else-if="file.isVideo" class="media-card__media">
-            <video-player :file="file"></video-player>
-        </div>
+        <a
+            v-else-if="file.isVideo"
+            :href="file.url"
+            target="_blank"
+            rel="noopener"
+            class="media-card__media media-card__media--frame"
+            :class="{ 'media-card__media--auto': !ratioStyle }"
+            :style="ratioStyle"
+            :aria-label="`Open ${file.name}`"
+        >
+            <img
+                class="media-card__image"
+                :src="file.preview || '/icon.png'"
+                :alt="file.name"
+                loading="lazy"
+                decoding="async"
+                @error="onImageError"
+            />
+            <span class="media-card__badge">
+                <app-icon name="play" />
+            </span>
+        </a>
 
         <!-- Audio -->
         <div v-else-if="file.isAudio" class="media-card__media">
@@ -106,14 +125,12 @@
     import { computed, defineComponent, PropType, ref } from 'vue'
     import AppIcon from './AppIcon.vue'
     import AudioPlayer from './AudioPlayer.vue'
-    import VideoPlayer from './VideoPLayer.vue'
 
     export default defineComponent({
         name: 'MediaCard',
         components: {
             AppIcon,
-            AudioPlayer,
-            VideoPlayer
+            AudioPlayer
         },
         emits: ['favourite', 'prefetch'],
         props: {

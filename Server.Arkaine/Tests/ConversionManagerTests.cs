@@ -311,6 +311,9 @@ namespace Server.Arkaine.Tests
             public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) =>
                 _inner.Download(userName, fileName, cancellationToken);
 
+            public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken) =>
+                _inner.GetDownloadUrl(userName, fileName, cancellationToken);
+
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 _inner.GetToken(key, cancellationToken);
 

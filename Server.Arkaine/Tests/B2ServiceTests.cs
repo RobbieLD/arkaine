@@ -79,6 +79,47 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task GetDownloadUrl_UsesScopedAuthorizationAndEscapesTheFileName()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root);
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+
+            var url = await service.GetDownloadUrl(
+                "reader",
+                "gallery alpha/video clip.mp4",
+                CancellationToken.None);
+
+            Assert.That(
+                url.AbsoluteUri,
+                Is.EqualTo("https://download.invalid/file/bucket/gallery%20alpha/video%20clip.mp4?Authorization=download-token"));
+            Assert.That(handler.DownloadAuthorizations, Has.Count.EqualTo(1));
+            Assert.That(handler.DownloadAuthorizations[0].BucketId, Is.EqualTo("bucket"));
+            Assert.That(handler.DownloadAuthorizations[0].FileNamePrefix, Is.EqualTo("gallery alpha/video clip.mp4"));
+            Assert.That(handler.DownloadAuthorizations[0].ValidDurationInSeconds, Is.EqualTo(900));
+            Assert.That(handler.AuthKeys, Is.EqualTo(new[] { "read-key" }));
+        }
+
+        [Test]
+        public async Task GetDownloadUrl_RefreshesReadCredentialsAfterUnauthorizedResponse()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root)
+            {
+                RejectFirstDownloadAuthorization = true,
+                RotateReadTokens = true
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+
+            _ = await service.GetDownloadUrl("reader", "video.mp4", CancellationToken.None);
+
+            Assert.That(handler.AuthKeys.Count(key => key == "read-key"), Is.EqualTo(2));
+            Assert.That(handler.DownloadAuthorizations, Has.Count.EqualTo(1));
+        }
+
+        [Test]
         public async Task UploadSingleFile_UsesWriteCredentials()
         {
             var root = CreateRoot();
@@ -256,13 +297,16 @@ namespace Server.Arkaine.Tests
             public bool FinishedLargeFile { get; private set; }
             public bool RejectFirstReadRequest { get; set; }
             public bool RejectFirstDownloadRequest { get; set; }
+            public bool RejectFirstDownloadAuthorization { get; set; }
             public bool RotateReadTokens { get; set; }
             public bool RejectFirstPartUpload { get; set; }
             public int PartUploadUrlRequests { get; private set; }
             public List<B2File> UnfinishedFiles { get; } = [];
+            public List<DownloadAuthorizationRequest> DownloadAuthorizations { get; } = [];
 
             private bool _readRequestRejected;
             private bool _downloadRequestRejected;
+            private bool _downloadAuthorizationRejected;
             private bool _partUploadRejected;
             private int _readTokenVersion;
 
@@ -327,6 +371,29 @@ namespace Server.Arkaine.Tests
                         {
                             Content = new ByteArrayContent([1, 2, 3])
                         });
+                }
+
+                if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_get_download_authorization")
+                {
+                    if (RejectFirstDownloadAuthorization && !_downloadAuthorizationRejected)
+                    {
+                        _downloadAuthorizationRejected = true;
+                        return Task.FromResult(Json(HttpStatusCode.Unauthorized, new { code = "expired_auth_token" }));
+                    }
+
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(
+                        RotateReadTokens
+                            ? $"read-token-{_readTokenVersion}"
+                            : "read-token"));
+                    var authorization = JsonSerializer.Deserialize<DownloadAuthorizationRequest>(
+                        request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(),
+                        _jsonOptions);
+                    Assert.That(authorization, Is.Not.Null);
+                    DownloadAuthorizations.Add(authorization!);
+                    return Task.FromResult(Json(HttpStatusCode.OK, new DownloadAuthorizationResponse
+                    {
+                        AuthorizationToken = "download-token"
+                    }));
                 }
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_get_upload_url")

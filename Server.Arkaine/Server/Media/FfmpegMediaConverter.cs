@@ -155,7 +155,8 @@ namespace Server.Arkaine.Media
                 result.StandardError,
                 result.Duration,
                 result.TimedOut,
-                result.Cancelled);
+                result.Cancelled,
+                ExtractHttpStatusCode(result.StandardError));
         }
 
         internal ProcessStartInfo CreateProcessStartInfo(MediaConversionRequest request)
@@ -230,6 +231,22 @@ namespace Server.Arkaine.Media
         {
             using var reader = new StringReader(value);
             return reader.ReadLine()?.Trim() ?? string.Empty;
+        }
+
+        private static int? ExtractHttpStatusCode(string error)
+        {
+            const string marker = "HTTP error ";
+            var markerIndex = error.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0)
+            {
+                return null;
+            }
+
+            var statusStart = markerIndex + marker.Length;
+            return statusStart + 3 <= error.Length &&
+                   int.TryParse(error.AsSpan(statusStart, 3), out var statusCode)
+                ? statusCode
+                : null;
         }
 
         private static string BuildFailure(ProcessRunResult result, string command)

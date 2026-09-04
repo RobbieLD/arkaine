@@ -11,12 +11,7 @@ namespace Server.Arkaine
     {
         public static void Populate(B2File file, string? thumbnailDir, IThumbnailInfoProvider thumbnails)
         {
-            var relativeThumbnailPath = file.FileName;
-
-            if (file.Type == "folder")
-            {
-                relativeThumbnailPath = $"{file.FileName.TrimEnd('/', '\\')}/thumb.jpg";
-            }
+            var relativeThumbnailPath = GetRelativeThumbnailPath(file);
 
             file.Thumbnail = string.Empty;
             file.PreviewWidth = null;
@@ -41,6 +36,18 @@ namespace Server.Arkaine
                 file.PreviewWidth = info.Width;
                 file.PreviewHeight = info.Height;
             }
+        }
+
+        public static string GetRelativeThumbnailPath(B2File file)
+        {
+            if (file.Type == "folder")
+            {
+                return $"{file.FileName.TrimEnd('/', '\\')}/thumb.jpg";
+            }
+
+            return file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)
+                ? $"{file.FileName}.jpg"
+                : file.FileName;
         }
     }
 }

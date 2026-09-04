@@ -111,6 +111,16 @@ public class LocalB2Tests
             Assert.That(await rangeResponse.Content.ReadAsByteArrayAsync(), Is.EqualTo(payload[6..10]));
         }
 
+        var downloadUrl = await service.GetDownloadUrl(
+            "test-user",
+            "gallery-alpha/converted/photo.webp",
+            CancellationToken.None);
+        using (var remoteResponse = await client.GetAsync(downloadUrl))
+        {
+            remoteResponse.EnsureSuccessStatusCode();
+            Assert.That(await remoteResponse.Content.ReadAsByteArrayAsync(), Is.EqualTo(payload));
+        }
+
         await service.Delete(
             new DeleteModel
             {

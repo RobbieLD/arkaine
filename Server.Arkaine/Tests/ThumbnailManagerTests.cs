@@ -6,6 +6,7 @@ using NUnit.Framework;
 using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
 using Server.Arkaine.Favourites;
+using Server.Arkaine.Media;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -51,6 +52,79 @@ namespace Server.Arkaine.Tests
 
             Assert.That(service.Downloads, Is.EqualTo(0));
             Assert.That(manager.GetStatus().Report.Generated, Is.EqualTo(0));
+            Assert.That(manager.GetStatus().Report.Failed, Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task GenerateThumbnails_ExtractsVideoFrameIntoJpegThumbnail()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var service = new ThumbnailB2Service(CreateImageBytes(), "folder/video.mp4", "video/mp4");
+            var converter = new StubMediaConverter
+            {
+                OnConvertAsync = async (request, cancellationToken) =>
+                {
+                    using var image = new Image<Rgba32>(20, 10);
+                    await image.SaveAsJpegAsync(request.TargetPath, cancellationToken);
+                    return new MediaConversionResult(true, 0, string.Empty, TimeSpan.Zero, false, false);
+                }
+            };
+            using var services = BuildServices(options, service, converter: converter);
+            var manager = services.GetRequiredService<ThumbnailManager>();
+
+            Assert.That(manager.TryStart("admin"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(
+                ThumbnailPathResolver.TryResolve(options.THUMBNAIL_DIR, "folder/video.mp4.jpg", out var thumbnailPath),
+                Is.True);
+            Assert.That(File.Exists(thumbnailPath), Is.True);
+            Assert.That(converter.Requests, Has.Count.EqualTo(1));
+            Assert.That(converter.Requests[0].Kind, Is.EqualTo(MediaConversionKind.Image));
+            Assert.That(converter.Requests[0].SourcePath, Does.StartWith("https://example.invalid/"));
+            Assert.That(service.Downloads, Is.EqualTo(0));
+            Assert.That(service.DownloadUrlRequests, Is.EqualTo(1));
+            Assert.That(manager.GetStatus().Report.Generated, Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task GenerateThumbnails_RetriesVideoFrameWhenRemoteAuthorizationExpires()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var service = new ThumbnailB2Service(CreateImageBytes(), "folder/video.mp4", "video/mp4");
+            var conversionAttempts = 0;
+            var converter = new StubMediaConverter
+            {
+                OnConvertAsync = async (request, cancellationToken) =>
+                {
+                    if (++conversionAttempts == 1)
+                    {
+                        return new MediaConversionResult(
+                            false,
+                            1,
+                            "HTTP error 401 Unauthorized",
+                            TimeSpan.Zero,
+                            false,
+                            false,
+                            401);
+                    }
+
+                    using var image = new Image<Rgba32>(20, 10);
+                    await image.SaveAsJpegAsync(request.TargetPath, cancellationToken);
+                    return new MediaConversionResult(true, 0, string.Empty, TimeSpan.Zero, false, false);
+                }
+            };
+            using var services = BuildServices(options, service, converter: converter);
+            var manager = services.GetRequiredService<ThumbnailManager>();
+
+            Assert.That(manager.TryStart("admin"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(converter.Requests, Has.Count.EqualTo(2));
+            Assert.That(service.DownloadUrlRequests, Is.EqualTo(2));
+            Assert.That(manager.GetStatus().Report.Generated, Is.EqualTo(1));
             Assert.That(manager.GetStatus().Report.Failed, Is.EqualTo(0));
         }
 
@@ -115,7 +189,8 @@ namespace Server.Arkaine.Tests
         private static ServiceProvider BuildServices(
             ArkaineOptions options,
             IB2Service b2,
-            IProcessingReportService? reportService = null)
+            IProcessingReportService? reportService = null,
+            IMediaConverter? converter = null)
         {
             var services = new ServiceCollection();
             var hub = new RecordingHubContext<AdminHub>();
@@ -126,6 +201,7 @@ namespace Server.Arkaine.Tests
             services.AddSingleton<AdminJobCoordinator>();
             services.AddSingleton<IProcessingReportService>(
                 reportService ?? new NoOpProcessingReportService());
+            services.AddSingleton<IMediaConverter>(converter ?? new StubMediaConverter());
             services.AddScoped(_ => b2);
             services.AddLogging();
             services.AddSingleton<ThumbnailManager>();
@@ -151,14 +227,22 @@ namespace Server.Arkaine.Tests
         private sealed class ThumbnailB2Service : IB2Service
         {
             private readonly byte[] _image;
+            private readonly string _fileName;
+            private readonly string _contentType;
 
-            public ThumbnailB2Service(byte[] image)
+            public ThumbnailB2Service(
+                byte[] image,
+                string fileName = "folder/image.webp",
+                string contentType = "image/webp")
             {
                 _image = image;
+                _fileName = fileName;
+                _contentType = contentType;
             }
 
             public bool FailFirstDownload { get; set; }
             public int Downloads { get; private set; }
+            public int DownloadUrlRequests { get; private set; }
 
             public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -176,6 +260,12 @@ namespace Server.Arkaine.Tests
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
                 Task.FromResult(new AuthResponse());
 
+            public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken)
+            {
+                DownloadUrlRequests++;
+                return Task.FromResult(new Uri($"https://example.invalid/file/bucket/{Uri.EscapeDataString(fileName)}?Authorization=test"));
+            }
+
             public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 
             public Task<FilesResponse> ListFiles(
@@ -190,7 +280,8 @@ namespace Server.Arkaine.Tests
                     [
                         new B2File
                         {
-                            FileName = "folder/image.webp",
+                            FileName = _fileName,
+                            ContentType = _contentType,
                             Type = "upload"
                         }
                     ]
@@ -226,6 +317,8 @@ namespace Server.Arkaine.Tests
             public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
             public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) => Task.FromResult<Stream>(new MemoryStream());
             public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) => Task.FromResult(new AuthResponse());
+            public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult(new Uri($"https://example.invalid/file/bucket/{Uri.EscapeDataString(fileName)}?Authorization=test"));
             public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 
             public async Task<FilesResponse> ListFiles(

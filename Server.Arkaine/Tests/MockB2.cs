@@ -87,6 +87,14 @@ namespace Server.Arkaine.B2
             });
         }
 
+        public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken)
+        {
+            var encodedFileName = string.Join(
+                "/",
+                fileName.Split('/', StringSplitOptions.None).Select(Uri.EscapeDataString));
+            return Task.FromResult(new Uri($"https://mock-b2.invalid/file/bucket/{encodedFileName}?Authorization=test"));
+        }
+
         public async Task<FilesResponse> ListFiles(FilesRequest request, string userName, IFavouritesService? favouriteService, CancellationToken cancellationToken)
         {
             if (favouriteService != null && (request.Prefix?.StartsWith("Favourites", StringComparison.Ordinal) ?? false))
@@ -364,7 +372,7 @@ namespace Server.Arkaine.B2
                     continue;
                 }
 
-                relativePaths.Add(file.FileName);
+                relativePaths.Add(ThumbnailPreview.GetRelativeThumbnailPath(file));
 
                 var separator = file.FileName.IndexOf('/');
                 if (separator > 0)

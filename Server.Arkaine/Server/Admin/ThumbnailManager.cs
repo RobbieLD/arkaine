@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Server.Arkaine.B2;
+using Server.Arkaine.Media;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
+using System.Text.RegularExpressions;
 
 namespace Server.Arkaine.Admin
 {
@@ -14,6 +16,7 @@ namespace Server.Arkaine.Admin
         private readonly IHubContext<AdminHub> _hubContext;
         private readonly IServiceProvider _serviceProvider;
         private readonly AdminJobCoordinator _jobCoordinator;
+        private readonly IMediaConverter _converter;
 
         private CancellationTokenSource? _stoppingToken;
         private Task? _runningTask;
@@ -24,6 +27,7 @@ namespace Server.Arkaine.Admin
             IOptions<ArkaineOptions> config,
             IHubContext<AdminHub> hubContext,
             AdminJobCoordinator jobCoordinator,
+            IMediaConverter converter,
             ILogger<ThumbnailManager> logger)
         {
             _options = config.Value;
@@ -32,6 +36,7 @@ namespace Server.Arkaine.Admin
             _serviceProvider = serviceProvider;
             _hubContext = hubContext;
             _jobCoordinator = jobCoordinator;
+            _converter = converter;
         }
 
         public bool TryStart(string userName)
@@ -232,12 +237,14 @@ namespace Server.Arkaine.Admin
                     return;
                 }
 
-                if (!_options.IsThumbnailExtension(file.FileName))
+                var isVideo = file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+                if (!isVideo && !_options.IsThumbnailExtension(file.FileName))
                 {
                     continue;
                 }
 
-                if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, file.FileName, out var fullName))
+                var relativeThumbnailPath = ThumbnailPreview.GetRelativeThumbnailPath(file);
+                if (!ThumbnailPathResolver.TryResolve(_options.THUMBNAIL_DIR, relativeThumbnailPath, out var fullName))
                 {
                     _logger.LogWarning("Skipping thumbnail with an unsafe file name: {FileName}", file.FileName);
                     RecordFailure(file, "The thumbnail path is unsafe.");
@@ -252,7 +259,14 @@ namespace Server.Arkaine.Admin
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(fullName) ?? throw new InvalidOperationException($"{file.FileName} is not a valid file name."));
-                    await GenerateThumbnail(userName, fullName, file.FileName, uploader, cancellationToken);
+                    if (isVideo)
+                    {
+                        await GenerateVideoThumbnail(userName, fullName, file.FileName, uploader, cancellationToken);
+                    }
+                    else
+                    {
+                        await GenerateImageThumbnail(userName, fullName, file.FileName, uploader, cancellationToken);
+                    }
                     lock (_syncRoot)
                     {
                         _report.Generated++;
@@ -275,13 +289,98 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task GenerateThumbnail(string userName, string thumbnailName, string fileName, IB2Service uploader, CancellationToken cancellationToken)
+        private async Task GenerateImageThumbnail(
+            string userName,
+            string thumbnailName,
+            string fileName,
+            IB2Service uploader,
+            CancellationToken cancellationToken)
         {
             _logger.LogInformation("Generating thumbnail {ThumbnailName}", thumbnailName);
             await using var stream = await uploader.Download(userName, fileName, cancellationToken);
             using var image = Image.Load(stream);
             image.Mutate(context => context.Resize(_options.THUMBNAIL_WIDTH, 0));
             await image.SaveAsJpegAsync(thumbnailName, cancellationToken);
+        }
+
+        private async Task GenerateVideoThumbnail(
+            string userName,
+            string thumbnailName,
+            string fileName,
+            IB2Service uploader,
+            CancellationToken cancellationToken)
+        {
+            var tempDirectory = Path.Combine(_options.GetConversionTempDirectory(), Guid.NewGuid().ToString("n"));
+            var tempTarget = Path.Combine(tempDirectory, "frame.jpg");
+            Directory.CreateDirectory(tempDirectory);
+
+            try
+            {
+                _logger.LogInformation("Generating video thumbnail {ThumbnailName}", thumbnailName);
+                var sourceUrl = await uploader.GetDownloadUrl(userName, fileName, cancellationToken);
+                var result = await ExtractVideoFrame(
+                    sourceUrl,
+                    tempTarget,
+                    cancellationToken);
+
+                if (result.HttpStatusCode == 401)
+                {
+                    _logger.LogWarning("Video thumbnail source authorization expired for {FileName}; retrying.", fileName);
+                    sourceUrl = await uploader.GetDownloadUrl(userName, fileName, cancellationToken);
+                    result = await ExtractVideoFrame(sourceUrl, tempTarget, cancellationToken);
+                }
+
+                if (result.Cancelled || cancellationToken.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException(cancellationToken);
+                }
+
+                if (!result.Success)
+                {
+                    var error = string.IsNullOrWhiteSpace(result.StandardError)
+                        ? $"ffmpeg exited with code {result.ExitCode}."
+                        : RedactDownloadAuthorization(result.StandardError);
+                    throw result.TimedOut
+                        ? new TimeoutException(error)
+                        : new InvalidOperationException(error);
+                }
+
+                var frameInfo = new FileInfo(tempTarget);
+                if (!frameInfo.Exists || frameInfo.Length == 0)
+                {
+                    throw new InvalidOperationException("ffmpeg did not produce a video thumbnail.");
+                }
+
+                using var image = Image.Load(tempTarget);
+                image.Mutate(context => context.Resize(_options.THUMBNAIL_WIDTH, 0));
+                await image.SaveAsJpegAsync(thumbnailName, cancellationToken);
+            }
+            finally
+            {
+                TryDeleteDirectory(tempDirectory);
+            }
+        }
+
+        private Task<MediaConversionResult> ExtractVideoFrame(
+            Uri sourceUrl,
+            string targetPath,
+            CancellationToken cancellationToken)
+        {
+            return _converter.ConvertAsync(
+                new MediaConversionRequest(
+                    sourceUrl.AbsoluteUri,
+                    targetPath,
+                    MediaConversionKind.Image,
+                    TimeSpan.FromSeconds(_options.CONVERT_VIDEO_TIMEOUT_SECONDS)),
+                cancellationToken);
+        }
+
+        private static string RedactDownloadAuthorization(string error)
+        {
+            return Regex.Replace(
+                error,
+                @"(?i)([?&]Authorization=)[^&\s]+",
+                "$1[redacted]");
         }
 
         private long CountThumbnails()
@@ -306,6 +405,23 @@ namespace Server.Arkaine.Admin
             var relative = Path.GetRelativePath(_options.THUMBNAIL_DIR, file)
                 .Replace('\\', '/');
             return relative.StartsWith(".conversion-temp/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void TryDeleteDirectory(string directory)
+        {
+            try
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
 
         private GenerationReport SnapshotReport()

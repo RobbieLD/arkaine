@@ -35,6 +35,17 @@ public static class LocalB2Endpoints
                     return ListFilesAsync(request, store, cancellationToken);
                 }));
 
+        app.MapPost(
+            "/b2api/v2/b2_get_download_authorization",
+            (LocalB2DownloadAuthorizationRequest request, LocalB2Options options) =>
+            {
+                EnsureBucket(request.BucketId, options);
+                return Results.Ok(new
+                {
+                    authorizationToken = AuthorizationToken
+                });
+            });
+
         app.MapGet(
             "/file/{bucketName}/{*fileName}",
             (string bucketName, string? fileName, LocalB2Options options, LocalB2Store store, CancellationToken cancellationToken) =>

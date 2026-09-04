@@ -56,3 +56,9 @@ Provide the normal B2 settings (`B2AuthUrl`, `B2_KEY_READ`, `B2_KEY_WRITE`,
 `BUCKET_ID`, and `BUCKET_NAME`) through user secrets or environment variables.
 The test fixtures register `MockB2` explicitly when an in-process fake is
 needed. Do not expose real credentials in source-controlled configuration.
+
+Video thumbnail generation asks B2 for a short-lived, file-scoped download
+authorization so ffmpeg can read the original through HTTP range requests
+without a full temporary download. A real B2 read key must include the
+`shareFiles` capability for this request; the local emulator accepts it
+without checking capabilities.

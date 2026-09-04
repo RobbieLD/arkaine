@@ -87,6 +87,31 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ConvertAsync_ReportsRemoteHttpStatusFromFfmpeg()
+        {
+            var runner = new QueueProcessRunner();
+            runner.Enqueue(new ProcessRunResult(
+                1,
+                string.Empty,
+                "[http] HTTP error 401 Unauthorized",
+                TimeSpan.Zero,
+                false,
+                false));
+            var converter = CreateConverter(runner);
+
+            var result = await converter.ConvertAsync(
+                new MediaConversionRequest(
+                    "https://download.example/video.mp4?Authorization=scoped-token",
+                    "target.jpg",
+                    MediaConversionKind.Image,
+                    TimeSpan.FromSeconds(12)),
+                CancellationToken.None);
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.HttpStatusCode, Is.EqualTo(401));
+        }
+
+        [Test]
         public async Task GetAvailabilityAsync_ReportsMissingEncoders()
         {
             var runner = new QueueProcessRunner();

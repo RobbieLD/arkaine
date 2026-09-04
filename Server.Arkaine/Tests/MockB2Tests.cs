@@ -36,6 +36,10 @@ namespace Server.Arkaine.Tests
             Assert.That(response.Files.Count(file => file.ContentType == "audio/mpeg"), Is.EqualTo(3));
             Assert.That(response.Files.Any(file => file.FileName == "test.mp4"), Is.True);
             Assert.That(response.Files.Any(file => file.FileName == "test.mp3"), Is.True);
+
+            var videos = response.Files.Where(file => file.ContentType == "video/mp4").ToList();
+            Assert.That(videos.All(file => file.Thumbnail.EndsWith(".mp4.jpg", StringComparison.Ordinal)), Is.True);
+            Assert.That(videos.All(file => file.PreviewWidth > 0 && file.PreviewHeight > 0), Is.True);
         }
 
         [Test]

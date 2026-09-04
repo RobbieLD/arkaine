@@ -20,7 +20,8 @@ namespace Server.Arkaine.Media
         string StandardError,
         TimeSpan Duration,
         bool TimedOut,
-        bool Cancelled);
+        bool Cancelled,
+        int? HttpStatusCode = null);
 
     public sealed record MediaConverterAvailability(
         bool IsAvailable,
