@@ -107,8 +107,8 @@ namespace Server.Arkaine.Tests
             Assert.That(manager.GetStatus().Report.Skipped, Is.EqualTo(2));
             Assert.That(reports.Saved, Has.Count.EqualTo(1));
             Assert.That(reports.Saved[0].Type, Is.EqualTo(ProcessingReportType.Conversion));
-            Assert.That(reports.Saved[0].Html, Does.Contain("gallery-alpha/photo-01.webp"));
-            Assert.That(reports.Saved[0].Html, Does.Contain("The destination file already exists."));
+            Assert.That(reports.Saved[0].Html, Does.Not.Contain("gallery-alpha/photo-01.webp"));
+            Assert.That(reports.Saved[0].Html, Does.Not.Contain("The destination file already exists."));
         }
 
         [Test]

@@ -65,5 +65,41 @@ namespace Server.Arkaine.Tests
             Assert.That(html, Does.Contain("folder/failed.jpg"));
             Assert.That(html, Does.Contain("ffmpeg failed"));
         }
+
+        [Test]
+        public void RenderConversion_ExcludesSkippedFilesButKeepsSkippedSummary()
+        {
+            var html = ProcessingReportHtmlRenderer.RenderConversion(new ConversionReport
+            {
+                Status = "completed",
+                Skipped = 1,
+                Files =
+                [
+                    new ConversionFileResult(
+                        "folder/already-supported.mp4",
+                        string.Empty,
+                        "skipped",
+                        "file-1",
+                        "upload",
+                        "video/mp4",
+                        "100",
+                        "The file type is already supported."),
+                    new ConversionFileResult(
+                        "folder/source.webp",
+                        "folder/source.jpg",
+                        "converted",
+                        "file-2",
+                        "upload",
+                        "image/webp",
+                        "200",
+                        string.Empty)
+                ]
+            });
+
+            Assert.That(html, Does.Contain("Skipped"));
+            Assert.That(html, Does.Contain("folder/source.webp"));
+            Assert.That(html, Does.Not.Contain("folder/already-supported.mp4"));
+            Assert.That(html, Does.Not.Contain("The file type is already supported."));
+        }
     }
 }

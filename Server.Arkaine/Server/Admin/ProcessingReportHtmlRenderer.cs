@@ -58,8 +58,11 @@ namespace Server.Arkaine.Admin
 
         public static string RenderConversion(ConversionReport report)
         {
-            var rows = report.Files.Count == 0
-                ? "<p class=\"empty\">No files were processed.</p>"
+            var reportFiles = report.Files
+                .Where(file => !string.Equals(file.Status, "skipped", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var rows = reportFiles.Count == 0
+                ? "<p class=\"empty\">No converted files or errors were recorded.</p>"
                 : $"""
                     <div class="table-wrap">
                         <table>
@@ -76,7 +79,7 @@ namespace Server.Arkaine.Admin
                                 </tr>
                             </thead>
                             <tbody>
-                                {string.Join(Environment.NewLine, report.Files.Select(RenderConversionFile))}
+                                {string.Join(Environment.NewLine, reportFiles.Select(RenderConversionFile))}
                             </tbody>
                         </table>
                     </div>
