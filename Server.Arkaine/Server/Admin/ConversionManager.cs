@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Server.Arkaine.B2;
 using Server.Arkaine.Media;
+using System.Text.RegularExpressions;
 
 namespace Server.Arkaine.Admin
 {
@@ -38,6 +39,21 @@ namespace Server.Arkaine.Admin
 
         public bool TryStart(string userName, string? path)
         {
+            return TryStart(userName, path, null);
+        }
+
+        public bool TryStartForFile(string userName, string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                throw new ArgumentException("A file name must be supplied.", nameof(fileName));
+            }
+
+            return TryStart(userName, ConversionPath.ForFileName(fileName), fileName);
+        }
+
+        private bool TryStart(string userName, string? path, string? exactFileName)
+        {
             var normalizedPath = ConversionPath.Normalize(path);
 
             lock (_syncRoot)
@@ -63,7 +79,7 @@ namespace Server.Arkaine.Admin
                         StartedUtc = DateTimeOffset.UtcNow,
                         Status = "running"
                     };
-                    _runningTask = RunAsync(userName, normalizedPath, _stoppingToken.Token);
+                    _runningTask = RunAsync(userName, normalizedPath, exactFileName, _stoppingToken.Token);
                     ObserveTask(_runningTask);
                     return true;
                 }
@@ -122,12 +138,13 @@ namespace Server.Arkaine.Admin
                 _options.CONVERT_PAGE_SIZE,
                 _options.CONVERT_IMAGE_EXTENSIONS,
                 _options.CONVERT_VIDEO_EXTENSIONS,
+                _options.CONVERT_VIDEO_MAX_BITRATE,
                 _options.GetConversionTempDirectory(),
                 IsRunning,
                 SnapshotReport());
         }
 
-        private bool IsRunning
+        public bool IsRunning
         {
             get
             {
@@ -149,6 +166,7 @@ namespace Server.Arkaine.Admin
         private async Task RunAsync(
             string userName,
             string path,
+            string? exactFileName,
             CancellationToken cancellationToken)
         {
             try
@@ -170,8 +188,9 @@ namespace Server.Arkaine.Admin
                 var request = new FilesRequest
                 {
                     BucketId = _options.BUCKET_ID,
-                    PageSize = _options.CONVERT_PAGE_SIZE,
-                    Prefix = path
+                    PageSize = exactFileName is null ? _options.CONVERT_PAGE_SIZE : 1,
+                    Prefix = exactFileName is null ? path : null,
+                    ExactFileName = exactFileName
                 };
 
                 while (!cancellationToken.IsCancellationRequested)
@@ -180,10 +199,17 @@ namespace Server.Arkaine.Admin
                     var b2 = scope.ServiceProvider.GetRequiredService<IB2Service>();
                     var page = await b2.ListFiles(request, userName, null, cancellationToken);
 
-                    await ProcessPageAsync(page, userName, b2, cancellationToken);
+                    var pendingRequests = await GetPendingRequestsAsync(path, cancellationToken);
+                    if (exactFileName is not null && page.Files.Count == 0)
+                    {
+                        await MarkMissingRequestAsync(exactFileName, pendingRequests);
+                        break;
+                    }
+
+                    await ProcessPageAsync(page, userName, b2, pendingRequests, cancellationToken);
                     request.StartFile = page.NextFileName;
 
-                    if (string.IsNullOrEmpty(page.NextFileName))
+                    if (exactFileName is not null || string.IsNullOrEmpty(page.NextFileName))
                     {
                         break;
                     }
@@ -234,6 +260,7 @@ namespace Server.Arkaine.Admin
             FilesResponse page,
             string userName,
             IB2Service b2,
+            IReadOnlyList<VideoConversionRequest> pendingRequests,
             CancellationToken cancellationToken)
         {
             foreach (var file in page.Files)
@@ -246,24 +273,91 @@ namespace Server.Arkaine.Admin
                     _report.CurrentFile = file.FileName;
                 }
 
-                if (!_options.IsConvertibleImage(file.FileName) &&
-                    !_options.IsConvertibleVideo(file.FileName))
+                if (_options.IsCompressedVideo(file.FileName))
+                {
+                    RecordSkipped(file, string.Empty, "Compressed video outputs are not converted again.");
+                    continue;
+                }
+
+                var isImage = _options.IsConvertibleImage(file.FileName);
+                var isConfiguredVideo = _options.IsConvertibleVideo(file.FileName);
+                var isVideo = _options.IsVideoFile(file.FileName, file.ContentType);
+                var pendingRequest = FindPendingRequest(pendingRequests, file);
+
+                if (!isImage && !isConfiguredVideo && !isVideo)
                 {
                     RecordSkipped(file, string.Empty, "The file type is already supported.");
                     continue;
                 }
 
-                var targetFile = _options.GetConversionTargetFileName(file.FileName);
+                var targetFile = isImage
+                    ? _options.GetConversionTargetFileName(file.FileName)
+                    : _options.GetCompressedVideoTargetFileName(file.FileName);
+                var skipQueuedRequest = false;
+                long? sourceSize = null;
 
-                try
+                if (!isImage && isVideo && !isConfiguredVideo)
                 {
-                    if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
+                    var videoDecision = await GetVideoConversionDecisionAsync(
+                        file,
+                        userName,
+                        b2,
+                        cancellationToken);
+                    sourceSize = videoDecision.SourceSize;
+
+                    if (pendingRequest is null && !videoDecision.ShouldConvert)
                     {
-                        RecordSkipped(file, targetFile, "The destination file already exists.");
+                        RecordSkipped(file, string.Empty, videoDecision.Details);
                         continue;
                     }
 
-                    await ConvertAndUploadAsync(file, targetFile, userName, b2, cancellationToken);
+                    if (pendingRequest is null)
+                    {
+                        pendingRequest = await EnqueueAutomaticRequestAsync(
+                            file,
+                            userName,
+                            cancellationToken);
+                    }
+                    else if (videoDecision.HasKnownBitrate && !videoDecision.ShouldConvert)
+                    {
+                        skipQueuedRequest = true;
+                    }
+                }
+
+                try
+                {
+                    if (skipQueuedRequest)
+                    {
+                        RecordSkipped(file, targetFile, "The video is already within the configured bitrate limit; compression was skipped.");
+                        await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
+                        continue;
+                    }
+
+                    if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
+                    {
+                        RecordSkipped(file, targetFile, "The destination file already exists.");
+                        await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
+                        continue;
+                    }
+
+                    await MarkRunningAsync(pendingRequest?.Id, cancellationToken);
+                    var uploaded = await ConvertAndUploadAsync(
+                        file,
+                        targetFile,
+                        userName,
+                        b2,
+                        sourceSize,
+                        cancellationToken);
+                    await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
+                    if (!uploaded)
+                    {
+                        RecordSkipped(
+                            file,
+                            targetFile,
+                            "The converted video was not smaller than the source; no output was uploaded.");
+                        continue;
+                    }
+
                     lock (_syncRoot)
                     {
                         _report.Converted++;
@@ -280,10 +374,12 @@ namespace Server.Arkaine.Admin
                 }
                 catch (OperationCanceledException)
                 {
+                    await MarkQueuedAsync(pendingRequest?.Id, CancellationToken.None);
                     throw;
                 }
                 catch (Exception exception)
                 {
+                    await MarkFailedAsync(pendingRequest?.Id, RedactDownloadAuthorization(exception.Message), CancellationToken.None);
                     RecordFailure(file, targetFile, exception);
                     await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
                 }
@@ -295,11 +391,12 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private async Task ConvertAndUploadAsync(
+        private async Task<bool> ConvertAndUploadAsync(
             B2File file,
             string targetFile,
             string userName,
             IB2Service b2,
+            long? sourceSize,
             CancellationToken cancellationToken)
         {
             var kind = _options.IsConvertibleImage(file.FileName)
@@ -315,21 +412,39 @@ namespace Server.Arkaine.Admin
 
             try
             {
-                await using (var remoteStream = await b2.Download(userName, file.FileName, cancellationToken))
-                await using (var output = File.Create(tempSource))
+                var sourcePath = tempSource;
+                if (kind == MediaConversionKind.Video)
                 {
+                    sourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
+                }
+                else
+                {
+                    await using var remoteStream = await b2.Download(userName, file.FileName, cancellationToken);
+                    await using var output = File.Create(tempSource);
                     await remoteStream.CopyToAsync(output, cancellationToken);
                 }
 
                 var result = await _converter.ConvertAsync(
                     new MediaConversionRequest(
-                        tempSource,
+                        sourcePath,
                         tempTarget,
                         kind,
                         TimeSpan.FromSeconds(kind == MediaConversionKind.Image
                             ? _options.CONVERT_IMAGE_TIMEOUT_SECONDS
                             : _options.CONVERT_VIDEO_TIMEOUT_SECONDS)),
                     cancellationToken);
+
+                if (kind == MediaConversionKind.Video && result.HttpStatusCode == 401)
+                {
+                    var refreshedSourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
+                    result = await _converter.ConvertAsync(
+                        new MediaConversionRequest(
+                            refreshedSourcePath,
+                            tempTarget,
+                            kind,
+                            TimeSpan.FromSeconds(_options.CONVERT_VIDEO_TIMEOUT_SECONDS)),
+                        cancellationToken);
+                }
 
                 if (!result.Success)
                 {
@@ -340,7 +455,7 @@ namespace Server.Arkaine.Admin
 
                     var error = string.IsNullOrWhiteSpace(result.StandardError)
                         ? $"ffmpeg exited with code {result.ExitCode}."
-                        : result.StandardError;
+                        : RedactDownloadAuthorization(result.StandardError);
 
                     throw result.TimedOut
                         ? new TimeoutException(error)
@@ -351,6 +466,18 @@ namespace Server.Arkaine.Admin
                 if (!fileInfo.Exists || fileInfo.Length == 0)
                 {
                     throw new InvalidOperationException("ffmpeg did not produce an output file.");
+                }
+
+                if (kind == MediaConversionKind.Video &&
+                    sourceSize is > 0 &&
+                    fileInfo.Length >= sourceSize.Value)
+                {
+                    _logger.LogInformation(
+                        "Skipping video conversion for {SourceFile}; output size {OutputSize} is not smaller than source size {SourceSize}.",
+                        file.FileName,
+                        fileInfo.Length,
+                        sourceSize.Value);
+                    return false;
                 }
 
                 await using var convertedStream = File.OpenRead(tempTarget);
@@ -380,6 +507,8 @@ namespace Server.Arkaine.Admin
                     throw new InvalidOperationException(
                         $"Uploaded conversion target '{targetFile}' could not be verified.");
                 }
+
+                return true;
             }
             finally
             {
@@ -461,9 +590,187 @@ namespace Server.Arkaine.Admin
                     file.Type,
                     file.ContentType,
                     file.Size,
-                    exception.Message));
+                    RedactDownloadAuthorization(exception.Message)));
             }
         }
+
+        private async Task<IReadOnlyList<VideoConversionRequest>> GetPendingRequestsAsync(
+            string path,
+            CancellationToken cancellationToken)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var store = scope.ServiceProvider.GetService<IVideoConversionRequestStore>();
+            return store is null
+                ? []
+                : await store.GetPendingAsync(path, cancellationToken);
+        }
+
+        private async Task<VideoConversionRequest?> EnqueueAutomaticRequestAsync(
+            B2File file,
+            string userName,
+            CancellationToken cancellationToken)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var store = scope.ServiceProvider.GetService<IVideoConversionRequestStore>();
+            return store is null
+                ? null
+                : await store.EnqueueAsync(
+                    file.FileName,
+                    file.Id,
+                    userName,
+                    VideoConversionRequestReason.Automatic,
+                    cancellationToken);
+        }
+
+        private async Task MarkRunningAsync(int? requestId, CancellationToken cancellationToken)
+        {
+            await ExecuteRequestStoreActionAsync(
+                requestId,
+                (store, id) => store.MarkRunningAsync(id, cancellationToken));
+        }
+
+        private async Task MarkCompletedAsync(int? requestId, CancellationToken cancellationToken)
+        {
+            await ExecuteRequestStoreActionAsync(
+                requestId,
+                (store, id) => store.MarkCompletedAsync(id, cancellationToken));
+        }
+
+        private async Task MarkFailedAsync(int? requestId, string error, CancellationToken cancellationToken)
+        {
+            await ExecuteRequestStoreActionAsync(
+                requestId,
+                (store, id) => store.MarkFailedAsync(id, error, cancellationToken));
+        }
+
+        private async Task MarkQueuedAsync(int? requestId, CancellationToken cancellationToken)
+        {
+            await ExecuteRequestStoreActionAsync(
+                requestId,
+                (store, id) => store.MarkQueuedAsync(id, cancellationToken));
+        }
+
+        private async Task MarkMissingRequestAsync(
+            string fileName,
+            IReadOnlyList<VideoConversionRequest> pendingRequests)
+        {
+            var request = pendingRequests.FirstOrDefault(item =>
+                string.Equals(item.FileName, fileName, StringComparison.Ordinal));
+            if (request is null)
+            {
+                return;
+            }
+
+            await MarkFailedAsync(
+                request.Id,
+                "The queued source file was not found.",
+                CancellationToken.None);
+            _logger.LogWarning("Queued conversion source file was not found: {FileName}", fileName);
+        }
+
+        private async Task ExecuteRequestStoreActionAsync(
+            int? requestId,
+            Func<IVideoConversionRequestStore, int, Task> action)
+        {
+            if (requestId is null)
+            {
+                return;
+            }
+
+            using var scope = _serviceProvider.CreateScope();
+            var store = scope.ServiceProvider.GetService<IVideoConversionRequestStore>();
+            if (store is not null)
+            {
+                await action(store, requestId.Value);
+            }
+        }
+
+        private async Task<VideoConversionDecision> GetVideoConversionDecisionAsync(
+            B2File file,
+            string userName,
+            IB2Service b2,
+            CancellationToken cancellationToken)
+        {
+            var sourceUrl = await b2.GetDownloadUrl(userName, file.FileName, cancellationToken);
+            var metadata = await _converter.ProbeAsync(sourceUrl.AbsoluteUri, cancellationToken);
+
+            if (metadata.HttpStatusCode == 401)
+            {
+                sourceUrl = await b2.GetDownloadUrl(userName, file.FileName, cancellationToken);
+                metadata = await _converter.ProbeAsync(sourceUrl.AbsoluteUri, cancellationToken);
+            }
+
+            if (metadata.Cancelled || cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+
+            if (!metadata.Success || metadata.Metadata is null)
+            {
+                var details = string.IsNullOrWhiteSpace(metadata.Error)
+                    ? "Video bitrate could not be inspected; use manual conversion selection."
+                    : $"Video metadata could not be inspected: {RedactDownloadAuthorization(metadata.Error)}";
+                return new VideoConversionDecision(false, false, null, details);
+            }
+
+            var bitrates = new[] { metadata.Metadata.VideoBitrate, metadata.Metadata.FormatBitrate }
+                .Where(value => value.HasValue)
+                .Select(value => value!.Value)
+                .ToArray();
+
+            if (bitrates.Length == 0)
+            {
+                return new VideoConversionDecision(
+                    false,
+                    false,
+                    null,
+                    "Video bitrate metadata is unavailable; use manual conversion selection.");
+            }
+
+            var bitrate = bitrates.Max();
+            return bitrate > _options.CONVERT_VIDEO_MAX_BITRATE
+                ? new VideoConversionDecision(
+                    true,
+                    true,
+                    metadata.Metadata.FileSize,
+                    $"Detected bitrate {FormatBitrate(bitrate)} exceeds the configured limit of {FormatBitrate(_options.CONVERT_VIDEO_MAX_BITRATE)}.")
+                : new VideoConversionDecision(
+                    false,
+                    true,
+                    metadata.Metadata.FileSize,
+                    $"Detected bitrate {FormatBitrate(bitrate)} is already within the configured limit of {FormatBitrate(_options.CONVERT_VIDEO_MAX_BITRATE)}; compression can be skipped.");
+        }
+
+        private static VideoConversionRequest? FindPendingRequest(
+            IReadOnlyList<VideoConversionRequest> requests,
+            B2File file)
+        {
+            return requests.FirstOrDefault(request =>
+                string.Equals(request.FileName, file.FileName, StringComparison.Ordinal) &&
+                (string.IsNullOrEmpty(request.FileId) ||
+                 string.Equals(request.FileId, file.Id, StringComparison.Ordinal)));
+        }
+
+        private static string FormatBitrate(long bitrate)
+        {
+            return bitrate >= 1_000_000
+                ? $"{bitrate / 1_000_000d:0.##} Mbps"
+                : $"{bitrate / 1_000d:0.##} kbps";
+        }
+
+        private static string RedactDownloadAuthorization(string error)
+        {
+            return Regex.Replace(
+                error,
+                @"(?i)([?&]Authorization=)[^&\s]+",
+                "$1[redacted]");
+        }
+
+        private sealed record VideoConversionDecision(
+            bool ShouldConvert,
+            bool HasKnownBitrate,
+            long? SourceSize,
+            string Details);
 
         private async Task SaveReportAsync(ConversionReport report)
         {
@@ -492,16 +799,50 @@ namespace Server.Arkaine.Admin
         private void ObserveTask(Task task)
         {
             _ = task.ContinueWith(
-                completedTask =>
+                    ContinueAfterRunAsync,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default)
+                .Unwrap();
+        }
+
+        private async Task ContinueAfterRunAsync(Task completedTask)
+        {
+            if (completedTask.Exception is not null)
+            {
+                _logger.LogError(completedTask.Exception, "Conversion background task failed.");
+            }
+
+            if (SnapshotReport().Status == "cancelled")
+            {
+                return;
+            }
+
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var store = scope.ServiceProvider.GetService<IVideoConversionRequestStore>();
+                if (store is null)
                 {
-                    if (completedTask.Exception is not null)
-                    {
-                        _logger.LogError(completedTask.Exception, "Conversion background task failed.");
-                    }
-                },
-                CancellationToken.None,
-                TaskContinuationOptions.OnlyOnFaulted,
-                TaskScheduler.Default);
+                    return;
+                }
+
+                var nextRequest = (await store.GetPendingAsync(null, CancellationToken.None))
+                    .Where(request =>
+                        (request.Status is VideoConversionRequestStatus.Queued or VideoConversionRequestStatus.Running) &&
+                        request.Reason == VideoConversionRequestReason.Manual)
+                    .OrderBy(request => request.Id)
+                    .FirstOrDefault();
+
+                if (nextRequest is not null)
+                {
+                    TryStartForFile(nextRequest.RequestedBy, nextRequest.FileName);
+                }
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Could not continue the manually queued conversion requests.");
+            }
         }
     }
 }

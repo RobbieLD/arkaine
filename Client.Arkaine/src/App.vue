@@ -5,8 +5,8 @@
             <div
                 v-if="alert"
                 class="alert app-alert"
-                :class="alert.isError ? 'alert--error' : 'alert--info'"
-                role="alert"
+                :class="alert.isError ? 'alert--error' : 'alert--success'"
+                :role="alert.isError ? 'alert' : 'status'"
             >
                 {{ alert.message }}
             </div>

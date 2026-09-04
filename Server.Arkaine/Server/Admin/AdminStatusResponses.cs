@@ -15,6 +15,7 @@ namespace Server.Arkaine.Admin
         int ConversionPageSize,
         string ImageExtensions,
         string VideoExtensions,
+        long VideoMaxBitrate,
         string TempDirectory,
         bool IsRunning,
         ConversionReport Report);

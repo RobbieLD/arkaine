@@ -111,7 +111,7 @@
 
             <job-panel
                 title="Browser media conversion"
-                description="Convert unsupported images and videos to browser-friendly formats in the selected path. Existing destination files are skipped and source files are left unchanged."
+                description="Convert unsupported media and high-bitrate videos to browser-friendly formats in the selected path. Originals are kept and compressed video targets use a _compressed.mp4 suffix."
                 :running="adminStatus.conversion.isRunning"
                 :unavailable="adminStatus.conversion.ffmpegAvailable === false"
                 :toggle-disabled="conversionStartDisabled"
@@ -169,7 +169,11 @@
                 </div>
                 <div>
                     <dt>Target formats</dt>
-                    <dd>Images → JPEG · Video → MP4 (H.264/AAC)</dd>
+                    <dd>Images → JPEG · Video → _compressed.mp4 (H.264/AAC)</dd>
+                </div>
+                <div>
+                    <dt>Video bitrate limit/output cap</dt>
+                    <dd>{{ formatBitrate(adminStatus.conversion.videoMaxBitrate) }}</dd>
                 </div>
                 <div>
                     <dt>Scanned</dt>
@@ -568,6 +572,22 @@
                 return Number.isNaN(parsed.valueOf()) ? '' : parsed.toLocaleString()
             }
 
+            const formatBitrate = (value: number) => {
+                if (!value) {
+                    return 'Not configured'
+                }
+
+                const units = ['bps', 'Kbps', 'Mbps', 'Gbps']
+                let amount = value
+                let unit = 0
+                while (amount >= 1000 && unit < units.length - 1) {
+                    amount /= 1000
+                    unit++
+                }
+
+                return `${amount >= 10 || unit === 0 ? Math.round(amount) : amount.toFixed(1)} ${units[unit]}`
+            }
+
             const cacheSince = computed(() => formatTime(cache.value.startedUtc) || 'startup')
             const lastReset = computed(() => formatTime(cache.value.lastResetUtc))
 
@@ -748,6 +768,7 @@
                 conversionStatusLabel,
                 downloadReport,
                 ffmpegStatus,
+                formatBitrate,
                 hitRate,
                 hitRateColour,
                 lastReset,

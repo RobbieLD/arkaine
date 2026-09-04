@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NUnit.Framework;
@@ -149,6 +150,80 @@ namespace Server.Arkaine.Tests
                     new AdminJobRequest { Path = "gallery-alpha/" });
 
                 Assert.That((int)response.StatusCode, Is.EqualTo(StatusCodes.Status503ServiceUnavailable));
+            }
+        }
+
+        [Test]
+        public async Task VideoConversionRequestRoutes_QueueListAndCancelRequests()
+        {
+            var root = CreateRoot();
+            var b2 = new SingleFileB2Service();
+            var app = await CreateAppAsync(
+                TestOptionsFactory.Create(root),
+                new StubMediaConverter
+                {
+                    Availability = new MediaConverterAvailability(
+                        false,
+                        false,
+                        false,
+                        "ffmpeg",
+                        string.Empty,
+                        ["libx264", "aac"],
+                        "ffmpeg is unavailable")
+                },
+                b2: b2);
+
+            using (app)
+            {
+                var client = app.GetTestClient();
+                var queued = await client.PostAsJsonAsync(
+                    "/admin/conversion/requests",
+                    new VideoConversionRequestInput
+                    {
+                        FileName = "gallery/video.mp4",
+                        FileId = "video-01"
+                    });
+
+                queued.EnsureSuccessStatusCode();
+                var request = await queued.Content.ReadFromJsonAsync<VideoConversionRequestResponse>();
+                Assert.That(request, Is.Not.Null);
+                Assert.That(request!.Status, Is.EqualTo(VideoConversionRequestStatus.Queued));
+                Assert.That(request.FileName, Is.EqualTo("gallery/video.mp4"));
+
+                var listed = await client.GetFromJsonAsync<VideoConversionRequestResponse[]>(
+                    "/admin/conversion/requests?status=queued");
+                Assert.That(listed, Has.Length.EqualTo(1));
+                Assert.That(listed![0].Id, Is.EqualTo(request.Id));
+
+                var cancelled = await client.DeleteAsync($"/admin/conversion/requests/{request.Id}");
+                Assert.That((int)cancelled.StatusCode, Is.EqualTo(StatusCodes.Status204NoContent));
+
+                var afterCancel = await client.GetFromJsonAsync<VideoConversionRequestResponse[]>(
+                    "/admin/conversion/requests?status=cancelled");
+                Assert.That(afterCancel, Has.Length.EqualTo(1));
+            }
+        }
+
+        [Test]
+        public async Task VideoConversionRequestRoute_RejectsChangedFileId()
+        {
+            var root = CreateRoot();
+            var app = await CreateAppAsync(
+                TestOptionsFactory.Create(root),
+                new StubMediaConverter(),
+                b2: new SingleFileB2Service());
+
+            using (app)
+            {
+                var response = await app.GetTestClient().PostAsJsonAsync(
+                    "/admin/conversion/requests",
+                    new VideoConversionRequestInput
+                    {
+                        FileName = "gallery/video.mp4",
+                        FileId = "stale-id"
+                    });
+
+                Assert.That((int)response.StatusCode, Is.EqualTo(StatusCodes.Status409Conflict));
             }
         }
 
@@ -303,6 +378,10 @@ namespace Server.Arkaine.Tests
             builder.Services.AddSingleton<IProcessingReportService>(
                 reportService ?? new NoOpProcessingReportService());
             builder.Services.AddScoped(_ => b2 ?? new NoOpB2Service());
+            var databaseName = $"admin-api-{Guid.NewGuid():N}";
+            builder.Services.AddDbContext<ArkaineDbContext>(dbOptions =>
+                dbOptions.UseInMemoryDatabase(databaseName));
+            builder.Services.AddScoped<IVideoConversionRequestStore, VideoConversionRequestStore>();
 
             var app = builder.Build();
             app.UseAuthentication();
@@ -338,6 +417,50 @@ namespace Server.Arkaine.Tests
             {
                 await Task.Delay(Timeout.Infinite, cancellationToken);
                 return new FilesResponse();
+            }
+
+            public IResult Preview(string fileName) => Results.NotFound();
+            public Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult<IResult>(Results.NotFound());
+            public Task UploadMultiPartFile(string fileName, string contentType, Stream content, int chunkSize, CancellationToken cancellationToken) =>
+                Task.CompletedTask;
+            public Task UploadSingleFile(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken) =>
+                Task.CompletedTask;
+        }
+
+        private sealed class SingleFileB2Service : IB2Service
+        {
+            public Task Delete(DeleteModel request, CancellationToken cancellationToken) => Task.CompletedTask;
+            public Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult<Stream>(new MemoryStream());
+            public Task<Uri> GetDownloadUrl(string userName, string fileName, CancellationToken cancellationToken) =>
+                Task.FromResult(new Uri($"https://example.invalid/file/bucket/{Uri.EscapeDataString(fileName)}?Authorization=test"));
+            public Task<AuthResponse> GetToken(string key, CancellationToken cancellationToken) =>
+                Task.FromResult(new AuthResponse());
+            public Task Copy(CopyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+            public Task<FilesResponse> ListFiles(
+                FilesRequest request,
+                string userName,
+                IFavouritesService? favouritesService,
+                CancellationToken cancellationToken)
+            {
+                var file = new B2File
+                {
+                    FileName = "gallery/video.mp4",
+                    Id = "video-01",
+                    Type = "upload",
+                    ContentType = "video/mp4",
+                    Size = "1"
+                };
+                return Task.FromResult(new FilesResponse
+                {
+                    Files = request.ExactFileName is null
+                        ? [file]
+                        : string.Equals(request.ExactFileName, file.FileName, StringComparison.Ordinal)
+                            ? [file]
+                            : []
+                });
             }
 
             public IResult Preview(string fileName) => Results.NotFound();

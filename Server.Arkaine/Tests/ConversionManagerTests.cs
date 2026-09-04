@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NUnit.Framework;
 using Server.Arkaine.Admin;
 using Server.Arkaine.B2;
 using Server.Arkaine.Favourites;
+using Server.Arkaine.Media;
 using System.Text;
 
 namespace Server.Arkaine.Tests
@@ -193,6 +195,212 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ConvertAsync_ConvertsSupportedVideoWhenMetadataExceedsConfiguredBitrate()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object("gallery-alpha/ready.mp4", "video/mp4", Encoding.UTF8.GetBytes("video"), "source-01")],
+                options.THUMBNAIL_DIR);
+            var converter = new StubMediaConverter
+            {
+                ProbeResult = new MediaMetadataResult(
+                    true,
+                    new MediaMetadata(
+                        TimeSpan.FromMinutes(2),
+                        12_000_000,
+                        10_000_000,
+                        "h264",
+                        3840,
+                        2160,
+                        30,
+                        192_000,
+                        "aac"),
+                    string.Empty,
+                    TimeSpan.Zero,
+                    false,
+                    false)
+            };
+
+            using var services = BuildServices(options, converter, mockStore);
+            var manager = services.GetRequiredService<ConversionManager>();
+
+            Assert.That(manager.TryStart("admin", ConversionPath.RootSelection), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
+            Assert.That(converter.ProbeRequests, Has.Count.EqualTo(1));
+            Assert.That(converter.Requests, Has.Count.EqualTo(1));
+            Assert.That(converter.Requests[0].SourcePath, Does.StartWith("https://mock-b2.invalid/"));
+            Assert.That(files, Does.Contain("gallery-alpha/ready.mp4"));
+            Assert.That(files, Does.Contain("gallery-alpha/ready_compressed.mp4"));
+            Assert.That(manager.GetStatus().Report.Converted, Is.EqualTo(1));
+
+            using var scope = services.CreateScope();
+            var requests = await scope.ServiceProvider
+                .GetRequiredService<IVideoConversionRequestStore>()
+                .ListAsync(VideoConversionRequestStatus.Completed, CancellationToken.None);
+            Assert.That(requests, Has.Count.EqualTo(1));
+            Assert.That(requests[0].Reason, Is.EqualTo(VideoConversionRequestReason.Automatic));
+        }
+
+        [Test]
+        public async Task ConvertAsync_SkipsQueuedVideoWhenMetadataIsAlreadyWithinBitrateLimit()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object("gallery-alpha/ready.mp4", "video/mp4", Encoding.UTF8.GetBytes("video"), "source-01")],
+                options.THUMBNAIL_DIR);
+            var converter = new StubMediaConverter
+            {
+                ProbeResult = new MediaMetadataResult(
+                    true,
+                    new MediaMetadata(
+                        TimeSpan.FromMinutes(2),
+                        2_000_000,
+                        1_800_000,
+                        "h264",
+                        1920,
+                        1080,
+                        30,
+                        128_000,
+                        "aac"),
+                    string.Empty,
+                    TimeSpan.Zero,
+                    false,
+                    false)
+            };
+
+            using var services = BuildServices(options, converter, mockStore);
+            using (var scope = services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IVideoConversionRequestStore>()
+                    .EnqueueAsync(
+                        "gallery-alpha/ready.mp4",
+                        "source-01",
+                        "admin",
+                        VideoConversionRequestReason.Manual,
+                        CancellationToken.None);
+            }
+
+            var manager = services.GetRequiredService<ConversionManager>();
+            Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(converter.ProbeRequests, Has.Count.EqualTo(1));
+            Assert.That(converter.Requests, Is.Empty);
+            Assert.That(mockStore.SnapshotFiles().Select(file => file.FileName), Does.Not.Contain("gallery-alpha/ready_compressed.mp4"));
+            Assert.That(manager.GetStatus().Report.Skipped, Is.EqualTo(1));
+
+            using var resultScope = services.CreateScope();
+            var requests = await resultScope.ServiceProvider
+                .GetRequiredService<IVideoConversionRequestStore>()
+                .ListAsync(VideoConversionRequestStatus.Completed, CancellationToken.None);
+            Assert.That(requests, Has.Count.EqualTo(1));
+            Assert.That(requests[0].Reason, Is.EqualTo(VideoConversionRequestReason.Manual));
+        }
+
+        [Test]
+        public async Task ConvertAsync_ForManuallyQueuedFileListsOnlyThatFile()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var selectedFile = "gallery-alpha/selected.mp4";
+            var otherFile = "gallery-alpha/other.mp4";
+            var mockStore = CreateMockStore(
+                [
+                    new MockB2.MockB2Object(selectedFile, "video/mp4", Encoding.UTF8.GetBytes("selected"), "source-01"),
+                    new MockB2.MockB2Object(otherFile, "video/mp4", Encoding.UTF8.GetBytes("other"), "source-02")
+                ],
+                options.THUMBNAIL_DIR);
+            var converter = new StubMediaConverter();
+            var b2 = new RecordingB2Service(mockStore);
+
+            using var services = BuildServices(options, converter, mockStore, b2);
+            using (var scope = services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IVideoConversionRequestStore>()
+                    .EnqueueAsync(
+                        selectedFile,
+                        "source-01",
+                        "admin",
+                        VideoConversionRequestReason.Manual,
+                        CancellationToken.None);
+            }
+
+            var manager = services.GetRequiredService<ConversionManager>();
+            Assert.That(manager.TryStartForFile("admin", selectedFile), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(b2.Requests[0].ExactFileName, Is.EqualTo(selectedFile));
+            Assert.That(b2.Requests[0].Prefix, Is.Null);
+            var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
+            Assert.That(files, Does.Contain($"{selectedFile[..^4]}_compressed.mp4"));
+            Assert.That(files, Does.Not.Contain($"{otherFile[..^4]}_compressed.mp4"));
+            Assert.That(converter.Requests, Has.Count.EqualTo(1));
+        }
+
+        [Test]
+        public async Task ConvertAsync_SkipsOutputWhenTranscodeWouldBeLargerThanSource()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var source = "gallery-alpha/ready.mp4";
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object(source, "video/mp4", Encoding.UTF8.GetBytes("source"), "source-01")],
+                options.THUMBNAIL_DIR);
+            var converter = new StubMediaConverter
+            {
+                ProbeResult = new MediaMetadataResult(
+                    true,
+                    new MediaMetadata(
+                        TimeSpan.FromMinutes(2),
+                        12_000_000,
+                        10_000_000,
+                        "h264",
+                        3840,
+                        2160,
+                        30,
+                        192_000,
+                        "aac",
+                        6),
+                    string.Empty,
+                    TimeSpan.Zero,
+                    false,
+                    false),
+                OnConvertAsync = async (request, cancellationToken) =>
+                {
+                    await File.WriteAllTextAsync(request.TargetPath, "this output is larger", cancellationToken);
+                    return new MediaConversionResult(true, 0, string.Empty, TimeSpan.Zero, false, false);
+                }
+            };
+
+            using var services = BuildServices(options, converter, mockStore);
+            using (var scope = services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IVideoConversionRequestStore>()
+                    .EnqueueAsync(
+                        source,
+                        "source-01",
+                        "admin",
+                        VideoConversionRequestReason.Manual,
+                        CancellationToken.None);
+            }
+
+            var manager = services.GetRequiredService<ConversionManager>();
+            Assert.That(manager.TryStartForFile("admin", source), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            Assert.That(mockStore.SnapshotFiles().Select(file => file.FileName), Does.Not.Contain("gallery-alpha/ready_compressed.mp4"));
+            Assert.That(manager.GetStatus().Report.Converted, Is.EqualTo(0));
+            Assert.That(manager.GetStatus().Report.Skipped, Is.EqualTo(1));
+        }
+
+        [Test]
         public async Task ConvertAsync_DoesNotDeleteUnrelatedDirectoriesInTempRoot()
         {
             var root = CreateRoot();
@@ -254,8 +462,12 @@ namespace Server.Arkaine.Tests
         {
             var services = new ServiceCollection();
             var hub = new RecordingHubContext<AdminHub>();
+            var databaseName = $"conversion-{Guid.NewGuid():N}";
 
             services.AddSingleton<IOptions<ArkaineOptions>>(Options.Create(options));
+            services.AddDbContext<ArkaineDbContext>(builder =>
+                builder.UseInMemoryDatabase(databaseName));
+            services.AddScoped<IVideoConversionRequestStore, VideoConversionRequestStore>();
             services.AddSingleton<IHubContext<AdminHub>>(hub);
             services.AddSingleton(hub);
             services.AddSingleton<IThumbnailInfoProvider, ThumbnailInfoCache>();

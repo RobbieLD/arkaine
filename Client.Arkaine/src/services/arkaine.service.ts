@@ -7,6 +7,7 @@ import Tag from '@/models/tag'
 import ThumbnailCacheStats from '@/models/thumbnail-cache-stats'
 import type ProcessingReport from '@/models/processing-report'
 import type AdminStatusResponse from '@/models/admin-status'
+import type VideoConversionRequest from '@/models/video-conversion-request'
 import Profile, {
     Passkey,
     PasskeyAssertionPayload,
@@ -179,6 +180,24 @@ export default class ArkaineService extends BaseService {
     public async GetConversionPaths(): Promise<string[]> {
         const result = await this.http.get<string[]>('/admin/conversion/paths')
         return result.data
+    }
+
+    public async QueueVideoConversion(fileName: string, fileId: string): Promise<VideoConversionRequest> {
+        const result = await this.http.post<VideoConversionRequest>('/admin/conversion/requests', {
+            fileName,
+            fileId
+        })
+        return result.data
+    }
+
+    public async GetVideoConversionRequests(status?: string): Promise<VideoConversionRequest[]> {
+        const query = status ? `?status=${encodeURIComponent(status)}` : ''
+        const result = await this.http.get<VideoConversionRequest[]>(`/admin/conversion/requests${query}`)
+        return result.data
+    }
+
+    public async CancelVideoConversion(id: number): Promise<void> {
+        await this.http.delete(`/admin/conversion/requests/${id}`)
     }
 
     public async GetProcessingReports(): Promise<ProcessingReport[]> {

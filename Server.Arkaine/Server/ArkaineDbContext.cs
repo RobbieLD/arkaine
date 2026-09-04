@@ -44,5 +44,6 @@ namespace Server.Arkaine
         public DbSet<Favourite> Favourites => Set<Favourite>();
         public DbSet<Tag> Tags => Set<Tag>();
         public DbSet<ProcessingReport> ProcessingReports => Set<ProcessingReport>();
+        public DbSet<VideoConversionRequest> VideoConversionRequests => Set<VideoConversionRequest>();
     }
 }

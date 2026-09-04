@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Server.Arkaine.B2;
 using Server.Arkaine.Media;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using System.Text;
 
@@ -103,6 +105,93 @@ namespace Server.Arkaine.Admin
                 }
 
                 return Results.Ok(paths.OrderBy(path => path, StringComparer.Ordinal).ToArray());
+            });
+
+            app.MapGet("/admin/conversion/requests",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async ([FromQuery] string? status, [FromServices] IVideoConversionRequestStore requests, CancellationToken cancellationToken) =>
+            {
+                return Results.Ok(await requests.ListAsync(status, cancellationToken));
+            });
+
+            app.MapPost("/admin/conversion/requests",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async (
+                VideoConversionRequestInput request,
+                ClaimsPrincipal user,
+                [FromServices] IOptions<ArkaineOptions> options,
+                [FromServices] IB2Service b2,
+                [FromServices] IVideoConversionRequestStore requests,
+                [FromServices] ConversionManager conversionManager,
+                [FromServices] IMediaConverter converter,
+                CancellationToken cancellationToken) =>
+            {
+                var userName = user?.Identity?.Name ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return Results.BadRequest("User name must be supplied.");
+                }
+
+                if (!TryNormalizeVideoFileName(request.FileName, out var fileName))
+                {
+                    return Results.BadRequest("A valid video file name must be supplied.");
+                }
+
+                var response = await b2.ListFiles(
+                    new FilesRequest
+                    {
+                        ExactFileName = fileName,
+                        PageSize = 1
+                    },
+                    userName,
+                    null,
+                    cancellationToken);
+                var file = response.Files.SingleOrDefault();
+                if (file is null)
+                {
+                    return Results.NotFound();
+                }
+
+                if (!options.Value.IsVideoFile(file.FileName, file.ContentType) ||
+                    options.Value.IsCompressedVideo(file.FileName))
+                {
+                    return Results.BadRequest("Only original video files can be queued for compression.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.FileId) &&
+                    !string.Equals(request.FileId, file.Id, StringComparison.Ordinal))
+                {
+                    return Results.Conflict("The file has changed since it was listed.");
+                }
+
+                var queued = await requests.EnqueueAsync(
+                    file.FileName,
+                    file.Id,
+                    userName,
+                    VideoConversionRequestReason.Manual,
+                    cancellationToken);
+
+                var availability = await converter.GetAvailabilityAsync(cancellationToken);
+                if (availability.IsAvailable && !conversionManager.IsRunning)
+                {
+                    conversionManager.TryStartForFile(userName, file.FileName);
+                }
+
+                return Results.Ok(ToResponse(queued));
+            });
+
+            app.MapDelete("/admin/conversion/requests/{id:int}",
+                [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme, Roles = "Admin")]
+            async (int id, [FromServices] IVideoConversionRequestStore requests, CancellationToken cancellationToken) =>
+            {
+                if (id <= 0)
+                {
+                    return Results.BadRequest("A conversion request id must be positive.");
+                }
+
+                return await requests.CancelAsync(id, cancellationToken)
+                    ? Results.NoContent()
+                    : Results.Conflict("The conversion request was not queued.");
             });
 
             app.MapGet("/admin/cache",
@@ -371,6 +460,42 @@ namespace Server.Arkaine.Admin
                 "conversion" or "convert" => "conversion",
                 _ => string.Empty
             };
+        }
+
+        private static bool TryNormalizeVideoFileName(string? value, out string fileName)
+        {
+            fileName = string.Empty;
+            var candidate = value?.Trim() ?? string.Empty;
+            if (candidate.Length == 0 ||
+                candidate.Contains('\\') ||
+                candidate.Contains('\0') ||
+                candidate.StartsWith("/", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var segments = candidate.Split('/');
+            if (segments.Any(segment => segment.Length == 0 || segment is "." or ".."))
+            {
+                return false;
+            }
+
+            fileName = candidate;
+            return true;
+        }
+
+        private static VideoConversionRequestResponse ToResponse(VideoConversionRequest request)
+        {
+            return new VideoConversionRequestResponse(
+                request.Id,
+                request.FileName,
+                request.FileId,
+                request.RequestedBy,
+                request.Status,
+                request.Reason,
+                request.Error,
+                request.RequestedUtc,
+                request.UpdatedUtc);
         }
     }
 }

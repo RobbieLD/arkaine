@@ -55,7 +55,7 @@ namespace Server.Arkaine.Tests
             options.Normalize();
 
             Assert.That(options.GetConversionTargetFileName("gallery\\still.webp"), Is.EqualTo("gallery\\still.jpg"));
-            Assert.That(options.GetConversionTargetFileName("gallery/video.avi"), Is.EqualTo("gallery/video.mp4"));
+            Assert.That(options.GetConversionTargetFileName("gallery/video.avi"), Is.EqualTo("gallery/video_compressed.mp4"));
             Assert.That(options.GetConversionTargetFileName("gallery/ready.mp4"), Is.EqualTo("gallery/ready.mp4"));
         }
 

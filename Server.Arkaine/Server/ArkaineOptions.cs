@@ -30,6 +30,7 @@ namespace Server.Arkaine
         public string IMAGE_EXTENSIONS { get; set; } = string.Empty;
         public string VIDEO_EXTENSIONS { get; set; } = string.Empty;
         public string FFMPEG_PATH { get; set; } = "ffmpeg";
+        public string FFPROBE_PATH { get; set; } = string.Empty;
         public string CONVERSION_TEMP_DIR { get; set; } = string.Empty;
         public int THUMBNAIL_PAGE_SIZE { get; set; }
         public int THUMBNAIL_WIDTH { get; set; }
@@ -40,6 +41,7 @@ namespace Server.Arkaine
         public int CONVERT_VIDEO_CRF { get; set; } = 23;
         public string CONVERT_VIDEO_PRESET { get; set; } = "medium";
         public string CONVERT_VIDEO_AUDIO_BITRATE { get; set; } = "128k";
+        public long CONVERT_VIDEO_MAX_BITRATE { get; set; } = 8_000_000;
         public int FFMPEG_PROBE_TIMEOUT_SECONDS { get; set; } = 15;
         public int FFMPEG_CONVERSION_TIMEOUT_SECONDS { get; set; }
         public int CONVERT_IMAGE_TIMEOUT_SECONDS { get; set; }
@@ -57,6 +59,9 @@ namespace Server.Arkaine
             IMAGE_EXTENSIONS = CONVERT_IMAGE_EXTENSIONS;
             VIDEO_EXTENSIONS = CONVERT_VIDEO_EXTENSIONS;
             FFMPEG_PATH = string.IsNullOrWhiteSpace(FFMPEG_PATH) ? "ffmpeg" : FFMPEG_PATH.Trim();
+            FFPROBE_PATH = string.IsNullOrWhiteSpace(FFPROBE_PATH)
+                ? GetDefaultFfprobePath(FFMPEG_PATH)
+                : FFPROBE_PATH.Trim();
             CONVERSION_TEMP_DIR = string.IsNullOrWhiteSpace(CONVERSION_TEMP_DIR) ? string.Empty : CONVERSION_TEMP_DIR.Trim();
 
             if (CONVERT_PAGE_SIZE <= 0)
@@ -150,6 +155,11 @@ namespace Server.Arkaine
                 throw new InvalidOperationException($"{nameof(CONVERT_VIDEO_CRF)} must be between 0 and 51.");
             }
 
+            if (CONVERT_VIDEO_MAX_BITRATE <= 0)
+            {
+                throw new InvalidOperationException($"{nameof(CONVERT_VIDEO_MAX_BITRATE)} must be greater than zero.");
+            }
+
             if (FFMPEG_PROBE_TIMEOUT_SECONDS <= 0)
             {
                 throw new InvalidOperationException($"{nameof(FFMPEG_PROBE_TIMEOUT_SECONDS)} must be greater than zero.");
@@ -216,6 +226,27 @@ namespace Server.Arkaine
             return HasExtension(fileName, GetVideoExtensions());
         }
 
+        public bool IsVideoFile(string fileName, string? contentType = null)
+        {
+            if (contentType?.StartsWith("video/", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return true;
+            }
+
+            return HasExtension(
+                fileName,
+                new ReadOnlySet(ParseExtensions(
+                    ".avi,.flv,.m4v,.mkv,.mov,.mp4,.mpeg,.mpg,.webm,.wmv",
+                    [])));
+        }
+
+        public bool IsCompressedVideo(string fileName)
+        {
+            return IsVideoFile(fileName) &&
+                   Path.GetFileNameWithoutExtension(fileName)
+                       .EndsWith("_compressed", StringComparison.OrdinalIgnoreCase);
+        }
+
         public string GetConversionTargetFileName(string fileName)
         {
             if (IsConvertibleImage(fileName))
@@ -225,10 +256,20 @@ namespace Server.Arkaine
 
             if (IsConvertibleVideo(fileName))
             {
-                return Path.ChangeExtension(fileName, ".mp4") ?? fileName;
+                return GetCompressedVideoTargetFileName(fileName);
             }
 
             return fileName;
+        }
+
+        public string GetCompressedVideoTargetFileName(string fileName)
+        {
+            var directory = Path.GetDirectoryName(fileName);
+            var name = Path.GetFileNameWithoutExtension(fileName);
+            var targetName = $"{name}_compressed.mp4";
+            return string.IsNullOrEmpty(directory)
+                ? targetName
+                : Path.Combine(directory, targetName).Replace('\\', '/');
         }
 
         public string GetConversionTempDirectory()
@@ -297,6 +338,16 @@ namespace Server.Arkaine
             }
 
             return normalized;
+        }
+
+        private static string GetDefaultFfprobePath(string ffmpegPath)
+        {
+            var directory = Path.GetDirectoryName(ffmpegPath);
+            var extension = Path.GetExtension(ffmpegPath);
+            var fileName = $"ffprobe{extension}";
+            return string.IsNullOrEmpty(directory)
+                ? fileName
+                : Path.Combine(directory, fileName);
         }
 
         private sealed class ReadOnlySet(HashSet<string> values) : ReadOnlyCollection<string>(values.OrderBy(value => value, StringComparer.Ordinal).ToList()), IReadOnlySet<string>

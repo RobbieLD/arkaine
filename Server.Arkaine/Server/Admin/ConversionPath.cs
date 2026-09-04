@@ -45,5 +45,18 @@ namespace Server.Arkaine.Admin
             path = $"{candidate}/";
             return true;
         }
+
+        public static string ForFileName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return RootSelection;
+            }
+
+            var separator = fileName.IndexOf('/');
+            return separator < 0
+                ? RootSelection
+                : $"{fileName[..separator]}/";
+        }
     }
 }

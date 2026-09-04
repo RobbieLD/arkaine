@@ -107,6 +107,7 @@ builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IFavouritesService, FavouritesService>();
 builder.Services.AddScoped<IProcessingReportService, ProcessingReportService>();
+builder.Services.AddScoped<IVideoConversionRequestStore, VideoConversionRequestStore>();
 builder.Services.AddScoped<IExtractorFactory, ExtractorFactory>();
 builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArkaineDbContext>(options => options.UseNpgsql(builder.Configuration["DB_CONNECTION_STRING"]));

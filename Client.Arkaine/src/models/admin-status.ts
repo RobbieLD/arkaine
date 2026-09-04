@@ -22,6 +22,7 @@ export interface ConversionJobStatus {
     conversionPageSize: number
     imageExtensions: string
     videoExtensions: string
+    videoMaxBitrate: number
     report: ConversionProgress
 }
 
@@ -44,6 +45,7 @@ interface LegacyAdminStatusResponse {
     conversionPageSize?: unknown
     imageExtensions?: unknown
     videoExtensions?: unknown
+    videoMaxBitrate?: unknown
     thumbnailCache?: unknown
     cache?: unknown
     thumbnailCacheStats?: unknown
@@ -77,6 +79,7 @@ const emptyConversionJobStatus = (): ConversionJobStatus => ({
     conversionPageSize: 0,
     imageExtensions: '',
     videoExtensions: '',
+    videoMaxBitrate: 0,
     report: emptyConversionProgress()
 })
 
@@ -209,6 +212,7 @@ const normalizeConversionStatus = (
     conversionPageSize: readNumber(source, ['conversionPageSize', 'ConversionPageSize']),
     imageExtensions: readString(source, ['imageExtensions', 'ImageExtensions']),
     videoExtensions: readString(source, ['videoExtensions', 'VideoExtensions']),
+    videoMaxBitrate: readNumber(source, ['videoMaxBitrate', 'VideoMaxBitrate']),
     report: normalizeConversionProgress(readValue(source, ['report', 'Report']))
 })
 
@@ -263,6 +267,8 @@ export const normalizeAdminStatus = (value: LegacyAdminStatusResponse | unknown)
         'ImageExtensions',
         'videoExtensions',
         'VideoExtensions',
+        'videoMaxBitrate',
+        'VideoMaxBitrate',
         'conversionRunning',
         'ConversionRunning',
         'isConversionRunning',

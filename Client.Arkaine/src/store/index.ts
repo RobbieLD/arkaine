@@ -501,6 +501,24 @@ export const useAppStore = defineStore('app', {
             }
         },
 
+        async queueVideoConversion(file: ArkaineFile): Promise<void> {
+            const service = new ArkaineService()
+            try {
+                await service.QueueVideoConversion(file.rawFileName, file.id)
+                this.setAlert({
+                    isError: false,
+                    message: `${file.name} was added to the compression queue.`
+                })
+            }
+            catch (error) {
+                this.setAlert({
+                    isError: true,
+                    message: errorMessage(error)
+                })
+                throw error
+            }
+        },
+
         async loadAdminStatus(): Promise<void> {
             const service = new ArkaineService()
             const response = await service.GetAdminStatus()

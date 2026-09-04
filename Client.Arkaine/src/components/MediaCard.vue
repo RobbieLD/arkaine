@@ -117,6 +117,25 @@
             >
                 <app-icon :name="file.isFavourite ? 'heartFilled' : 'heart'" />
             </button>
+            <button
+                v-if="canCompressFile"
+                type="button"
+                class="btn btn--ghost btn--icon btn--sm media-card__compress"
+                :class="{
+                    'media-card__compress--queueing': compressionState === 'queueing',
+                    'media-card__compress--queued': compressionState === 'queued'
+                }"
+                :disabled="compressionState !== 'idle'"
+                :aria-label="compressionState === 'queued'
+                    ? `Compression queued for ${file.name}`
+                    : `Queue compression for ${file.name}`"
+                :title="compressionState === 'queued'
+                    ? 'Compression queued'
+                    : 'Queue compression'"
+                @click.stop.prevent="$emit('compress')"
+            >
+                <app-icon :name="compressionState === 'queued' ? 'check' : 'refresh'" />
+            </button>
         </footer>
     </article>
 </template>
@@ -126,13 +145,15 @@
     import AppIcon from './AppIcon.vue'
     import AudioPlayer from './AudioPlayer.vue'
 
+    type CompressionState = 'idle' | 'queueing' | 'queued'
+
     export default defineComponent({
         name: 'MediaCard',
         components: {
             AppIcon,
             AudioPlayer
         },
-        emits: ['favourite', 'prefetch'],
+        emits: ['compress', 'favourite', 'prefetch'],
         props: {
             file: {
                 type: Object as PropType<ArkaineFile>,
@@ -141,6 +162,14 @@
             to: {
                 type: String,
                 default: ''
+            },
+            canCompress: {
+                type: Boolean,
+                default: false
+            },
+            compressionState: {
+                type: String as PropType<CompressionState>,
+                default: 'idle'
             }
         },
         setup(props) {
@@ -170,6 +199,12 @@
                 return 'Folder'
             })
 
+            const canCompressFile = computed(() =>
+                props.canCompress &&
+                props.file.isVideo &&
+                !props.file.name.replace(/\.[^/.]+$/, '').endsWith('_compressed')
+            )
+
             const onImageError = (event: Event) => {
                 const image = event.target as HTMLImageElement
 
@@ -184,6 +219,7 @@
 
             return {
                 onImageError,
+                canCompressFile,
                 ratioStyle,
                 subtitle
             }
@@ -323,5 +359,19 @@
 
     .media-card__fav--on {
         color: var(--favourite);
+    }
+
+    .media-card__compress--queueing {
+        animation: media-card-compress-pulse 1s ease-in-out infinite;
+    }
+
+    .media-card__compress--queued {
+        color: var(--success);
+    }
+
+    @keyframes media-card-compress-pulse {
+        50% {
+            opacity: 0.45;
+        }
     }
 </style>

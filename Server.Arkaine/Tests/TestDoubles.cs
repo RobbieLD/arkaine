@@ -95,6 +95,7 @@ namespace Server.Arkaine.Tests
             new(true, true, true, "ffmpeg", "ffmpeg version test", [], string.Empty);
 
         public List<MediaConversionRequest> Requests { get; } = [];
+        public List<string> ProbeRequests { get; } = [];
 
         public Func<MediaConversionRequest, CancellationToken, Task<MediaConversionResult>> OnConvertAsync { get; set; } =
             async (request, cancellationToken) =>
@@ -103,9 +104,18 @@ namespace Server.Arkaine.Tests
                 return new MediaConversionResult(true, 0, string.Empty, TimeSpan.Zero, false, false);
             };
 
+        public MediaMetadataResult ProbeResult { get; set; } =
+            new(false, null, "No media metadata was configured for this test converter.", TimeSpan.Zero, false, false);
+
         public Task<MediaConverterAvailability> GetAvailabilityAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(Availability);
+        }
+
+        public Task<MediaMetadataResult> ProbeAsync(string sourcePath, CancellationToken cancellationToken)
+        {
+            ProbeRequests.Add(sourcePath);
+            return Task.FromResult(ProbeResult);
         }
 
         public Task<MediaConversionResult> ConvertAsync(MediaConversionRequest request, CancellationToken cancellationToken)

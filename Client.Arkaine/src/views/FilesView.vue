@@ -14,6 +14,9 @@
                     :key="file.rawFileName || file.name"
                     :file="file"
                     :to="folderLink(file)"
+                    :can-compress="canCompress"
+                    :compression-state="compressionStates[file.rawFileName]"
+                    @compress="compress(file)"
                     @favourite="fav(file)"
                     @prefetch="prefetch(file)"
                 />
@@ -32,7 +35,7 @@
 </template>
 <script lang="ts">
     import { useAppStore } from '@/store'
-    import { computed, defineComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+    import { computed, defineComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
     import { useRoute } from 'vue-router'
     import ArkaineFile from '@/models/arkaine-file'
     import AppIcon from '@/components/AppIcon.vue'
@@ -41,6 +44,7 @@
     import useMasonry from '@/composables/useMasonry'
 
     const skeletonRatios = [0.75, 1.3, 0.62, 1, 0.8, 1.45, 0.7, 1.1, 0.95, 0.66, 1.25, 0.85]
+    type CompressionState = 'queueing' | 'queued'
 
     export default defineComponent({
         name: 'FilesView',
@@ -58,6 +62,8 @@
             const loadingMore = ref(false)
 
             const files = computed<ArkaineFile[]>(() => store.files)
+            const canCompress = computed<boolean>(() => store.isAdmin)
+            const compressionStates = reactive<Record<string, CompressionState>>({})
             const hasMoreFiles = computed<boolean>(() => store.hasMoreFiles)
             const showSkeletons = computed<boolean>(() => store.isLoadingFolder)
             const isEmpty = computed(() => !showSkeletons.value && files.value.length === 0)
@@ -81,6 +87,19 @@
 
             const fav = async (file: ArkaineFile) => {
                 await store.toggleFavourite(file).catch(() => undefined)
+            }
+
+            const compress = async (file: ArkaineFile) => {
+                const key = file.rawFileName
+                compressionStates[key] = 'queueing'
+
+                try {
+                    await store.queueVideoConversion(file)
+                    compressionStates[key] = 'queued'
+                }
+                catch {
+                    delete compressionStates[key]
+                }
             }
 
             const loadMore = async () => {
@@ -135,7 +154,10 @@
 
             return {
                 fav,
+                canCompress,
+                compressionStates,
                 files,
+                compress,
                 folderLink,
                 grid,
                 isEmpty,
