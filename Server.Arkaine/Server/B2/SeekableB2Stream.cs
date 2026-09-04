@@ -78,6 +78,16 @@
         public async Task Open(string url)
         {
             var response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, _cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var statusCode = response.StatusCode;
+                response.Dispose();
+                throw new HttpRequestException(
+                    $"B2 download failed with status code {statusCode}.",
+                    null,
+                    statusCode);
+            }
+
             _contentLength = response.Content.Headers.ContentLength ?? 0;
             _contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
             _stream = await response.Content.ReadAsStreamAsync(_cancellationToken);

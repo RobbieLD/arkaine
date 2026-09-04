@@ -58,7 +58,10 @@ namespace Server.Arkaine.B2
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation($"Auth API call responded with: {response.StatusCode}");
-                throw new HttpRequestException($"Auth API call failed with status code {response.StatusCode}.");
+                throw new HttpRequestException(
+                    $"Auth API call failed with status code {response.StatusCode}.",
+                    null,
+                    response.StatusCode);
             }
 
             var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -155,24 +158,82 @@ namespace Server.Arkaine.B2
 
         public async Task<IResult> Stream(string userName, string fileName, CancellationToken cancellationToken)
         {
-            var cacheModel = await GetReadCache(userName, cancellationToken);
-            _httpClient.DefaultRequestHeaders.Clear();
-            var stream = await _httpClient.GetSeekableStreamAsync(cacheModel.Token, $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
+            var stream = await ExecuteWithCacheRefreshAsync(
+                userName,
+                _options.B2_KEY_READ,
+                cacheModel =>
+                {
+                    _httpClient.DefaultRequestHeaders.Clear();
+                    return _httpClient.GetSeekableStreamAsync(
+                        cacheModel.Token,
+                        $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}",
+                        cancellationToken);
+                },
+                cancellationToken);
             return Results.Stream(stream, contentType: stream.ContentType, enableRangeProcessing: true);
         }
 
         public async Task<Stream> Download(string userName, string fileName, CancellationToken cancellationToken)
         {
-            var cacheModel = await GetReadCache(userName, cancellationToken);
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
-            return await _httpClient.GetStreamAsync($"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}", cancellationToken);
+            return await ExecuteWithCacheRefreshAsync(
+                userName,
+                _options.B2_KEY_READ,
+                async cacheModel =>
+                {
+                    _httpClient.DefaultRequestHeaders.Clear();
+                    _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
+                    return await _httpClient.GetStreamAsync(
+                        $"{cacheModel.DownloadUrl}/file/{_options.BUCKET_NAME}/{fileName}",
+                        cancellationToken);
+                },
+                cancellationToken);
         }
 
         public async Task UploadSingleFile(string fileName, string contentType, long length, Stream content, CancellationToken cancellationToken)
         {
+            long? initialPosition = content.CanSeek ? content.Position : null;
             var urlResponse = await GetUploadUri(cancellationToken);
-            
+            var statusCode = await SendSingleFileUploadAsync(
+                urlResponse,
+                fileName,
+                contentType,
+                length,
+                content,
+                cancellationToken);
+
+            if (statusCode == HttpStatusCode.Unauthorized && initialPosition is not null)
+            {
+                content.Position = initialPosition.Value;
+                urlResponse = await GetUploadUri(cancellationToken);
+                statusCode = await SendSingleFileUploadAsync(
+                    urlResponse,
+                    fileName,
+                    contentType,
+                    length,
+                    content,
+                    cancellationToken);
+            }
+
+            if ((int)statusCode is < 200 or > 299)
+            {
+                _logger.LogInformation($"Upload API call responded with: {statusCode}");
+                throw new HttpRequestException(
+                    $"Upload API call failed with status code {statusCode}.",
+                    null,
+                    statusCode);
+            }
+
+            await _hubContext.Clients.All.SendAsync("update", $"Upload single part file {fileName} succeeded", cancellationToken);
+        }
+
+        private async Task<HttpStatusCode> SendSingleFileUploadAsync(
+            UploadUrlResponse urlResponse,
+            string fileName,
+            string contentType,
+            long length,
+            Stream content,
+            CancellationToken cancellationToken)
+        {
             var streamContent = new StreamContent(content);
             _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", urlResponse.Token);
@@ -183,15 +244,8 @@ namespace Server.Arkaine.B2
             streamContent.Headers.ContentLength = length;
             streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
 
-            var response = await _httpClient.PostAsync(urlResponse.UploadUrl, streamContent, cancellationToken);
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation($"Upload API call responded with: {response.StatusCode}");
-                throw new HttpRequestException($"Upload API call failed with status code {response.StatusCode}.");
-            }
-
-            await _hubContext.Clients.All.SendAsync("update", $"Upload single part file {fileName} succeeded", cancellationToken);
+            using var response = await _httpClient.PostAsync(urlResponse.UploadUrl, streamContent, cancellationToken);
+            return response.StatusCode;
         }
 
         public async Task Delete(DeleteModel request, CancellationToken cancellationToken)
@@ -280,7 +334,28 @@ namespace Server.Arkaine.B2
                 }
 
                 await _hubContext.Clients.All.SendAsync("update", $"Download part {partNumber} succeeded", cancellationToken);
-                var sha = await UploadPart(getUploadUriResponse.UploadUrl, getUploadUriResponse.AuthorizationToken, partNumber, buffer, read, cancellationToken);
+                string sha;
+                try
+                {
+                    sha = await UploadPart(
+                        getUploadUriResponse.UploadUrl,
+                        getUploadUriResponse.AuthorizationToken,
+                        partNumber,
+                        buffer,
+                        read,
+                        cancellationToken);
+                }
+                catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    getUploadUriResponse = await GetPartUploadUri(fileId, cancellationToken);
+                    sha = await UploadPart(
+                        getUploadUriResponse.UploadUrl,
+                        getUploadUriResponse.AuthorizationToken,
+                        partNumber,
+                        buffer,
+                        read,
+                        cancellationToken);
+                }
                 
                 partNumber++;
                 shas.Add(sha);
@@ -319,7 +394,10 @@ namespace Server.Arkaine.B2
             {
                 _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
                 await _hubContext.Clients.All.SendAsync("update", "Upload part failed", cancellationToken);
-                throw new HttpRequestException($"Upload part failed with status code {response.StatusCode}.");
+                throw new HttpRequestException(
+                    $"Upload part failed with status code {response.StatusCode}.",
+                    null,
+                    response.StatusCode);
             }
             
             await _hubContext.Clients.All.SendAsync("update", $"Upload part {partNumber} succeeded", cancellationToken);
@@ -348,11 +426,32 @@ namespace Server.Arkaine.B2
             ThumbnailPreview.Populate(file, _options.THUMBNAIL_DIR, _thumbnails);
         }
 
-        private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(TRequest request, string userName, string url, CancellationToken cancellationToken, bool useWriteCredentials = false)
+        private async Task<TResponse> MakeAuthenticatedRequest<TRequest, TResponse>(
+            TRequest request,
+            string userName,
+            string url,
+            CancellationToken cancellationToken,
+            bool useWriteCredentials = false)
         {
-            var cacheModel = useWriteCredentials
-                ? await GetWriteCache(cancellationToken)
-                : await GetReadCache(userName, cancellationToken);
+            var cacheKey = useWriteCredentials ? WriteCacheKey : userName;
+            var credential = useWriteCredentials ? _options.B2_KEY_WRITE : _options.B2_KEY_READ;
+            return await ExecuteWithCacheRefreshAsync(
+                cacheKey,
+                credential,
+                cacheModel => SendAuthenticatedRequestAsync<TRequest, TResponse>(
+                    request,
+                    cacheModel,
+                    url,
+                    cancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<TResponse> SendAuthenticatedRequestAsync<TRequest, TResponse>(
+            TRequest request,
+            CacheModel cacheModel,
+            string url,
+            CancellationToken cancellationToken)
+        {
             _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", cacheModel.Token);
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -373,7 +472,10 @@ namespace Server.Arkaine.B2
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation($"API call to {url} responded with: {response.StatusCode}");
-                throw new HttpRequestException($"API call failed with status code {response.StatusCode}.");
+                throw new HttpRequestException(
+                    $"API call failed with status code {response.StatusCode}.",
+                    null,
+                    response.StatusCode);
             }
 
             var model = JsonSerializer.Deserialize<TResponse>(responseString) ?? throw new($"Response is not a valid format for {nameof(TResponse)}");
@@ -480,16 +582,6 @@ namespace Server.Arkaine.B2
             return response;
         }
 
-        private Task<CacheModel> GetReadCache(string key, CancellationToken cancellationToken)
-        {
-            return GetCache(key, _options.B2_KEY_READ, cancellationToken);
-        }
-
-        private Task<CacheModel> GetWriteCache(CancellationToken cancellationToken)
-        {
-            return GetCache(WriteCacheKey, _options.B2_KEY_WRITE, cancellationToken);
-        }
-
         private async Task<CacheModel> GetCache(string key, string credential, CancellationToken cancellationToken)
         {
             var cacheModel = _cache.Get(key) as CacheModel;
@@ -503,6 +595,32 @@ namespace Server.Arkaine.B2
             }
 
             return cacheModel;
+        }
+
+        private async Task<TResponse> ExecuteWithCacheRefreshAsync<TResponse>(
+            string cacheKey,
+            string credential,
+            Func<CacheModel, Task<TResponse>> operation,
+            CancellationToken cancellationToken)
+        {
+            var hasRefreshed = false;
+
+            while (true)
+            {
+                var cacheModel = await GetCache(cacheKey, credential, cancellationToken);
+
+                try
+                {
+                    return await operation(cacheModel);
+                }
+                catch (HttpRequestException exception)
+                    when (!hasRefreshed && exception.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    hasRefreshed = true;
+                    _cache.Remove(cacheKey);
+                    _logger.LogWarning("B2 authorization was rejected; refreshing the cached token.");
+                }
+            }
         }
     }
 }

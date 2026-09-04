@@ -37,6 +37,48 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ListFiles_RefreshesReadCredentialsAfterUnauthorizedResponse()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root)
+            {
+                RejectFirstReadRequest = true,
+                RotateReadTokens = true
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+
+            var response = await service.ListFiles(
+                new FilesRequest { PageSize = 5 },
+                "reader",
+                null,
+                CancellationToken.None);
+
+            Assert.That(response.Files, Has.Count.EqualTo(2));
+            Assert.That(handler.AuthKeys.Count(key => key == "read-key"), Is.EqualTo(2));
+        }
+
+        [Test]
+        public async Task Download_RefreshesReadCredentialsAfterUnauthorizedResponse()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root)
+            {
+                RejectFirstDownloadRequest = true,
+                RotateReadTokens = true
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+
+            await using var response = await service.Download("reader", "source.bin", CancellationToken.None);
+            using var content = new MemoryStream();
+            await response.CopyToAsync(content);
+
+            Assert.That(content.ToArray(), Is.EqualTo(new byte[] { 1, 2, 3 }));
+            Assert.That(handler.AuthKeys.Count(key => key == "read-key"), Is.EqualTo(2));
+        }
+
+        [Test]
         public async Task UploadSingleFile_UsesWriteCredentials()
         {
             var root = CreateRoot();
@@ -90,6 +132,30 @@ namespace Server.Arkaine.Tests
                 CancellationToken.None);
 
             Assert.That(handler.StartedLargeFile, Is.True);
+            Assert.That(handler.FinishedLargeFile, Is.True);
+        }
+
+        [Test]
+        public async Task UploadMultiPartFile_RefreshesUploadPartUrlAfterUnauthorizedResponse()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root)
+            {
+                RejectFirstPartUpload = true
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+            await using var content = new MemoryStream(
+                new byte[B2MultipartLimits.MinimumPartSizeBytes + 1]);
+
+            await service.UploadMultiPartFile(
+                "converted.mp4",
+                "video/mp4",
+                content,
+                B2MultipartLimits.MinimumPartSizeBytes,
+                CancellationToken.None);
+
+            Assert.That(handler.PartUploadUrlRequests, Is.EqualTo(2));
             Assert.That(handler.FinishedLargeFile, Is.True);
         }
 
@@ -188,7 +254,17 @@ namespace Server.Arkaine.Tests
             public bool DeleteWasCalled { get; private set; }
             public bool StartedLargeFile { get; private set; }
             public bool FinishedLargeFile { get; private set; }
+            public bool RejectFirstReadRequest { get; set; }
+            public bool RejectFirstDownloadRequest { get; set; }
+            public bool RotateReadTokens { get; set; }
+            public bool RejectFirstPartUpload { get; set; }
+            public int PartUploadUrlRequests { get; private set; }
             public List<B2File> UnfinishedFiles { get; } = [];
+
+            private bool _readRequestRejected;
+            private bool _downloadRequestRejected;
+            private bool _partUploadRejected;
+            private int _readTokenVersion;
 
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
@@ -196,7 +272,11 @@ namespace Server.Arkaine.Tests
                 {
                     var key = DecodeBasic(request.Headers.Authorization);
                     AuthKeys.Add(key);
-                    var token = key == "write-key" ? "write-token" : "read-token";
+                    var token = key == "write-key"
+                        ? "write-token"
+                        : RotateReadTokens
+                            ? $"read-token-{++_readTokenVersion}"
+                            : "read-token";
 
                     return Task.FromResult(Json(HttpStatusCode.OK, new AuthResponse
                     {
@@ -209,7 +289,16 @@ namespace Server.Arkaine.Tests
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_list_file_names")
                 {
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("read-token"));
+                    if (RejectFirstReadRequest && !_readRequestRejected)
+                    {
+                        _readRequestRejected = true;
+                        return Task.FromResult(Json(HttpStatusCode.Unauthorized, new { code = "expired_auth_token" }));
+                    }
+
+                    var expectedReadToken = RotateReadTokens
+                        ? $"read-token-{_readTokenVersion}"
+                        : "read-token";
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(expectedReadToken));
 
                     return Task.FromResult(Json(HttpStatusCode.OK, new FilesResponse
                     {
@@ -219,6 +308,25 @@ namespace Server.Arkaine.Tests
                             new B2File { FileName = "gallery-alpha/image-01.jpg.backup", ContentType = "image/jpeg", Id = "2", Type = "upload", Size = "10" }
                         ]
                     }));
+                }
+
+                if (request.RequestUri?.AbsoluteUri == "https://download.invalid/file/bucket/source.bin")
+                {
+                    if (RejectFirstDownloadRequest && !_downloadRequestRejected)
+                    {
+                        _downloadRequestRejected = true;
+                        return Task.FromResult(Json(HttpStatusCode.Unauthorized, new { code = "expired_auth_token" }));
+                    }
+
+                    var expectedReadToken = RotateReadTokens
+                        ? $"read-token-{_readTokenVersion}"
+                        : "read-token";
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(expectedReadToken));
+                    return Task.FromResult(
+                        new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = new ByteArrayContent([1, 2, 3])
+                        });
                 }
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_get_upload_url")
@@ -254,6 +362,7 @@ namespace Server.Arkaine.Tests
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_get_upload_part_url")
                 {
+                    PartUploadUrlRequests++;
                     Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
                     return Task.FromResult(Json(HttpStatusCode.OK, new GetUploadPartsResponse
                     {
@@ -264,6 +373,12 @@ namespace Server.Arkaine.Tests
 
                 if (request.RequestUri?.AbsoluteUri == "https://part.invalid/")
                 {
+                    if (RejectFirstPartUpload && !_partUploadRejected)
+                    {
+                        _partUploadRejected = true;
+                        return Task.FromResult(Json(HttpStatusCode.Unauthorized, new { code = "expired_auth_token" }));
+                    }
+
                     Assert.That(GetAuthorizationValue(request), Is.EqualTo("part-token"));
                     return Task.FromResult(Json(HttpStatusCode.OK, new { }));
                 }
