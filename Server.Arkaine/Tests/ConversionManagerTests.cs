@@ -52,6 +52,62 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task ConvertAsync_PublishesCurrentFileBeforeLongConversionCompletes()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            const string source = "gallery-alpha/photo-01.webp";
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object(source, "image/webp", Encoding.UTF8.GetBytes("image"), "source-01")],
+                options.THUMBNAIL_DIR);
+            var conversionStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var allowConversionToFinish = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var converter = new StubMediaConverter
+            {
+                OnConvertAsync = async (request, cancellationToken) =>
+                {
+                    conversionStarted.TrySetResult(true);
+                    await allowConversionToFinish.Task.WaitAsync(cancellationToken);
+                    await File.WriteAllTextAsync(request.TargetPath, "converted", cancellationToken);
+                    return new Server.Arkaine.Media.MediaConversionResult(
+                        true,
+                        0,
+                        string.Empty,
+                        TimeSpan.Zero,
+                        false,
+                        false);
+                }
+            };
+
+            using var services = BuildServices(options, converter, mockStore);
+            var hub = services.GetRequiredService<RecordingHubContext<AdminHub>>();
+            var manager = services.GetRequiredService<ConversionManager>();
+
+            try
+            {
+                Assert.That(manager.TryStart("admin", "gallery-alpha/"), Is.True);
+                await conversionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+                var reports = hub.TypedClients.Messages
+                    .Where(message => message.Method == "convert")
+                    .Select(message => message.Args.SingleOrDefault())
+                    .OfType<ConversionReport>()
+                    .ToList();
+
+                Assert.That(
+                    reports.Any(report =>
+                        !report.Finished &&
+                        report.CurrentFile == source),
+                    Is.True);
+            }
+            finally
+            {
+                allowConversionToFinish.TrySetResult(true);
+                await manager.WaitForCompletionAsync();
+            }
+        }
+
+        [Test]
         public async Task ConvertAsync_RootPathUsesEmptyB2Prefix()
         {
             var root = CreateRoot();

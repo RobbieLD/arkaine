@@ -8,6 +8,9 @@ namespace Server.Arkaine.Admin
 {
     public class ConversionManager
     {
+        private const int ProgressNotificationScanInterval = 25;
+        private static readonly TimeSpan ProgressNotificationMinimumInterval = TimeSpan.FromSeconds(1);
+
         private readonly object _syncRoot = new();
         private readonly ArkaineOptions _options;
         private readonly IServiceProvider _serviceProvider;
@@ -169,6 +172,8 @@ namespace Server.Arkaine.Admin
             string? exactFileName,
             CancellationToken cancellationToken)
         {
+            var progressNotification = new ProgressNotificationState();
+
             try
             {
                 var availability = await _converter.GetAvailabilityAsync(cancellationToken);
@@ -206,7 +211,14 @@ namespace Server.Arkaine.Admin
                         break;
                     }
 
-                    await ProcessPageAsync(page, userName, b2, pendingRequests, cancellationToken);
+                    await ProcessPageAsync(
+                        page,
+                        userName,
+                        b2,
+                        pendingRequests,
+                        progressNotification,
+                        cancellationToken);
+                    await PublishProgressAsync(progressNotification, force: true);
                     request.StartFile = page.NextFileName;
 
                     if (exactFileName is not null || string.IsNullOrEmpty(page.NextFileName))
@@ -252,7 +264,7 @@ namespace Server.Arkaine.Admin
 
                 await SaveReportAsync(SnapshotReport(includeFiles: true));
                 _jobCoordinator.Release(AdminJobKind.Conversion);
-                await _hubContext.Clients.All.SendAsync("convert", SnapshotReport());
+                await PublishProgressAsync(progressNotification, force: true);
             }
         }
 
@@ -261,6 +273,7 @@ namespace Server.Arkaine.Admin
             string userName,
             IB2Service b2,
             IReadOnlyList<VideoConversionRequest> pendingRequests,
+            ProgressNotificationState progressNotification,
             CancellationToken cancellationToken)
         {
             foreach (var file in page.Files)
@@ -272,6 +285,8 @@ namespace Server.Arkaine.Admin
                     _report.Scanned++;
                     _report.CurrentFile = file.FileName;
                 }
+
+                await PublishProgressAsync(progressNotification);
 
                 if (_options.IsCompressedVideo(file.FileName))
                 {
@@ -381,12 +396,6 @@ namespace Server.Arkaine.Admin
                 {
                     await MarkFailedAsync(pendingRequest?.Id, RedactDownloadAuthorization(exception.Message), CancellationToken.None);
                     RecordFailure(file, targetFile, exception);
-                    await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
-                }
-
-                if (SnapshotReport().Scanned % 25 == 0 || SnapshotReport().Converted > 0)
-                {
-                    await _hubContext.Clients.All.SendAsync("convert", SnapshotReport(), cancellationToken);
                 }
             }
         }
@@ -571,6 +580,39 @@ namespace Server.Arkaine.Admin
             lock (_syncRoot)
             {
                 return _report.Clone(includeFiles);
+            }
+        }
+
+        private async Task PublishProgressAsync(
+            ProgressNotificationState state,
+            bool force = false)
+        {
+            var report = SnapshotReport();
+            var now = DateTimeOffset.UtcNow;
+            var hasPreviousAttempt = state.LastAttemptUtc != DateTimeOffset.MinValue;
+            var elapsed = hasPreviousAttempt
+                ? now - state.LastAttemptUtc
+                : TimeSpan.MaxValue;
+            var scansSinceLastAttempt = report.Scanned - state.LastAttemptedScanned;
+
+            if (!force &&
+                hasPreviousAttempt &&
+                scansSinceLastAttempt < ProgressNotificationScanInterval &&
+                elapsed < ProgressNotificationMinimumInterval)
+            {
+                return;
+            }
+
+            state.LastAttemptedScanned = report.Scanned;
+            state.LastAttemptUtc = now;
+
+            try
+            {
+                await _hubContext.Clients.All.SendAsync("convert", report);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(exception, "Could not publish media conversion progress.");
             }
         }
 
@@ -771,6 +813,12 @@ namespace Server.Arkaine.Admin
             bool HasKnownBitrate,
             long? SourceSize,
             string Details);
+
+        private sealed class ProgressNotificationState
+        {
+            public int LastAttemptedScanned { get; set; }
+            public DateTimeOffset LastAttemptUtc { get; set; } = DateTimeOffset.MinValue;
+        }
 
         private async Task SaveReportAsync(ConversionReport report)
         {
