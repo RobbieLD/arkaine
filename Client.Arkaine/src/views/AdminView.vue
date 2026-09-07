@@ -197,9 +197,42 @@
                     <dt>Cancelled</dt>
                     <dd>{{ conversionProgress.cancelled ? 'Yes' : 'No' }}</dd>
                 </div>
-                <div>
-                    <dt>Current file</dt>
-                    <dd>{{ conversionProgress.currentFile || 'Waiting for the next update' }}</dd>
+                <div
+                    v-if="adminStatus.conversion.isRunning && conversionProgress.currentFile"
+                    class="conversion-progress-detail-row"
+                >
+                    <dt>Active file</dt>
+                    <dd class="conversion-progress-detail">
+                        <strong class="conversion-progress-detail__file">
+                            {{ conversionProgress.currentFile }}
+                        </strong>
+                        <span class="conversion-progress-detail__phase">
+                            {{ conversionFilePhaseLabel }}
+                        </span>
+                        <div
+                            class="conversion-file-progress"
+                            role="progressbar"
+                            :aria-label="`Progress for ${conversionProgress.currentFile}`"
+                            :aria-valuemin="conversionFilePercent === null ? undefined : 0"
+                            :aria-valuemax="conversionFilePercent === null ? undefined : 100"
+                            :aria-valuenow="conversionFilePercent ?? undefined"
+                        >
+                            <div
+                                class="conversion-file-progress__fill"
+                                :class="{ 'conversion-file-progress__fill--indeterminate': conversionFilePercent === null }"
+                                :style="conversionFilePercent !== null ? { width: `${conversionFilePercent}%` } : undefined"
+                            ></div>
+                        </div>
+                        <span class="conversion-progress-detail__meta">
+                            {{ conversionFileProgressLabel }}
+                        </span>
+                        <span
+                            v-if="conversionProgressStale"
+                            class="conversion-progress-detail__stale"
+                        >
+                            Still running — no recent ffmpeg progress
+                        </span>
+                    </dd>
                 </div>
             </job-panel>
 
@@ -388,6 +421,7 @@
                     </div>
                 </dl>
             </section>
+
         </template>
     </div>
 </template>
@@ -440,6 +474,7 @@
             const adminStatus = computed(() => store.adminStatus)
             const thumbnailProgress = computed(() => store.thumbnailProgress)
             const conversionProgress = computed(() => store.conversionProgress)
+            const progressClock = ref(Date.now())
             const conversionPaths = computed(() => store.conversionPaths)
             const conversionPath = ref('')
             const cache = computed(() => store.thumbnailCache)
@@ -482,6 +517,94 @@
 
             const conversionProgressMessage = computed(() => {
                 return buildRunningMessage(conversionProgress.value.scanned, conversionProgress.value.currentFile, 'files')
+            })
+
+            const conversionFilePercent = computed(() => {
+                const value = conversionProgress.value.currentFileProgress?.percent
+                return typeof value === 'number' && Number.isFinite(value)
+                    ? Math.min(100, Math.max(0, value))
+                    : null
+            })
+
+            const conversionFilePhaseLabel = computed(() => {
+                const phase = conversionProgress.value.currentFileProgress?.phase ?? 'preparing'
+                const labels: Record<string, string> = {
+                    preparing: 'Preparing',
+                    probing: 'Reading media details',
+                    downloading: 'Downloading',
+                    encoding: 'Encoding',
+                    uploading: 'Uploading',
+                    verifying: 'Verifying upload',
+                    completed: 'Completed',
+                    skipped: 'Skipped',
+                    failed: 'Failed',
+                    cancelled: 'Cancelled'
+                }
+                return labels[phase] ?? phase
+            })
+
+            const formatElapsedSeconds = (value: number | null | undefined) => {
+                if (value === null || value === undefined || !Number.isFinite(value)) {
+                    return ''
+                }
+
+                const totalSeconds = Math.max(0, Math.floor(value))
+                const hours = Math.floor(totalSeconds / 3600)
+                const minutes = Math.floor((totalSeconds % 3600) / 60)
+                const seconds = totalSeconds % 60
+                const clock = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+                return hours > 0 ? `${hours}:${clock}` : clock
+            }
+
+            const conversionFileProgressLabel = computed(() => {
+                const progress = conversionProgress.value.currentFileProgress
+                if (!progress) {
+                    return 'Waiting for ffmpeg progress'
+                }
+
+                const details: string[] = []
+                const percent = conversionFilePercent.value
+                if (percent !== null) {
+                    details.push(`${Math.round(percent)}%`)
+                }
+
+                if (progress.mediaTimeSeconds !== null && Number.isFinite(progress.mediaTimeSeconds)) {
+                    const mediaTime = formatElapsedSeconds(progress.mediaTimeSeconds)
+                    const duration = progress.durationSeconds !== null
+                        ? ` / ${formatElapsedSeconds(progress.durationSeconds)}`
+                        : ''
+                    details.push(`${mediaTime}${duration}`)
+                }
+
+                if (progress.speed !== null && Number.isFinite(progress.speed)) {
+                    details.push(`${progress.speed.toFixed(1)}x`)
+                }
+
+                details.push(`${formatElapsedSeconds(progress.elapsedSeconds)} elapsed`)
+
+                if (progress.lastUpdatedUtc) {
+                    const lastUpdated = Date.parse(progress.lastUpdatedUtc)
+                    if (!Number.isNaN(lastUpdated)) {
+                        const secondsAgo = Math.max(0, Math.floor((progressClock.value - lastUpdated) / 1000))
+                        details.push(secondsAgo === 0 ? 'Updated just now' : `Updated ${secondsAgo}s ago`)
+                    }
+                }
+
+                return details.join(' · ')
+            })
+
+            const conversionProgressStale = computed(() => {
+                if (!adminStatus.value.conversion.isRunning) {
+                    return false
+                }
+
+                const lastUpdated = conversionProgress.value.currentFileProgress?.lastUpdatedUtc
+                if (!lastUpdated) {
+                    return false
+                }
+
+                const timestamp = Date.parse(lastUpdated)
+                return !Number.isNaN(timestamp) && progressClock.value - timestamp > 15_000
             })
 
             const conversionIdleMessage = computed(() => {
@@ -703,7 +826,12 @@
                 synchronizeConversionPath
             )
 
+            let progressClockHandle: number | undefined
+
             onMounted(async () => {
+                progressClockHandle = window.setInterval(() => {
+                    progressClock.value = Date.now()
+                }, 1000)
                 loading.value = true
                 accessDenied.value = false
                 loadError.value = ''
@@ -743,6 +871,9 @@
             })
 
             onBeforeUnmount(async () => {
+                if (progressClockHandle !== undefined) {
+                    window.clearInterval(progressClockHandle)
+                }
                 await store.unsubscribeFromUpdates()
             })
 
@@ -764,6 +895,10 @@
                 rootConversionPath,
                 conversionProgress,
                 conversionProgressMessage,
+                conversionFilePercent,
+                conversionFilePhaseLabel,
+                conversionFileProgressLabel,
+                conversionProgressStale,
                 conversionStartDisabled,
                 conversionStatusLabel,
                 downloadReport,
@@ -977,6 +1112,70 @@
 
     .detail-list > div:nth-last-child(-n + 2) {
         border-bottom: 0;
+    }
+
+    :deep(.detail-list > div.conversion-progress-detail-row) {
+        grid-column: 1 / -1;
+        padding: var(--space-5) var(--space-4) var(--space-5) 0;
+    }
+
+    .conversion-progress-detail {
+        display: grid;
+        gap: var(--space-2);
+        padding: var(--space-5);
+        background: var(--surface-sunken);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+    }
+
+    .conversion-progress-detail__file {
+        overflow-wrap: anywhere;
+    }
+
+    .conversion-progress-detail__phase {
+        color: var(--accent);
+        font-size: var(--text-sm);
+    }
+
+    .conversion-file-progress {
+        height: 0.5rem;
+        overflow: hidden;
+        background: var(--surface);
+        border-radius: var(--radius-pill);
+    }
+
+    .conversion-file-progress__fill {
+        height: 100%;
+        min-width: 0.15rem;
+        background: var(--accent);
+        border-radius: inherit;
+        transition: width var(--duration) var(--ease);
+    }
+
+    .conversion-file-progress__fill--indeterminate {
+        width: 35%;
+        animation: conversion-progress-indeterminate 1.4s var(--ease) infinite;
+    }
+
+    .conversion-progress-detail__meta {
+        color: var(--text-muted);
+        font-size: var(--text-xs);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .conversion-progress-detail__stale {
+        color: var(--warning);
+        font-size: var(--text-xs);
+    }
+
+    @keyframes conversion-progress-indeterminate {
+        0% {
+            transform: translateX(-100%);
+        }
+
+        100% {
+            transform: translateX(285%);
+        }
     }
 
     .detail-list dt {

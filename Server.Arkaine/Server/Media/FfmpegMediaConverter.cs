@@ -150,7 +150,17 @@ namespace Server.Arkaine.Media
                     ? _options.CONVERT_IMAGE_TIMEOUT_SECONDS
                     : _options.CONVERT_VIDEO_TIMEOUT_SECONDS);
             var process = CreateProcessStartInfo(request);
-            var result = await _runner.RunAsync(process, timeout, cancellationToken);
+            var progressParser = request.Progress is null
+                ? null
+                : new FfmpegProgressParser(request.Duration, request.Progress);
+            Func<string, ValueTask>? progressHandler = progressParser is null
+                ? null
+                : progressParser.ReadLineAsync;
+            var result = await _runner.RunAsync(
+                process,
+                timeout,
+                cancellationToken,
+                progressHandler);
 
             return new MediaConversionResult(
                 !result.TimedOut && !result.Cancelled && result.ExitCode == 0,
@@ -282,6 +292,10 @@ namespace Server.Arkaine.Media
             process.ArgumentList.Add("-y");
             process.ArgumentList.Add("-loglevel");
             process.ArgumentList.Add("error");
+            process.ArgumentList.Add("-progress");
+            process.ArgumentList.Add("pipe:1");
+            process.ArgumentList.Add("-stats_period");
+            process.ArgumentList.Add("1");
             process.ArgumentList.Add("-i");
             process.ArgumentList.Add(request.SourcePath);
 
@@ -562,6 +576,115 @@ namespace Server.Arkaine.Media
                 "$1[redacted]");
         }
 
+        private sealed class FfmpegProgressParser
+        {
+            private readonly TimeSpan? _duration;
+            private readonly Func<MediaConversionProgress, ValueTask> _progress;
+            private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
+
+            public FfmpegProgressParser(
+                TimeSpan? duration,
+                Func<MediaConversionProgress, ValueTask> progress)
+            {
+                _duration = duration;
+                _progress = progress;
+            }
+
+            public async ValueTask ReadLineAsync(string line)
+            {
+                var separator = line.IndexOf('=');
+                if (separator <= 0)
+                {
+                    return;
+                }
+
+                var key = line[..separator].Trim();
+                var value = line[(separator + 1)..].Trim();
+                _values[key] = value;
+
+                if (!string.Equals(key, "progress", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                var outputTime = ParseOutputTime(_values.GetValueOrDefault("out_time"));
+                var completed = string.Equals(value, "end", StringComparison.OrdinalIgnoreCase);
+                var percent = CalculatePercent(outputTime, completed);
+                var progress = new MediaConversionProgress(
+                    ParseInt64(_values.GetValueOrDefault("frame")),
+                    outputTime,
+                    ParseSpeed(_values.GetValueOrDefault("speed")),
+                    ParseInt64(_values.GetValueOrDefault("total_size")),
+                    percent,
+                    completed);
+
+                _values.Clear();
+                await _progress(progress);
+            }
+
+            private double? CalculatePercent(TimeSpan? outputTime, bool completed)
+            {
+                if (completed && _duration.HasValue && _duration.Value > TimeSpan.Zero)
+                {
+                    return 100;
+                }
+
+                if (!_duration.HasValue || _duration.Value <= TimeSpan.Zero || outputTime is null)
+                {
+                    return null;
+                }
+
+                return Math.Clamp(
+                    outputTime.Value.TotalSeconds / _duration.Value.TotalSeconds * 100,
+                    0,
+                    100);
+            }
+
+            private static TimeSpan? ParseOutputTime(string? value)
+            {
+                return TimeSpan.TryParse(
+                    value,
+                    CultureInfo.InvariantCulture,
+                    out var outputTime)
+                    ? outputTime
+                    : null;
+            }
+
+            private static double? ParseSpeed(string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value) ||
+                    string.Equals(value, "N/A", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                var normalized = value.Trim();
+                if (normalized.EndsWith('x'))
+                {
+                    normalized = normalized[..^1];
+                }
+
+                return double.TryParse(
+                    normalized,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var speed)
+                    ? speed
+                    : null;
+            }
+
+            private static long? ParseInt64(string? value)
+            {
+                return long.TryParse(
+                    value,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var result)
+                    ? result
+                    : null;
+            }
+        }
+
         private sealed record AvailabilityProbeResult(
             MediaConverterAvailability Availability,
             bool Cacheable);
@@ -569,7 +692,11 @@ namespace Server.Arkaine.Media
 
     public class SystemProcessRunner : IProcessRunner
     {
-        public async Task<ProcessRunResult> RunAsync(ProcessStartInfo startInfo, TimeSpan timeout, CancellationToken cancellationToken)
+        public async Task<ProcessRunResult> RunAsync(
+            ProcessStartInfo startInfo,
+            TimeSpan timeout,
+            CancellationToken cancellationToken,
+            Func<string, ValueTask>? onStandardOutputLine = null)
         {
             using var process = new Process
             {
@@ -578,8 +705,10 @@ namespace Server.Arkaine.Media
             var stopwatch = Stopwatch.StartNew();
 
             process.Start();
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
+            var standardOutput = new StringBuilder();
+            var standardError = new StringBuilder();
+            var stdoutTask = ReadLinesAsync(process.StandardOutput, standardOutput, onStandardOutputLine);
+            var stderrTask = ReadLinesAsync(process.StandardError, standardError, null);
 
             using var timeoutSource = new CancellationTokenSource(timeout);
             using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
@@ -592,23 +721,48 @@ namespace Server.Arkaine.Media
             {
                 TryKill(process);
                 await process.WaitForExitAsync(CancellationToken.None);
+                await Task.WhenAll(stdoutTask, stderrTask);
 
                 return new ProcessRunResult(
                     process.ExitCode,
-                    await stdoutTask,
-                    await stderrTask,
+                    standardOutput.ToString(),
+                    standardError.ToString(),
                     stopwatch.Elapsed,
                     timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested,
                     cancellationToken.IsCancellationRequested);
             }
 
+            await Task.WhenAll(stdoutTask, stderrTask);
             return new ProcessRunResult(
                 process.ExitCode,
-                await stdoutTask,
-                await stderrTask,
+                standardOutput.ToString(),
+                standardError.ToString(),
                 stopwatch.Elapsed,
                 false,
                 false);
+        }
+
+        private static async Task ReadLinesAsync(
+            StreamReader reader,
+            StringBuilder output,
+            Func<string, ValueTask>? onLine)
+        {
+            var firstLine = true;
+            while (await reader.ReadLineAsync() is { } line)
+            {
+                if (!firstLine)
+                {
+                    output.Append(Environment.NewLine);
+                }
+
+                output.Append(line);
+                firstLine = false;
+
+                if (onLine is not null)
+                {
+                    await onLine(line);
+                }
+            }
         }
 
         private static void TryKill(Process process)

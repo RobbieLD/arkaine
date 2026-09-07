@@ -12,7 +12,17 @@ namespace Server.Arkaine.Media
         string SourcePath,
         string TargetPath,
         MediaConversionKind Kind,
-        TimeSpan Timeout);
+        TimeSpan Timeout,
+        TimeSpan? Duration = null,
+        Func<MediaConversionProgress, ValueTask>? Progress = null);
+
+    public sealed record MediaConversionProgress(
+        long? Frame,
+        TimeSpan? OutputTime,
+        double? Speed,
+        long? TotalSize,
+        double? Percent,
+        bool Completed);
 
     public sealed record MediaConversionResult(
         bool Success,
@@ -70,6 +80,10 @@ namespace Server.Arkaine.Media
 
     public interface IProcessRunner
     {
-        Task<ProcessRunResult> RunAsync(ProcessStartInfo startInfo, TimeSpan timeout, CancellationToken cancellationToken);
+        Task<ProcessRunResult> RunAsync(
+            ProcessStartInfo startInfo,
+            TimeSpan timeout,
+            CancellationToken cancellationToken,
+            Func<string, ValueTask>? onStandardOutputLine = null);
     }
 }

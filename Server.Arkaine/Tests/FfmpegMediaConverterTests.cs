@@ -27,6 +27,10 @@ namespace Server.Arkaine.Tests
                 "-y",
                 "-loglevel",
                 "error",
+                "-progress",
+                "pipe:1",
+                "-stats_period",
+                "1",
                 "-i",
                 "source.webp",
                 "-map",
@@ -58,6 +62,10 @@ namespace Server.Arkaine.Tests
                 "-y",
                 "-loglevel",
                 "error",
+                "-progress",
+                "pipe:1",
+                "-stats_period",
+                "1",
                 "-i",
                 "source.mov",
                 "-map",
@@ -88,6 +96,51 @@ namespace Server.Arkaine.Tests
                 "+faststart",
                 "target.mp4"
             }));
+        }
+
+        [Test]
+        public async Task ConvertAsync_StreamsStructuredProgressUpdates()
+        {
+            var runner = new QueueProcessRunner();
+            runner.Enqueue(
+                new ProcessRunResult(0, string.Empty, string.Empty, TimeSpan.Zero, false, false),
+                "frame=10",
+                "out_time=00:00:05.000000",
+                "speed=1.50x",
+                "total_size=1000",
+                "progress=continue",
+                "frame=20",
+                "out_time=00:00:10.000000",
+                "speed=1.75x",
+                "total_size=2000",
+                "progress=end");
+            var converter = CreateConverter(runner);
+            var updates = new List<MediaConversionProgress>();
+
+            var result = await converter.ConvertAsync(
+                new MediaConversionRequest(
+                    "source.mov",
+                    "target.mp4",
+                    MediaConversionKind.Video,
+                    TimeSpan.FromSeconds(12),
+                    TimeSpan.FromSeconds(20),
+                    update =>
+                    {
+                        updates.Add(update);
+                        return ValueTask.CompletedTask;
+                    }),
+                CancellationToken.None);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(updates, Has.Count.EqualTo(2));
+            Assert.That(updates[0].Frame, Is.EqualTo(10));
+            Assert.That(updates[0].OutputTime, Is.EqualTo(TimeSpan.FromSeconds(5)));
+            Assert.That(updates[0].Speed, Is.EqualTo(1.5));
+            Assert.That(updates[0].TotalSize, Is.EqualTo(1000));
+            Assert.That(updates[0].Percent, Is.EqualTo(25));
+            Assert.That(updates[0].Completed, Is.False);
+            Assert.That(updates[1].Percent, Is.EqualTo(100));
+            Assert.That(updates[1].Completed, Is.True);
         }
 
         [Test]

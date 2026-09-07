@@ -66,26 +66,47 @@ namespace Server.Arkaine.Tests
 
     internal sealed class QueueProcessRunner : IProcessRunner
     {
-        private readonly Queue<Func<ProcessStartInfo, TimeSpan, CancellationToken, Task<ProcessRunResult>>> _responses = new();
+        private readonly Queue<Func<ProcessStartInfo, TimeSpan, CancellationToken, Func<string, ValueTask>?, Task<ProcessRunResult>>> _responses = new();
 
         public List<(string FileName, IReadOnlyList<string> Arguments, TimeSpan Timeout)> Calls { get; } = [];
 
         public void Enqueue(ProcessRunResult result)
         {
-            _responses.Enqueue((_, _, _) => Task.FromResult(result));
+            _responses.Enqueue((_, _, _, _) => Task.FromResult(result));
+        }
+
+        public void Enqueue(ProcessRunResult result, params string[] standardOutputLines)
+        {
+            _responses.Enqueue(async (_, _, _, onStandardOutputLine) =>
+            {
+                if (onStandardOutputLine is not null)
+                {
+                    foreach (var line in standardOutputLines)
+                    {
+                        await onStandardOutputLine(line);
+                    }
+                }
+
+                return result;
+            });
         }
 
         public void Enqueue(Func<ProcessStartInfo, TimeSpan, CancellationToken, Task<ProcessRunResult>> response)
         {
-            _responses.Enqueue(response);
+            _responses.Enqueue((startInfo, timeout, cancellationToken, _) =>
+                response(startInfo, timeout, cancellationToken));
         }
 
-        public Task<ProcessRunResult> RunAsync(ProcessStartInfo startInfo, TimeSpan timeout, CancellationToken cancellationToken)
+        public Task<ProcessRunResult> RunAsync(
+            ProcessStartInfo startInfo,
+            TimeSpan timeout,
+            CancellationToken cancellationToken,
+            Func<string, ValueTask>? onStandardOutputLine = null)
         {
             Calls.Add((startInfo.FileName, startInfo.ArgumentList.ToArray(), timeout));
             return _responses.Count == 0
                 ? Task.FromResult(new ProcessRunResult(0, string.Empty, string.Empty, TimeSpan.Zero, false, false))
-                : _responses.Dequeue()(startInfo, timeout, cancellationToken);
+                : _responses.Dequeue()(startInfo, timeout, cancellationToken, onStandardOutputLine);
         }
     }
 

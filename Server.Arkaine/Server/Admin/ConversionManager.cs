@@ -243,6 +243,12 @@ namespace Server.Arkaine.Admin
                     _report.Cancelled = true;
                     _report.Status = "cancelled";
                 }
+
+                await SetCurrentFilePhaseAsync(
+                    progressNotification,
+                    "cancelled",
+                    force: true,
+                    clearPercent: true);
             }
             catch (Exception exception)
             {
@@ -252,6 +258,12 @@ namespace Server.Arkaine.Admin
                     _report.Error = exception.Message;
                     _report.Status = "failed";
                 }
+
+                await SetCurrentFilePhaseAsync(
+                    progressNotification,
+                    "failed",
+                    force: true,
+                    clearPercent: true);
             }
             finally
             {
@@ -286,11 +298,16 @@ namespace Server.Arkaine.Admin
                     _report.CurrentFile = file.FileName;
                 }
 
+                BeginCurrentFileProgress(progressNotification);
                 await PublishProgressAsync(progressNotification);
 
                 if (_options.IsCompressedVideo(file.FileName))
                 {
-                    RecordSkipped(file, string.Empty, "Compressed video outputs are not converted again.");
+                    await RecordSkippedAsync(
+                        file,
+                        string.Empty,
+                        "Compressed video outputs are not converted again.",
+                        progressNotification);
                     continue;
                 }
 
@@ -301,7 +318,11 @@ namespace Server.Arkaine.Admin
 
                 if (!isImage && !isConfiguredVideo && !isVideo)
                 {
-                    RecordSkipped(file, string.Empty, "The file type is already supported.");
+                    await RecordSkippedAsync(
+                        file,
+                        string.Empty,
+                        "The file type is already supported.",
+                        progressNotification);
                     continue;
                 }
 
@@ -313,16 +334,23 @@ namespace Server.Arkaine.Admin
 
                 if (!isImage && isVideo && !isConfiguredVideo)
                 {
+                    await SetCurrentFilePhaseAsync(progressNotification, "probing", force: true);
                     var videoDecision = await GetVideoConversionDecisionAsync(
                         file,
                         userName,
                         b2,
                         cancellationToken);
                     sourceSize = videoDecision.SourceSize;
+                    progressNotification.CurrentFileDuration = videoDecision.Duration;
+                    await SetCurrentFilePhaseAsync(progressNotification, "preparing");
 
                     if (pendingRequest is null && !videoDecision.ShouldConvert)
                     {
-                        RecordSkipped(file, string.Empty, videoDecision.Details);
+                        await RecordSkippedAsync(
+                            file,
+                            string.Empty,
+                            videoDecision.Details,
+                            progressNotification);
                         continue;
                     }
 
@@ -343,14 +371,22 @@ namespace Server.Arkaine.Admin
                 {
                     if (skipQueuedRequest)
                     {
-                        RecordSkipped(file, targetFile, "The video is already within the configured bitrate limit; compression was skipped.");
+                        await RecordSkippedAsync(
+                            file,
+                            targetFile,
+                            "The video is already within the configured bitrate limit; compression was skipped.",
+                            progressNotification);
                         await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
                         continue;
                     }
 
                     if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is not null)
                     {
-                        RecordSkipped(file, targetFile, "The destination file already exists.");
+                        await RecordSkippedAsync(
+                            file,
+                            targetFile,
+                            "The destination file already exists.",
+                            progressNotification);
                         await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
                         continue;
                     }
@@ -362,14 +398,16 @@ namespace Server.Arkaine.Admin
                         userName,
                         b2,
                         sourceSize,
+                        progressNotification,
                         cancellationToken);
                     await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
                     if (!uploaded)
                     {
-                        RecordSkipped(
+                        await RecordSkippedAsync(
                             file,
                             targetFile,
-                            "The converted video was not smaller than the source; no output was uploaded.");
+                            "The converted video was not smaller than the source; no output was uploaded.",
+                            progressNotification);
                         continue;
                     }
 
@@ -386,16 +424,31 @@ namespace Server.Arkaine.Admin
                             file.Size,
                             string.Empty));
                     }
+
+                    await SetCurrentFilePhaseAsync(
+                        progressNotification,
+                        "completed",
+                        percent: 100);
                 }
                 catch (OperationCanceledException)
                 {
                     await MarkQueuedAsync(pendingRequest?.Id, CancellationToken.None);
+                    await SetCurrentFilePhaseAsync(
+                        progressNotification,
+                        "cancelled",
+                        force: true,
+                        clearPercent: true);
                     throw;
                 }
                 catch (Exception exception)
                 {
                     await MarkFailedAsync(pendingRequest?.Id, RedactDownloadAuthorization(exception.Message), CancellationToken.None);
                     RecordFailure(file, targetFile, exception);
+                    await SetCurrentFilePhaseAsync(
+                        progressNotification,
+                        "failed",
+                        force: true,
+                        clearPercent: true);
                 }
             }
         }
@@ -406,6 +459,7 @@ namespace Server.Arkaine.Admin
             string userName,
             IB2Service b2,
             long? sourceSize,
+            ProgressNotificationState progressNotification,
             CancellationToken cancellationToken)
         {
             var kind = _options.IsConvertibleImage(file.FileName)
@@ -424,13 +478,16 @@ namespace Server.Arkaine.Admin
                 var sourcePath = tempSource;
                 if (kind == MediaConversionKind.Video)
                 {
+                    await SetCurrentFilePhaseAsync(progressNotification, "encoding", force: true);
                     sourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
                 }
                 else
                 {
+                    await SetCurrentFilePhaseAsync(progressNotification, "downloading", force: true);
                     await using var remoteStream = await b2.Download(userName, file.FileName, cancellationToken);
                     await using var output = File.Create(tempSource);
                     await remoteStream.CopyToAsync(output, cancellationToken);
+                    await SetCurrentFilePhaseAsync(progressNotification, "encoding", force: true);
                 }
 
                 var result = await _converter.ConvertAsync(
@@ -440,18 +497,27 @@ namespace Server.Arkaine.Admin
                         kind,
                         TimeSpan.FromSeconds(kind == MediaConversionKind.Image
                             ? _options.CONVERT_IMAGE_TIMEOUT_SECONDS
-                            : _options.CONVERT_VIDEO_TIMEOUT_SECONDS)),
+                            : _options.CONVERT_VIDEO_TIMEOUT_SECONDS),
+                        progressNotification.CurrentFileDuration,
+                        progress => UpdateMediaProgressAsync(progressNotification, progress)),
                     cancellationToken);
 
                 if (kind == MediaConversionKind.Video && result.HttpStatusCode == 401)
                 {
                     var refreshedSourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
+                    await SetCurrentFilePhaseAsync(
+                        progressNotification,
+                        "encoding",
+                        force: true,
+                        clearPercent: true);
                     result = await _converter.ConvertAsync(
                         new MediaConversionRequest(
                             refreshedSourcePath,
                             tempTarget,
                             kind,
-                            TimeSpan.FromSeconds(_options.CONVERT_VIDEO_TIMEOUT_SECONDS)),
+                            TimeSpan.FromSeconds(_options.CONVERT_VIDEO_TIMEOUT_SECONDS),
+                            progressNotification.CurrentFileDuration,
+                            progress => UpdateMediaProgressAsync(progressNotification, progress)),
                         cancellationToken);
                 }
 
@@ -489,6 +555,11 @@ namespace Server.Arkaine.Admin
                     return false;
                 }
 
+                await SetCurrentFilePhaseAsync(
+                    progressNotification,
+                    "uploading",
+                    force: true,
+                    clearPercent: true);
                 await using var convertedStream = File.OpenRead(tempTarget);
                 var contentType = kind == MediaConversionKind.Image ? "image/jpeg" : "video/mp4";
 
@@ -511,6 +582,11 @@ namespace Server.Arkaine.Admin
                         cancellationToken);
                 }
 
+                await SetCurrentFilePhaseAsync(
+                    progressNotification,
+                    "verifying",
+                    force: true,
+                    clearPercent: true);
                 if (await GetExactFileAsync(b2, userName, targetFile, cancellationToken) is null)
                 {
                     throw new InvalidOperationException(
@@ -539,6 +615,116 @@ namespace Server.Arkaine.Admin
             }, userName, null, cancellationToken);
 
             return response.Files.SingleOrDefault();
+        }
+
+        private void BeginCurrentFileProgress(ProgressNotificationState state)
+        {
+            var now = DateTimeOffset.UtcNow;
+            state.CurrentFileStartedUtc = now;
+            state.CurrentFileDuration = null;
+
+            lock (_syncRoot)
+            {
+                _report.CurrentFileProgress = new ConversionFileProgress(
+                    "preparing",
+                    null,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    now);
+            }
+        }
+
+        private async Task SetCurrentFilePhaseAsync(
+            ProgressNotificationState state,
+            string phase,
+            bool force = false,
+            bool clearPercent = false,
+            double? percent = null)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var updated = false;
+
+            lock (_syncRoot)
+            {
+                if (_report.CurrentFileProgress is not { } current)
+                {
+                    return;
+                }
+
+                _report.CurrentFileProgress = current with
+                {
+                    Phase = phase,
+                    Percent = clearPercent ? null : percent ?? current.Percent,
+                    ElapsedSeconds = GetCurrentFileElapsedSeconds(state, now),
+                    DurationSeconds = state.CurrentFileDuration?.TotalSeconds ?? current.DurationSeconds,
+                    MediaTimeSeconds = clearPercent ? null : current.MediaTimeSeconds,
+                    Speed = clearPercent ? null : current.Speed,
+                    Frame = clearPercent ? null : current.Frame,
+                    BytesCompleted = clearPercent ? null : current.BytesCompleted,
+                    LastUpdatedUtc = now
+                };
+                updated = true;
+            }
+
+            if (updated)
+            {
+                await PublishProgressAsync(state, force);
+            }
+        }
+
+        private async ValueTask UpdateMediaProgressAsync(
+            ProgressNotificationState state,
+            MediaConversionProgress progress)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var percent = progress.Percent ?? (progress.Completed ? 100 : null);
+
+            lock (_syncRoot)
+            {
+                if (_report.CurrentFileProgress is not { } current)
+                {
+                    return;
+                }
+
+                _report.CurrentFileProgress = current with
+                {
+                    Phase = "encoding",
+                    Percent = percent ?? current.Percent,
+                    ElapsedSeconds = GetCurrentFileElapsedSeconds(state, now),
+                    MediaTimeSeconds = progress.OutputTime?.TotalSeconds,
+                    DurationSeconds = state.CurrentFileDuration?.TotalSeconds ?? current.DurationSeconds,
+                    Speed = progress.Speed,
+                    Frame = progress.Frame,
+                    BytesCompleted = progress.TotalSize,
+                    LastUpdatedUtc = now
+                };
+            }
+
+            await PublishProgressAsync(state);
+        }
+
+        private static double GetCurrentFileElapsedSeconds(
+            ProgressNotificationState state,
+            DateTimeOffset now)
+        {
+            return state.CurrentFileStartedUtc == DateTimeOffset.MinValue
+                ? 0
+                : Math.Max(0, (now - state.CurrentFileStartedUtc).TotalSeconds);
+        }
+
+        private async Task RecordSkippedAsync(
+            B2File file,
+            string targetFile,
+            string details,
+            ProgressNotificationState state)
+        {
+            RecordSkipped(file, targetFile, details);
+            await SetCurrentFilePhaseAsync(state, "skipped", clearPercent: true);
         }
 
         private void RecordSkipped(B2File file, string targetFile, string details)
@@ -752,7 +938,7 @@ namespace Server.Arkaine.Admin
                 var details = string.IsNullOrWhiteSpace(metadata.Error)
                     ? "Video bitrate could not be inspected; use manual conversion selection."
                     : $"Video metadata could not be inspected: {RedactDownloadAuthorization(metadata.Error)}";
-                return new VideoConversionDecision(false, false, null, details);
+                return new VideoConversionDecision(false, false, null, null, details);
             }
 
             var bitrates = new[] { metadata.Metadata.VideoBitrate, metadata.Metadata.FormatBitrate }
@@ -766,6 +952,7 @@ namespace Server.Arkaine.Admin
                     false,
                     false,
                     null,
+                    metadata.Metadata.Duration,
                     "Video bitrate metadata is unavailable; use manual conversion selection.");
             }
 
@@ -775,11 +962,13 @@ namespace Server.Arkaine.Admin
                     true,
                     true,
                     metadata.Metadata.FileSize,
+                    metadata.Metadata.Duration,
                     $"Detected bitrate {FormatBitrate(bitrate)} exceeds the configured limit of {FormatBitrate(_options.CONVERT_VIDEO_MAX_BITRATE)}.")
                 : new VideoConversionDecision(
                     false,
                     true,
                     metadata.Metadata.FileSize,
+                    metadata.Metadata.Duration,
                     $"Detected bitrate {FormatBitrate(bitrate)} is already within the configured limit of {FormatBitrate(_options.CONVERT_VIDEO_MAX_BITRATE)}; compression can be skipped.");
         }
 
@@ -812,12 +1001,15 @@ namespace Server.Arkaine.Admin
             bool ShouldConvert,
             bool HasKnownBitrate,
             long? SourceSize,
+            TimeSpan? Duration,
             string Details);
 
         private sealed class ProgressNotificationState
         {
             public int LastAttemptedScanned { get; set; }
             public DateTimeOffset LastAttemptUtc { get; set; } = DateTimeOffset.MinValue;
+            public DateTimeOffset CurrentFileStartedUtc { get; set; } = DateTimeOffset.MinValue;
+            public TimeSpan? CurrentFileDuration { get; set; }
         }
 
         private async Task SaveReportAsync(ConversionReport report)

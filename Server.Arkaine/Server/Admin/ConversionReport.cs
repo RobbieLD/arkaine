@@ -14,6 +14,7 @@ namespace Server.Arkaine.Admin
         public string Status { get; set; } = "idle";
         public string Path { get; set; } = string.Empty;
         public string CurrentFile { get; set; } = string.Empty;
+        public ConversionFileProgress? CurrentFileProgress { get; set; }
         public string Error { get; set; } = string.Empty;
         public DateTimeOffset? StartedUtc { get; set; }
         public DateTimeOffset? FinishedUtc { get; set; }
@@ -28,6 +29,9 @@ namespace Server.Arkaine.Admin
                 Cancelled = Cancelled,
                 Converted = Converted,
                 CurrentFile = CurrentFile,
+                CurrentFileProgress = CurrentFileProgress is null
+                    ? null
+                    : CurrentFileProgress with { },
                 Error = Error,
                 Failed = Failed,
                 Failures = Failures.Select(failure => failure with { }).ToList(),
@@ -45,6 +49,18 @@ namespace Server.Arkaine.Admin
             };
         }
     }
+
+    public sealed record ConversionFileProgress(
+        string Phase,
+        double? Percent,
+        double ElapsedSeconds,
+        double? MediaTimeSeconds,
+        double? DurationSeconds,
+        double? Speed,
+        long? Frame,
+        long? BytesCompleted,
+        long? BytesTotal,
+        DateTimeOffset LastUpdatedUtc);
 
     public sealed record ConversionFailure(string SourceFile, string TargetFile, string Error);
 

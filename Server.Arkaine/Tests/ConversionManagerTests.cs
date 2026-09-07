@@ -66,6 +66,17 @@ namespace Server.Arkaine.Tests
             {
                 OnConvertAsync = async (request, cancellationToken) =>
                 {
+                    if (request.Progress is not null)
+                    {
+                        await request.Progress(new MediaConversionProgress(
+                            10,
+                            TimeSpan.FromSeconds(5),
+                            1.5,
+                            1000,
+                            null,
+                            false));
+                    }
+
                     conversionStarted.TrySetResult(true);
                     await allowConversionToFinish.Task.WaitAsync(cancellationToken);
                     await File.WriteAllTextAsync(request.TargetPath, "converted", cancellationToken);
@@ -99,6 +110,15 @@ namespace Server.Arkaine.Tests
                         !report.Finished &&
                         report.CurrentFile == source),
                     Is.True);
+                var currentProgress = manager.GetStatus().Report.CurrentFileProgress;
+                Assert.That(currentProgress, Is.Not.Null);
+                Assert.That(currentProgress!.Phase, Is.EqualTo("encoding"));
+                Assert.That(currentProgress.MediaTimeSeconds, Is.EqualTo(5));
+                Assert.That(currentProgress.Speed, Is.EqualTo(1.5));
+                Assert.That(currentProgress.Frame, Is.EqualTo(10));
+                Assert.That(currentProgress.BytesCompleted, Is.EqualTo(1000));
+                Assert.That(currentProgress.ElapsedSeconds, Is.GreaterThan(0));
+                Assert.That(currentProgress.LastUpdatedUtc, Is.Not.EqualTo(default(DateTimeOffset)));
             }
             finally
             {
