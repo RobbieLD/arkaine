@@ -10,6 +10,9 @@ namespace Server.Arkaine.Admin
 {
     public class ThumbnailManager
     {
+        private const int ProgressNotificationScanInterval = 100;
+        private static readonly TimeSpan ProgressNotificationMinimumInterval = TimeSpan.FromSeconds(1);
+
         private readonly object _syncRoot = new();
         private readonly ArkaineOptions _options;
         private readonly ILogger<ThumbnailManager> _logger;
@@ -161,6 +164,8 @@ namespace Server.Arkaine.Admin
 
         private async Task RunAsync(string userName, CancellationToken cancellationToken)
         {
+            var progressNotification = new ProgressNotificationState();
+
             try
             {
                 var request = new FilesRequest
@@ -175,7 +180,8 @@ namespace Server.Arkaine.Admin
                     var uploader = scope.ServiceProvider.GetRequiredService<IB2Service>();
                     var page = await uploader.ListFiles(request, userName, null, cancellationToken);
 
-                    await ProcessPage(page, userName, uploader, cancellationToken);
+                    await ProcessPage(page, userName, uploader, progressNotification, cancellationToken);
+                    await PublishProgressAsync(progressNotification, force: true);
                     request.StartFile = page.NextFileName;
 
                     if (string.IsNullOrEmpty(page.NextFileName))
@@ -218,11 +224,16 @@ namespace Server.Arkaine.Admin
 
                 await SaveReportAsync(SnapshotReport());
                 _jobCoordinator.Release(AdminJobKind.Thumbnails);
-                await _hubContext.Clients.All.SendAsync("update", SnapshotReport());
+                await PublishProgressAsync(progressNotification, force: true);
             }
         }
 
-        private async Task ProcessPage(FilesResponse page, string userName, IB2Service uploader, CancellationToken cancellationToken)
+        private async Task ProcessPage(
+            FilesResponse page,
+            string userName,
+            IB2Service uploader,
+            ProgressNotificationState progressNotification,
+            CancellationToken cancellationToken)
         {
             foreach (var file in page.Files)
             {
@@ -231,6 +242,8 @@ namespace Server.Arkaine.Admin
                     _report.Scanned++;
                     _report.CurrentFile = file.FileName;
                 }
+
+                await PublishProgressAsync(progressNotification);
 
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -280,11 +293,6 @@ namespace Server.Arkaine.Admin
                 {
                     _logger.LogError(exception, "Generating thumbnail failed for {FileName}", file.FileName);
                     RecordFailure(file, exception.Message);
-                }
-
-                if (SnapshotReport().Scanned % 100 == 0)
-                {
-                    await _hubContext.Clients.All.SendAsync("update", SnapshotReport());
                 }
             }
         }
@@ -432,6 +440,39 @@ namespace Server.Arkaine.Admin
             }
         }
 
+        private async Task PublishProgressAsync(
+            ProgressNotificationState state,
+            bool force = false)
+        {
+            var report = SnapshotReport();
+            var now = DateTimeOffset.UtcNow;
+            var hasPreviousAttempt = state.LastAttemptUtc != DateTimeOffset.MinValue;
+            var elapsed = hasPreviousAttempt
+                ? now - state.LastAttemptUtc
+                : TimeSpan.MaxValue;
+            var scansSinceLastAttempt = report.Scanned - state.LastAttemptedScanned;
+
+            if (!force &&
+                hasPreviousAttempt &&
+                scansSinceLastAttempt < ProgressNotificationScanInterval &&
+                elapsed < ProgressNotificationMinimumInterval)
+            {
+                return;
+            }
+
+            state.LastAttemptedScanned = report.Scanned;
+            state.LastAttemptUtc = now;
+
+            try
+            {
+                await _hubContext.Clients.All.SendAsync("update", report);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(exception, "Could not publish thumbnail generation progress.");
+            }
+        }
+
         private void RecordFailure(B2File file, string error)
         {
             lock (_syncRoot)
@@ -469,6 +510,12 @@ namespace Server.Arkaine.Admin
                         : $"{_report.Error} Could not save the report: {exception.Message}";
                 }
             }
+        }
+
+        private sealed class ProgressNotificationState
+        {
+            public int LastAttemptedScanned { get; set; }
+            public DateTimeOffset LastAttemptUtc { get; set; } = DateTimeOffset.MinValue;
         }
 
         private void ObserveTask(Task task)

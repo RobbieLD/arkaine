@@ -56,6 +56,53 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task GenerateThumbnails_PublishesProgressForSkippedFilesBeforeCompletion()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            var service = new ThumbnailB2Service(
+                CreateImageBytes(),
+                [
+                    new B2File
+                    {
+                        FileName = "folder/unsupported.txt",
+                        ContentType = "text/plain",
+                        Type = "upload"
+                    },
+                    new B2File
+                    {
+                        FileName = "folder/existing.webp",
+                        ContentType = "image/webp",
+                        Type = "upload"
+                    }
+                ]);
+            Assert.That(
+                ThumbnailPathResolver.TryResolve(options.THUMBNAIL_DIR, "folder/existing.webp", out var thumbnailPath),
+                Is.True);
+            Directory.CreateDirectory(Path.GetDirectoryName(thumbnailPath)!);
+            await File.WriteAllTextAsync(thumbnailPath, "existing");
+
+            using var services = BuildServices(options, service);
+            var hub = services.GetRequiredService<RecordingHubContext<AdminHub>>();
+            var manager = services.GetRequiredService<ThumbnailManager>();
+
+            Assert.That(manager.TryStart("admin"), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            var reports = hub.TypedClients.Messages
+                .Where(message => message.Method == "update")
+                .Select(message => message.Args.SingleOrDefault())
+                .OfType<GenerationReport>()
+                .ToList();
+
+            Assert.That(
+                reports.Any(report => !report.Finished && report.Scanned == 2),
+                Is.True);
+            Assert.That(reports.Last().Finished, Is.True);
+            Assert.That(reports.Last().Scanned, Is.EqualTo(2));
+        }
+
+        [Test]
         public async Task GenerateThumbnails_ExtractsVideoFrameIntoJpegThumbnail()
         {
             var root = CreateRoot();
@@ -227,17 +274,29 @@ namespace Server.Arkaine.Tests
         private sealed class ThumbnailB2Service : IB2Service
         {
             private readonly byte[] _image;
-            private readonly string _fileName;
-            private readonly string _contentType;
+            private readonly IReadOnlyList<B2File> _files;
 
             public ThumbnailB2Service(
                 byte[] image,
                 string fileName = "folder/image.webp",
                 string contentType = "image/webp")
+                : this(
+                    image,
+                    [
+                        new B2File
+                        {
+                            FileName = fileName,
+                            ContentType = contentType,
+                            Type = "upload"
+                        }
+                    ])
+            {
+            }
+
+            public ThumbnailB2Service(byte[] image, IReadOnlyList<B2File> files)
             {
                 _image = image;
-                _fileName = fileName;
-                _contentType = contentType;
+                _files = files;
             }
 
             public bool FailFirstDownload { get; set; }
@@ -276,15 +335,7 @@ namespace Server.Arkaine.Tests
             {
                 return Task.FromResult(new FilesResponse
                 {
-                    Files =
-                    [
-                        new B2File
-                        {
-                            FileName = _fileName,
-                            ContentType = _contentType,
-                            Type = "upload"
-                        }
-                    ]
+                    Files = _files.ToList()
                 });
             }
 
