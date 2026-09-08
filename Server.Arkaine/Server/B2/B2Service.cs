@@ -249,6 +249,7 @@ namespace Server.Arkaine.B2
 
             if (statusCode == HttpStatusCode.Unauthorized && initialPosition is not null)
             {
+                InvalidateWriteCache();
                 content.Position = initialPosition.Value;
                 urlResponse = await GetUploadUri(cancellationToken);
                 statusCode = await SendSingleFileUploadAsync(
@@ -393,6 +394,7 @@ namespace Server.Arkaine.B2
                 }
                 catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.Unauthorized)
                 {
+                    InvalidateWriteCache();
                     getUploadUriResponse = await GetPartUploadUri(fileId, cancellationToken);
                     sha = await UploadPart(
                         getUploadUriResponse.UploadUrl,
@@ -612,6 +614,11 @@ namespace Server.Arkaine.B2
 
             await _hubContext.Clients.All.SendAsync("update", $"Get upload url succeeded", cancellationToken);
             return response;
+        }
+
+        private void InvalidateWriteCache()
+        {
+            _cache.Remove(WriteCacheKey);
         }
 
         private static FilesResponse ApplyExactFileFilter(FilesResponse response, string? exactFileName)

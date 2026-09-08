@@ -136,6 +136,25 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public async Task UploadSingleFile_RefreshesWriteCredentialsAfterUnauthorizedResponse()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root)
+            {
+                RejectFirstUpload = true,
+                RotateWriteTokens = true
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+            await using var content = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
+
+            await service.UploadSingleFile("converted.mp4", "video/mp4", content.Length, content, CancellationToken.None);
+
+            Assert.That(handler.AuthKeys.Count(key => key == "write-key"), Is.EqualTo(2));
+            Assert.That(handler.UploadWasCalled, Is.True);
+        }
+
+        [Test]
         public async Task Delete_UsesWriteCredentials()
         {
             var root = CreateRoot();
@@ -182,7 +201,8 @@ namespace Server.Arkaine.Tests
             var root = CreateRoot();
             var handler = new RecordingB2Handler(root)
             {
-                RejectFirstPartUpload = true
+                RejectFirstPartUpload = true,
+                RotateWriteTokens = true
             };
             using var cache = new MemoryCache(new MemoryCacheOptions());
             var service = CreateService(handler, cache, root);
@@ -197,6 +217,7 @@ namespace Server.Arkaine.Tests
                 CancellationToken.None);
 
             Assert.That(handler.PartUploadUrlRequests, Is.EqualTo(2));
+            Assert.That(handler.AuthKeys.Count(key => key == "write-key"), Is.EqualTo(2));
             Assert.That(handler.FinishedLargeFile, Is.True);
         }
 
@@ -299,7 +320,9 @@ namespace Server.Arkaine.Tests
             public bool RejectFirstDownloadRequest { get; set; }
             public bool RejectFirstDownloadAuthorization { get; set; }
             public bool RotateReadTokens { get; set; }
+            public bool RejectFirstUpload { get; set; }
             public bool RejectFirstPartUpload { get; set; }
+            public bool RotateWriteTokens { get; set; }
             public int PartUploadUrlRequests { get; private set; }
             public List<B2File> UnfinishedFiles { get; } = [];
             public List<DownloadAuthorizationRequest> DownloadAuthorizations { get; } = [];
@@ -307,8 +330,10 @@ namespace Server.Arkaine.Tests
             private bool _readRequestRejected;
             private bool _downloadRequestRejected;
             private bool _downloadAuthorizationRejected;
+            private bool _uploadRejected;
             private bool _partUploadRejected;
             private int _readTokenVersion;
+            private int _writeTokenVersion;
 
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
@@ -317,7 +342,9 @@ namespace Server.Arkaine.Tests
                     var key = DecodeBasic(request.Headers.Authorization);
                     AuthKeys.Add(key);
                     var token = key == "write-key"
-                        ? "write-token"
+                        ? RotateWriteTokens
+                            ? $"write-token-{++_writeTokenVersion}"
+                            : "write-token"
                         : RotateReadTokens
                             ? $"read-token-{++_readTokenVersion}"
                             : "read-token";
@@ -399,18 +426,18 @@ namespace Server.Arkaine.Tests
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_get_upload_url")
                 {
                     RequestedWriteUploadUrl = true;
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
 
                     return Task.FromResult(Json(HttpStatusCode.OK, new UploadUrlResponse
                     {
-                        Token = "upload-token",
+                        Token = ExpectedUploadToken,
                         UploadUrl = "https://upload.invalid"
                     }));
                 }
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_list_unfinished_large_files")
                 {
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new FilesResponse
                     {
                         Files = UnfinishedFiles
@@ -420,7 +447,7 @@ namespace Server.Arkaine.Tests
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_start_large_file")
                 {
                     StartedLargeFile = true;
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new StartPartUploadResponse
                     {
                         FileId = "intended-file"
@@ -430,10 +457,10 @@ namespace Server.Arkaine.Tests
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_get_upload_part_url")
                 {
                     PartUploadUrlRequests++;
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new GetUploadPartsResponse
                     {
-                        AuthorizationToken = "part-token",
+                        AuthorizationToken = ExpectedPartToken,
                         UploadUrl = "https://part.invalid"
                     }));
                 }
@@ -446,14 +473,14 @@ namespace Server.Arkaine.Tests
                         return Task.FromResult(Json(HttpStatusCode.Unauthorized, new { code = "expired_auth_token" }));
                     }
 
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("part-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedPartToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new { }));
                 }
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_finish_large_file")
                 {
                     FinishedLargeFile = true;
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new FinishUploadFileResponse
                     {
                         Action = "upload"
@@ -463,19 +490,34 @@ namespace Server.Arkaine.Tests
                 if (request.RequestUri?.AbsoluteUri == "https://upload.invalid/")
                 {
                     UploadWasCalled = true;
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("upload-token"));
+                    if (RejectFirstUpload && !_uploadRejected)
+                    {
+                        _uploadRejected = true;
+                        return Task.FromResult(Json(HttpStatusCode.Unauthorized, new { code = "expired_auth_token" }));
+                    }
+
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedUploadToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new { fileId = "uploaded" }));
                 }
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_delete_file_version")
                 {
                     DeleteWasCalled = true;
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo("write-token"));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new DeleteModel { FileName = "legacy-video.avi", Id = "file-legacy" }));
                 }
 
                 throw new AssertionException($"Unexpected request to {request.RequestUri}");
             }
+
+            private string ExpectedWriteToken =>
+                RotateWriteTokens ? $"write-token-{_writeTokenVersion}" : "write-token";
+
+            private string ExpectedUploadToken =>
+                RotateWriteTokens ? $"upload-token-{_writeTokenVersion}" : "upload-token";
+
+            private string ExpectedPartToken =>
+                RotateWriteTokens ? $"part-token-{_writeTokenVersion}" : "part-token";
 
             private HttpResponseMessage Json(HttpStatusCode statusCode, object payload)
             {
