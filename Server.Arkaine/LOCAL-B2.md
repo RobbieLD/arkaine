@@ -57,6 +57,29 @@ Provide the normal B2 settings (`B2AuthUrl`, `B2_KEY_READ`, `B2_KEY_WRITE`,
 The test fixtures register `MockB2` explicitly when an in-process fake is
 needed. Do not expose real credentials in source-controlled configuration.
 
+To run the Aspire development application against a real, isolated B2 test
+bucket, set `B2_BACKEND` to `real` in the AppHost user secrets and provide
+credentials there:
+
+```powershell
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set B2_BACKEND real
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set B2AuthUrl https://api.backblazeb2.com/b2api/v2/b2_authorize_account
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set B2_KEY_READ "<read-application-key>"
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set B2_KEY_WRITE "<write-application-key>"
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set BUCKET_ID "<test-bucket-id>"
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set BUCKET_NAME "<test-bucket-name>"
+```
+
+Use separate application keys restricted to the test bucket. The read key
+needs `listFiles` for scanning and unfinished multipart discovery, plus
+`shareFiles` for video conversion (`readFiles` is also needed for image
+downloads). The write key needs `writeFiles` for the upload operations. The
+local emulator remains the default; switch back with:
+
+```powershell
+dotnet user-secrets --project Server.Arkaine\Server.Arkaine.AppHost set B2_BACKEND local
+```
+
 Video thumbnail generation asks B2 for a short-lived, file-scoped download
 authorization so ffmpeg can read the original through HTTP range requests
 without a full temporary download. A real B2 read key must include the

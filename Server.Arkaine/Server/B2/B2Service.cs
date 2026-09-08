@@ -19,6 +19,7 @@ namespace Server.Arkaine.B2
     public class B2Service : IB2Service
     {
         private const string WriteCacheKey = "__b2_write__";
+        private const string MultipartListingCacheKey = "__b2_multipart_list__";
         private const int DownloadAuthorizationDurationSeconds = 900;
 
         private readonly HttpClient _httpClient;
@@ -56,16 +57,20 @@ namespace Server.Arkaine.B2
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var response = await _httpClient.GetAsync(_options.B2AuthUrl, cancellationToken);
+            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogInformation($"Auth API call responded with: {response.StatusCode}");
+                var error = DescribeB2Error(responseString);
+                _logger.LogWarning(
+                    "B2 account authorization failed with {StatusCode}: {Error}",
+                    response.StatusCode,
+                    error);
                 throw new HttpRequestException(
-                    $"Auth API call failed with status code {response.StatusCode}.",
+                    $"B2 account authorization failed with status code {FormatStatusCode(response.StatusCode)}: {error}",
                     null,
                     response.StatusCode);
             }
 
-            var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
             var responseModel = JsonSerializer.Deserialize<AuthResponse>(responseString) ?? throw new("Response not in the correct form");
 
             _logger.LogInformation("Get token succeeded");
@@ -239,7 +244,7 @@ namespace Server.Arkaine.B2
         {
             long? initialPosition = content.CanSeek ? content.Position : null;
             var urlResponse = await GetUploadUri(cancellationToken);
-            var statusCode = await SendSingleFileUploadAsync(
+            var uploadResult = await SendSingleFileUploadAsync(
                 urlResponse,
                 fileName,
                 contentType,
@@ -247,12 +252,12 @@ namespace Server.Arkaine.B2
                 content,
                 cancellationToken);
 
-            if (statusCode == HttpStatusCode.Unauthorized && initialPosition is not null)
+            if (uploadResult.StatusCode == HttpStatusCode.Unauthorized && initialPosition is not null)
             {
                 InvalidateWriteCache();
                 content.Position = initialPosition.Value;
                 urlResponse = await GetUploadUri(cancellationToken);
-                statusCode = await SendSingleFileUploadAsync(
+                uploadResult = await SendSingleFileUploadAsync(
                     urlResponse,
                     fileName,
                     contentType,
@@ -261,19 +266,22 @@ namespace Server.Arkaine.B2
                     cancellationToken);
             }
 
-            if ((int)statusCode is < 200 or > 299)
+            if ((int)uploadResult.StatusCode is < 200 or > 299)
             {
-                _logger.LogInformation($"Upload API call responded with: {statusCode}");
+                _logger.LogWarning(
+                    "B2 single-file upload failed with {StatusCode}: {Error}",
+                    uploadResult.StatusCode,
+                    uploadResult.Error);
                 throw new HttpRequestException(
-                    $"Upload API call failed with status code {statusCode}.",
+                    $"B2 single-file upload failed with status code {FormatStatusCode(uploadResult.StatusCode)}: {uploadResult.Error}",
                     null,
-                    statusCode);
+                    uploadResult.StatusCode);
             }
 
             await _hubContext.Clients.All.SendAsync("update", $"Upload single part file {fileName} succeeded", cancellationToken);
         }
 
-        private async Task<HttpStatusCode> SendSingleFileUploadAsync(
+        private async Task<(HttpStatusCode StatusCode, string Error)> SendSingleFileUploadAsync(
             UploadUrlResponse urlResponse,
             string fileName,
             string contentType,
@@ -292,7 +300,14 @@ namespace Server.Arkaine.B2
             streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
 
             using var response = await _httpClient.PostAsync(urlResponse.UploadUrl, streamContent, cancellationToken);
-            return response.StatusCode;
+            var error = string.Empty;
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+                error = DescribeB2Error(responseString);
+            }
+
+            return (response.StatusCode, error);
         }
 
         public async Task Delete(DeleteModel request, CancellationToken cancellationToken)
@@ -440,10 +455,14 @@ namespace Server.Arkaine.B2
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogInformation($"Upload part resposne call responded with: {response.StatusCode}");
+                var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning(
+                    "B2 multipart part upload failed with {StatusCode}: {Error}",
+                    response.StatusCode,
+                    DescribeB2Error(responseString));
                 await _hubContext.Clients.All.SendAsync("update", "Upload part failed", cancellationToken);
                 throw new HttpRequestException(
-                    $"Upload part failed with status code {response.StatusCode}.",
+                    $"B2 multipart part upload failed with status code {FormatStatusCode(response.StatusCode)}: {DescribeB2Error(responseString)}",
                     null,
                     response.StatusCode);
             }
@@ -519,9 +538,13 @@ namespace Server.Arkaine.B2
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogInformation($"API call to {url} responded with: {response.StatusCode}");
+                _logger.LogWarning(
+                    "B2 API request {Endpoint} failed with {StatusCode}: {Error}",
+                    url,
+                    response.StatusCode,
+                    DescribeB2Error(responseString));
                 throw new HttpRequestException(
-                    $"API call failed with status code {response.StatusCode}.",
+                    $"B2 API request {url} failed with status code {FormatStatusCode(response.StatusCode)}: {DescribeB2Error(responseString)}",
                     null,
                     response.StatusCode);
             }
@@ -548,7 +571,7 @@ namespace Server.Arkaine.B2
             {
                 BucketId = _options.BUCKET_ID,
                 NamePrefix = fileName
-            }, WriteCacheKey, "/b2api/v2/b2_list_unfinished_large_files", cancellationToken, useWriteCredentials: true);
+            }, MultipartListingCacheKey, "/b2api/v2/b2_list_unfinished_large_files", cancellationToken);
 
             response.Files = response.Files
                 .Where(file => string.Equals(file.FileName, fileName, StringComparison.Ordinal))
@@ -619,6 +642,39 @@ namespace Server.Arkaine.B2
         private void InvalidateWriteCache()
         {
             _cache.Remove(WriteCacheKey);
+        }
+
+        private static string FormatStatusCode(HttpStatusCode statusCode) =>
+            $"{(int)statusCode} ({statusCode})";
+
+        private static string DescribeB2Error(string response)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                return "no error details returned";
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(response);
+                var code = document.RootElement.TryGetProperty("code", out var codeProperty)
+                    ? codeProperty.GetString()
+                    : null;
+                var message = document.RootElement.TryGetProperty("message", out var messageProperty)
+                    ? messageProperty.GetString()
+                    : null;
+
+                var details = string.Join(
+                    ": ",
+                    new[] { code, message }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                return string.IsNullOrWhiteSpace(details)
+                    ? "no error details returned"
+                    : details;
+            }
+            catch (JsonException)
+            {
+                return response;
+            }
         }
 
         private static FilesResponse ApplyExactFileFilter(FilesResponse response, string? exactFileName)

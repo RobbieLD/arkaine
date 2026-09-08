@@ -155,6 +155,26 @@ namespace Server.Arkaine.Tests
         }
 
         [Test]
+        public void UploadSingleFile_IncludesB2ErrorDetailsWhenUploadFails()
+        {
+            var root = CreateRoot();
+            var handler = new RecordingB2Handler(root)
+            {
+                RejectFirstUpload = true
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(handler, cache, root);
+            using var content = new NonSeekableStream([1, 2, 3]);
+
+            var exception = Assert.ThrowsAsync<HttpRequestException>(() =>
+                service.UploadSingleFile("converted.mp4", "video/mp4", 3, content, CancellationToken.None));
+
+            Assert.That(exception, Is.Not.Null);
+            Assert.That(exception!.Message, Does.Contain("B2 single-file upload failed"));
+            Assert.That(exception.Message, Does.Contain("expired_auth_token"));
+        }
+
+        [Test]
         public async Task Delete_UsesWriteCredentials()
         {
             var root = CreateRoot();
@@ -437,7 +457,7 @@ namespace Server.Arkaine.Tests
 
                 if (request.RequestUri?.AbsoluteUri == "https://api.invalid/b2api/v2/b2_list_unfinished_large_files")
                 {
-                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedWriteToken));
+                    Assert.That(GetAuthorizationValue(request), Is.EqualTo(ExpectedReadToken));
                     return Task.FromResult(Json(HttpStatusCode.OK, new FilesResponse
                     {
                         Files = UnfinishedFiles
@@ -512,6 +532,9 @@ namespace Server.Arkaine.Tests
 
             private string ExpectedWriteToken =>
                 RotateWriteTokens ? $"write-token-{_writeTokenVersion}" : "write-token";
+
+            private string ExpectedReadToken =>
+                RotateReadTokens ? $"read-token-{_readTokenVersion}" : "read-token";
 
             private string ExpectedUploadToken =>
                 RotateWriteTokens ? $"upload-token-{_writeTokenVersion}" : "upload-token";
