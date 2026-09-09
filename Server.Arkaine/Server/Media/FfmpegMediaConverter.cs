@@ -169,7 +169,8 @@ namespace Server.Arkaine.Media
                 result.Duration,
                 result.TimedOut,
                 result.Cancelled,
-                ExtractHttpStatusCode(result.StandardError));
+                ExtractHttpStatusCode(result.StandardError),
+                BuildCommand(process));
         }
 
         public async Task<MediaMetadataResult> ProbeAsync(
@@ -359,6 +360,28 @@ namespace Server.Arkaine.Media
             process.ArgumentList.Add("-show_streams");
             process.ArgumentList.Add(sourcePath);
             return process;
+        }
+
+        private static string BuildCommand(ProcessStartInfo process)
+        {
+            return string.Join(
+                " ",
+                new[] { process.FileName }
+                    .Concat(process.ArgumentList)
+                    .Select(QuoteCommandArgument));
+        }
+
+        private static string QuoteCommandArgument(string argument)
+        {
+            if (argument.Length > 0 &&
+                argument.All(character =>
+                    !char.IsWhiteSpace(character) &&
+                    character is not '"' and not '&' and not '|' and not '<' and not '>' and not '^'))
+            {
+                return argument;
+            }
+
+            return $"\"{argument.Replace("\"", "\\\"")}\"";
         }
 
         private ProcessStartInfo CreateBareStartInfo()

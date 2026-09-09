@@ -19,7 +19,7 @@ namespace Server.Arkaine.B2
                 _ => throw new JsonException("Content length must be a number or numeric string.")
             };
 
-            return ToLargestUnit(length);
+            return Format(length);
         }
 
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
@@ -27,7 +27,7 @@ namespace Server.Arkaine.B2
             writer.WriteStringValue(value);
         }
 
-        private string ToLargestUnit(long length) => length switch
+        public static string Format(long length) => length switch
         {
             < 1024 => $"{length} B",
             (>= 1024) and (< 1048576) => $"{length / 1024} KB",

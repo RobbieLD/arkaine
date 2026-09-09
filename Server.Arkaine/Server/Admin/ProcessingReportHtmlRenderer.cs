@@ -7,7 +7,7 @@ namespace Server.Arkaine.Admin
     {
         private const string Styles = """
             :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-            body { max-width: 1100px; margin: 0 auto; padding: 2rem; line-height: 1.45; }
+            body { width: 100%; max-width: none; margin: 0; padding: 2rem; box-sizing: border-box; line-height: 1.45; }
             h1, h2 { line-height: 1.2; }
             .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; margin: 1.5rem 0 2rem; }
             .summary div { padding: .75rem; border: 1px solid #8886; border-radius: .35rem; }
@@ -18,6 +18,7 @@ namespace Server.Arkaine.Admin
             th, td { padding: .65rem; border: 1px solid #8886; text-align: left; vertical-align: top; }
             th { background: #8882; }
             td { overflow-wrap: anywhere; }
+            code.command { display: block; white-space: pre-wrap; word-break: break-word; }
             .status-error { color: #d33; font-weight: 600; }
             .status-converted { color: #287a42; font-weight: 600; }
             .status-skipped { color: #996d00; font-weight: 600; }
@@ -74,7 +75,9 @@ namespace Server.Arkaine.Admin
                                     <th>File ID</th>
                                     <th>Type</th>
                                     <th>Content type</th>
-                                    <th>Size</th>
+                                    <th>Original size</th>
+                                    <th>Converted size</th>
+                                    <th>FFmpeg command</th>
                                     <th>Details</th>
                                 </tr>
                             </thead>
@@ -184,6 +187,8 @@ namespace Server.Arkaine.Admin
                     <td>{Encode(file.Type)}</td>
                     <td>{Encode(file.ContentType)}</td>
                     <td>{Encode(file.Size)}</td>
+                    <td>{Encode(file.ConvertedSize)}</td>
+                    <td><code class="command">{Encode(file.Command)}</code></td>
                     <td>{Encode(file.Details)}</td>
                 </tr>
                 """;

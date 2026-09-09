@@ -47,7 +47,9 @@ namespace Server.Arkaine.Tests
                         "upload",
                         "image/webp",
                         "100",
-                        string.Empty),
+                        string.Empty,
+                        "80",
+                        "ffmpeg -i source.webp target.jpg"),
                     new ConversionFileResult(
                         "folder/failed.webp",
                         "folder/failed.jpg",
@@ -56,7 +58,9 @@ namespace Server.Arkaine.Tests
                         "upload",
                         "image/webp",
                         "200",
-                        "ffmpeg failed")
+                        "ffmpeg failed",
+                        "150",
+                        "ffmpeg -i folder/failed.webp folder/failed.jpg")
                 ]
             });
 
@@ -64,6 +68,12 @@ namespace Server.Arkaine.Tests
             Assert.That(html, Does.Contain("converted"));
             Assert.That(html, Does.Contain("folder/failed.jpg"));
             Assert.That(html, Does.Contain("ffmpeg failed"));
+            Assert.That(html, Does.Contain("Original size"));
+            Assert.That(html, Does.Contain("Converted size"));
+            Assert.That(html, Does.Contain("80"));
+            Assert.That(html, Does.Contain("150"));
+            Assert.That(html, Does.Contain("ffmpeg -i source.webp target.jpg"));
+            Assert.That(html, Does.Contain("max-width: none"));
         }
 
         [Test]

@@ -305,7 +305,7 @@ namespace Server.Arkaine.Tests
             await manager.WaitForCompletionAsync();
 
             var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
-            Assert.That(converter.ProbeRequests, Has.Count.EqualTo(1));
+            Assert.That(converter.ProbeRequests, Has.Count.EqualTo(2));
             Assert.That(converter.Requests, Has.Count.EqualTo(1));
             Assert.That(converter.Requests[0].SourcePath, Does.StartWith("https://mock-b2.invalid/"));
             Assert.That(files, Does.Contain("gallery-alpha/ready.mp4"));
@@ -318,6 +318,79 @@ namespace Server.Arkaine.Tests
                 .ListAsync(VideoConversionRequestStatus.Completed, CancellationToken.None);
             Assert.That(requests, Has.Count.EqualTo(1));
             Assert.That(requests[0].Reason, Is.EqualTo(VideoConversionRequestReason.Automatic));
+        }
+
+        [Test]
+        public async Task ConvertAsync_RecordsDurationMismatchAsConversionError()
+        {
+            var root = CreateRoot();
+            var options = TestOptionsFactory.Create(root);
+            const string source = "gallery-alpha/ready.mp4";
+            var mockStore = CreateMockStore(
+                [new MockB2.MockB2Object(source, "video/mp4", Encoding.UTF8.GetBytes("video"), "source-01")],
+                options.THUMBNAIL_DIR);
+            var sourceMetadata = new MediaMetadataResult(
+                true,
+                new MediaMetadata(
+                    TimeSpan.FromMinutes(2),
+                    12_000_000,
+                    10_000_000,
+                    "h264",
+                    3840,
+                    2160,
+                    30,
+                    192_000,
+                    "aac"),
+                string.Empty,
+                TimeSpan.Zero,
+                false,
+                false);
+            var convertedMetadata = sourceMetadata with
+            {
+                Metadata = sourceMetadata.Metadata! with
+                {
+                    Duration = TimeSpan.FromSeconds(90)
+                }
+            };
+            var converter = new StubMediaConverter
+            {
+                OnProbeAsync = (path, _) => Task.FromResult(
+                    path.StartsWith("https://", StringComparison.Ordinal)
+                        ? sourceMetadata
+                        : convertedMetadata),
+                OnConvertAsync = async (request, cancellationToken) =>
+                {
+                    await File.WriteAllTextAsync(request.TargetPath, "converted", cancellationToken);
+                    return new MediaConversionResult(
+                        true,
+                        0,
+                        string.Empty,
+                        TimeSpan.Zero,
+                        false,
+                        false,
+                        Command: "ffmpeg -i source.mp4 target.mp4");
+                }
+            };
+            var reports = new RecordingProcessingReportService();
+
+            using var services = BuildServices(options, converter, mockStore, reportService: reports);
+            var manager = services.GetRequiredService<ConversionManager>();
+
+            Assert.That(manager.TryStart("admin", ConversionPath.RootSelection), Is.True);
+            await manager.WaitForCompletionAsync();
+
+            var report = manager.GetStatus().Report;
+            Assert.That(report.Converted, Is.EqualTo(0));
+            Assert.That(report.Failed, Is.EqualTo(1));
+            Assert.That(report.Failures, Has.Count.EqualTo(1));
+            Assert.That(report.Failures[0].Error, Does.Contain("does not match"));
+            Assert.That(reports.Saved, Has.Count.EqualTo(1));
+            Assert.That(reports.Saved[0].Html, Does.Contain("Converted video duration"));
+            Assert.That(reports.Saved[0].Html, Does.Contain("Original size"));
+            Assert.That(reports.Saved[0].Html, Does.Contain("Converted size"));
+            Assert.That(reports.Saved[0].Html, Does.Contain("9 B"));
+            Assert.That(reports.Saved[0].Html, Does.Contain("ffmpeg -i source.mp4 target.mp4"));
+            Assert.That(mockStore.SnapshotFiles().Select(file => file.FileName), Does.Not.Contain("gallery-alpha/ready_compressed.mp4"));
         }
 
         [Test]

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Server.Arkaine.B2;
 using Server.Arkaine.Media;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Server.Arkaine.Admin
@@ -10,6 +11,7 @@ namespace Server.Arkaine.Admin
     {
         private const int ProgressNotificationScanInterval = 25;
         private static readonly TimeSpan ProgressNotificationMinimumInterval = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan VideoDurationTolerance = TimeSpan.FromMilliseconds(500);
 
         private readonly object _syncRoot = new();
         private readonly ArkaineOptions _options;
@@ -367,6 +369,8 @@ namespace Server.Arkaine.Admin
                     }
                 }
 
+                var conversionAttempt = new ConversionAttemptDetails();
+
                 try
                 {
                     if (skipQueuedRequest)
@@ -398,6 +402,8 @@ namespace Server.Arkaine.Admin
                         userName,
                         b2,
                         sourceSize,
+                        progressNotification.CurrentFileDuration,
+                        conversionAttempt,
                         progressNotification,
                         cancellationToken);
                     await MarkCompletedAsync(pendingRequest?.Id, cancellationToken);
@@ -407,7 +413,9 @@ namespace Server.Arkaine.Admin
                             file,
                             targetFile,
                             "The converted video was not smaller than the source; no output was uploaded.",
-                            progressNotification);
+                            progressNotification,
+                            conversionAttempt.ConvertedSize,
+                            conversionAttempt.Command);
                         continue;
                     }
 
@@ -422,7 +430,9 @@ namespace Server.Arkaine.Admin
                             file.Type,
                             file.ContentType,
                             file.Size,
-                            string.Empty));
+                            string.Empty,
+                            conversionAttempt.ConvertedSize,
+                            conversionAttempt.Command));
                     }
 
                     await SetCurrentFilePhaseAsync(
@@ -443,7 +453,7 @@ namespace Server.Arkaine.Admin
                 catch (Exception exception)
                 {
                     await MarkFailedAsync(pendingRequest?.Id, RedactDownloadAuthorization(exception.Message), CancellationToken.None);
-                    RecordFailure(file, targetFile, exception);
+                    RecordFailure(file, targetFile, exception, conversionAttempt);
                     await SetCurrentFilePhaseAsync(
                         progressNotification,
                         "failed",
@@ -459,6 +469,8 @@ namespace Server.Arkaine.Admin
             string userName,
             IB2Service b2,
             long? sourceSize,
+            TimeSpan? sourceDuration,
+            ConversionAttemptDetails conversionAttempt,
             ProgressNotificationState progressNotification,
             CancellationToken cancellationToken)
         {
@@ -476,10 +488,28 @@ namespace Server.Arkaine.Admin
             try
             {
                 var sourcePath = tempSource;
+                var originalDuration = sourceDuration;
                 if (kind == MediaConversionKind.Video)
                 {
-                    await SetCurrentFilePhaseAsync(progressNotification, "encoding", force: true);
                     sourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
+                    if (originalDuration is null)
+                    {
+                        await SetCurrentFilePhaseAsync(progressNotification, "probing", force: true);
+                        var sourceMetadata = await _converter.ProbeAsync(sourcePath, cancellationToken);
+                        if (sourceMetadata.HttpStatusCode == 401)
+                        {
+                            sourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
+                            sourceMetadata = await _converter.ProbeAsync(sourcePath, cancellationToken);
+                        }
+
+                        if (sourceMetadata.Success && sourceMetadata.Metadata?.Duration is { } duration)
+                        {
+                            originalDuration = duration;
+                            progressNotification.CurrentFileDuration = duration;
+                        }
+                    }
+
+                    await SetCurrentFilePhaseAsync(progressNotification, "encoding", force: true);
                 }
                 else
                 {
@@ -501,6 +531,7 @@ namespace Server.Arkaine.Admin
                         progressNotification.CurrentFileDuration,
                         progress => UpdateMediaProgressAsync(progressNotification, progress)),
                     cancellationToken);
+                conversionAttempt.Command = RedactDownloadAuthorization(result.Command);
 
                 if (kind == MediaConversionKind.Video && result.HttpStatusCode == 401)
                 {
@@ -519,6 +550,13 @@ namespace Server.Arkaine.Admin
                             progressNotification.CurrentFileDuration,
                             progress => UpdateMediaProgressAsync(progressNotification, progress)),
                         cancellationToken);
+                    conversionAttempt.Command = RedactDownloadAuthorization(result.Command);
+                }
+
+                var fileInfo = new FileInfo(tempTarget);
+                if (fileInfo.Exists)
+                {
+                    conversionAttempt.ConvertedSize = ContentLengthCoverter.Format(fileInfo.Length);
                 }
 
                 if (!result.Success)
@@ -537,10 +575,28 @@ namespace Server.Arkaine.Admin
                         : new InvalidOperationException(error);
                 }
 
-                var fileInfo = new FileInfo(tempTarget);
                 if (!fileInfo.Exists || fileInfo.Length == 0)
                 {
                     throw new InvalidOperationException("ffmpeg did not produce an output file.");
+                }
+
+                if (kind == MediaConversionKind.Video && originalDuration is { } expectedDuration)
+                {
+                    var outputMetadata = await _converter.ProbeAsync(tempTarget, cancellationToken);
+                    if (!outputMetadata.Success || outputMetadata.Metadata?.Duration is not { } actualDuration)
+                    {
+                        var error = string.IsNullOrWhiteSpace(outputMetadata.Error)
+                            ? "Converted video duration could not be verified."
+                            : $"Converted video duration could not be verified: {RedactDownloadAuthorization(outputMetadata.Error)}";
+                        throw new InvalidOperationException(error);
+                    }
+
+                    if (Math.Abs((actualDuration - expectedDuration).TotalMilliseconds) >
+                        VideoDurationTolerance.TotalMilliseconds)
+                    {
+                        throw new InvalidOperationException(
+                            $"Converted video duration {FormatDuration(actualDuration)} does not match the original duration {FormatDuration(expectedDuration)}.");
+                    }
                 }
 
                 if (kind == MediaConversionKind.Video &&
@@ -721,13 +777,20 @@ namespace Server.Arkaine.Admin
             B2File file,
             string targetFile,
             string details,
-            ProgressNotificationState state)
+            ProgressNotificationState state,
+            string convertedSize = "",
+            string command = "")
         {
-            RecordSkipped(file, targetFile, details);
+            RecordSkipped(file, targetFile, details, convertedSize, command);
             await SetCurrentFilePhaseAsync(state, "skipped", clearPercent: true);
         }
 
-        private void RecordSkipped(B2File file, string targetFile, string details)
+        private void RecordSkipped(
+            B2File file,
+            string targetFile,
+            string details,
+            string convertedSize = "",
+            string command = "")
         {
             lock (_syncRoot)
             {
@@ -740,8 +803,15 @@ namespace Server.Arkaine.Admin
                     file.Type,
                     file.ContentType,
                     file.Size,
-                    details));
+                    details,
+                    convertedSize,
+                    command));
             }
+        }
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            return duration.ToString("c", CultureInfo.InvariantCulture);
         }
 
         private static void TryDeleteDirectory(string directory)
@@ -802,7 +872,11 @@ namespace Server.Arkaine.Admin
             }
         }
 
-        private void RecordFailure(B2File file, string targetFile, Exception exception)
+        private void RecordFailure(
+            B2File file,
+            string targetFile,
+            Exception exception,
+            ConversionAttemptDetails conversionAttempt)
         {
             _logger.LogError(exception, "Conversion failed for {SourceFile}", file.FileName);
             lock (_syncRoot)
@@ -818,7 +892,9 @@ namespace Server.Arkaine.Admin
                     file.Type,
                     file.ContentType,
                     file.Size,
-                    RedactDownloadAuthorization(exception.Message)));
+                    RedactDownloadAuthorization(exception.Message),
+                    conversionAttempt.ConvertedSize,
+                    conversionAttempt.Command));
             }
         }
 
@@ -1003,6 +1079,12 @@ namespace Server.Arkaine.Admin
             long? SourceSize,
             TimeSpan? Duration,
             string Details);
+
+        private sealed class ConversionAttemptDetails
+        {
+            public string ConvertedSize { get; set; } = string.Empty;
+            public string Command { get; set; } = string.Empty;
+        }
 
         private sealed class ProgressNotificationState
         {

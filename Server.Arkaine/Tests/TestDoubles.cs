@@ -128,6 +128,8 @@ namespace Server.Arkaine.Tests
         public MediaMetadataResult ProbeResult { get; set; } =
             new(false, null, "No media metadata was configured for this test converter.", TimeSpan.Zero, false, false);
 
+        public Func<string, CancellationToken, Task<MediaMetadataResult>>? OnProbeAsync { get; set; }
+
         public Task<MediaConverterAvailability> GetAvailabilityAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(Availability);
@@ -136,7 +138,9 @@ namespace Server.Arkaine.Tests
         public Task<MediaMetadataResult> ProbeAsync(string sourcePath, CancellationToken cancellationToken)
         {
             ProbeRequests.Add(sourcePath);
-            return Task.FromResult(ProbeResult);
+            return OnProbeAsync is null
+                ? Task.FromResult(ProbeResult)
+                : OnProbeAsync(sourcePath, cancellationToken);
         }
 
         public Task<MediaConversionResult> ConvertAsync(MediaConversionRequest request, CancellationToken cancellationToken)

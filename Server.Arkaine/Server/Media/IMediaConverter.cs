@@ -31,7 +31,8 @@ namespace Server.Arkaine.Media
         TimeSpan Duration,
         bool TimedOut,
         bool Cancelled,
-        int? HttpStatusCode = null);
+        int? HttpStatusCode = null,
+        string Command = "");
 
     public sealed record MediaMetadata(
         TimeSpan? Duration,

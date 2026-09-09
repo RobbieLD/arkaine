@@ -54,6 +54,9 @@ an MP4 with H.264 video, `yuv420p` pixels, AAC audio when present, and fast-star
 metadata. The video encoder applies the configured maximum bitrate as a VBV cap.
 When ffprobe reports the source size, a generated video is uploaded only when it
 is smaller than the original; otherwise it is discarded and reported as skipped.
+When source and output durations are available, the converted video is also
+checked against the original before upload. A duration mismatch is recorded as
+a conversion error and the output is not uploaded.
 
 The server probes ffmpeg and requires the `libx264` and `aac` encoders before a
 conversion job can start. Automatic high-bitrate detection also requires
@@ -92,7 +95,8 @@ limit, the request is completed without creating another copy.
 Each completed thumbnail or conversion run is saved as an HTML report in the
 database. Reports can be listed, downloaded, or cleared from the Admin page.
 The report contains a run summary; conversion reports also contain one row for
-each processed file, while thumbnail reports contain rows for failures.
+each converted or failed file, including the original and converted sizes and
+the ffmpeg command used. Thumbnail reports contain rows for failures.
 
 The canonical Admin endpoints are:
 

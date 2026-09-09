@@ -72,5 +72,7 @@ namespace Server.Arkaine.Admin
         string Type,
         string ContentType,
         string Size,
-        string Details);
+        string Details,
+        string ConvertedSize = "",
+        string Command = "");
 }
