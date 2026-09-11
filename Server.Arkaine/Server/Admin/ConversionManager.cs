@@ -491,16 +491,24 @@ namespace Server.Arkaine.Admin
                 var originalDuration = sourceDuration;
                 if (kind == MediaConversionKind.Video)
                 {
-                    sourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
+                    await SetCurrentFilePhaseAsync(progressNotification, "downloading", force: true);
+                    await using (var remoteStream = await b2.Download(userName, file.FileName, cancellationToken))
+                    await using (var output = File.Create(tempSource))
+                    {
+                        await remoteStream.CopyToAsync(output, cancellationToken);
+                    }
+
+                    sourcePath = tempSource;
+                    var sourceInfo = new FileInfo(tempSource);
+                    if (sourceSize is null or <= 0)
+                    {
+                        sourceSize = sourceInfo.Length;
+                    }
+
                     if (originalDuration is null)
                     {
                         await SetCurrentFilePhaseAsync(progressNotification, "probing", force: true);
                         var sourceMetadata = await _converter.ProbeAsync(sourcePath, cancellationToken);
-                        if (sourceMetadata.HttpStatusCode == 401)
-                        {
-                            sourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
-                            sourceMetadata = await _converter.ProbeAsync(sourcePath, cancellationToken);
-                        }
 
                         if (sourceMetadata.Success && sourceMetadata.Metadata?.Duration is { } duration)
                         {
@@ -531,27 +539,12 @@ namespace Server.Arkaine.Admin
                         progressNotification.CurrentFileDuration,
                         progress => UpdateMediaProgressAsync(progressNotification, progress)),
                     cancellationToken);
-                conversionAttempt.Command = RedactDownloadAuthorization(result.Command);
-
-                if (kind == MediaConversionKind.Video && result.HttpStatusCode == 401)
-                {
-                    var refreshedSourcePath = (await b2.GetDownloadUrl(userName, file.FileName, cancellationToken)).AbsoluteUri;
-                    await SetCurrentFilePhaseAsync(
-                        progressNotification,
-                        "encoding",
-                        force: true,
-                        clearPercent: true);
-                    result = await _converter.ConvertAsync(
-                        new MediaConversionRequest(
-                            refreshedSourcePath,
-                            tempTarget,
-                            kind,
-                            TimeSpan.FromSeconds(_options.CONVERT_VIDEO_TIMEOUT_SECONDS),
-                            progressNotification.CurrentFileDuration,
-                            progress => UpdateMediaProgressAsync(progressNotification, progress)),
-                        cancellationToken);
-                    conversionAttempt.Command = RedactDownloadAuthorization(result.Command);
-                }
+                conversionAttempt.Command = PrepareReportCommand(
+                    RedactDownloadAuthorization(result.Command),
+                    sourcePath,
+                    tempTarget,
+                    file.FileName,
+                    targetFile);
 
                 var fileInfo = new FileInfo(tempTarget);
                 if (fileInfo.Exists)
@@ -812,6 +805,23 @@ namespace Server.Arkaine.Admin
         private static string FormatDuration(TimeSpan duration)
         {
             return duration.ToString("c", CultureInfo.InvariantCulture);
+        }
+
+        private static string PrepareReportCommand(
+            string command,
+            string actualSourcePath,
+            string actualTargetPath,
+            string sourceFile,
+            string targetFile)
+        {
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                return string.Empty;
+            }
+
+            return command
+                .Replace(actualSourcePath, sourceFile, StringComparison.Ordinal)
+                .Replace(actualTargetPath, targetFile, StringComparison.Ordinal);
         }
 
         private static void TryDeleteDirectory(string directory)

@@ -6,6 +6,8 @@ Conversion creates the browser-friendly target beside the source and leaves the
 source unchanged. Image targets use `.jpg`; every video target uses a
 `_compressed.mp4` suffix, for example `recording.mov` becomes
 `recording_compressed.mp4`. If the target already exists, the source is skipped.
+Video sources are downloaded into the conversion temporary directory before
+ffmpeg runs, so encoding does not depend on a short-lived remote download URL.
 
 Configured image and video extensions are always converted. Other video files
 are inspected through ffprobe over a short-lived authenticated B2 URL. If the

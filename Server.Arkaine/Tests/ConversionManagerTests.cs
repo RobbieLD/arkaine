@@ -295,7 +295,15 @@ namespace Server.Arkaine.Tests
                     string.Empty,
                     TimeSpan.Zero,
                     false,
-                    false)
+                    false),
+                OnConvertAsync = async (request, cancellationToken) =>
+                {
+                    Assert.That(request.SourcePath, Does.StartWith(options.CONVERSION_TEMP_DIR));
+                    Assert.That(File.Exists(request.SourcePath), Is.True);
+                    Assert.That(await File.ReadAllTextAsync(request.SourcePath, cancellationToken), Is.EqualTo("video"));
+                    await File.WriteAllTextAsync(request.TargetPath, "out", cancellationToken);
+                    return new MediaConversionResult(true, 0, string.Empty, TimeSpan.Zero, false, false);
+                }
             };
 
             using var services = BuildServices(options, converter, mockStore);
@@ -307,7 +315,8 @@ namespace Server.Arkaine.Tests
             var files = mockStore.SnapshotFiles().Select(file => file.FileName).ToArray();
             Assert.That(converter.ProbeRequests, Has.Count.EqualTo(2));
             Assert.That(converter.Requests, Has.Count.EqualTo(1));
-            Assert.That(converter.Requests[0].SourcePath, Does.StartWith("https://mock-b2.invalid/"));
+            Assert.That(converter.Requests[0].SourcePath, Does.StartWith(options.CONVERSION_TEMP_DIR));
+            Assert.That(converter.Requests[0].SourcePath, Does.Not.StartWith("https://mock-b2.invalid/"));
             Assert.That(files, Does.Contain("gallery-alpha/ready.mp4"));
             Assert.That(files, Does.Contain("gallery-alpha/ready_compressed.mp4"));
             Assert.That(manager.GetStatus().Report.Converted, Is.EqualTo(1));
@@ -460,7 +469,7 @@ namespace Server.Arkaine.Tests
             var otherFile = "gallery-alpha/other.mp4";
             var mockStore = CreateMockStore(
                 [
-                    new MockB2.MockB2Object(selectedFile, "video/mp4", Encoding.UTF8.GetBytes("selected"), "source-01"),
+                    new MockB2.MockB2Object(selectedFile, "video/mp4", Encoding.UTF8.GetBytes("selected-source"), "source-01"),
                     new MockB2.MockB2Object(otherFile, "video/mp4", Encoding.UTF8.GetBytes("other"), "source-02")
                 ],
                 options.THUMBNAIL_DIR);
