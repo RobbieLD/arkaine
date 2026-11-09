@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - '*'
+      - '!android-v*'
 
 jobs:
   push_to_registry:
